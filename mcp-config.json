@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "netapp-ontap-mcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["build/index.js"],
+      "env": {},
+      "description": "NetApp ONTAP MCP Server - Provides tools for NetApp ONTAP storage management"
+    }
+  }
+}
