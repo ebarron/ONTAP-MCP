@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import dotenv from 'dotenv';
-dotenv.config();
+// Note: Environment variables are now provided by the MCP client configuration
+// No need for dotenv as clusters are configured at client connection time
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
