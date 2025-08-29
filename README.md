@@ -154,20 +154,36 @@ npm run dev:http
 
 ## 🧪 Testing
 
-The project includes comprehensive testing tools for volume lifecycle operations:
+The project includes comprehensive testing tools for volume lifecycle operations. **All test scripts now automatically use the cluster configuration from the MCP server - no environment variables needed!**
 
 ### Volume Lifecycle Testing
 
 Test the complete create → wait → offline → delete workflow:
 
 ```bash
+# Build project
+npm run build
+
 # Test using Node.js (supports both STDIO and REST modes)
 node test-volume-lifecycle.js stdio    # Test STDIO transport
 node test-volume-lifecycle.js rest     # Test HTTP REST API
 
-# Test using Bash script (REST API only)
+# Test using Bash script (REST API only)  
 ./test-volume-lifecycle.sh
+
+# Check aggregates across all clusters
+node check-aggregates.js
 ```
+
+### How It Works
+
+The test scripts now automatically:
+1. Start the MCP server in HTTP mode  
+2. Get cluster configuration from the server (same clusters configured in VS Code)
+3. Use the HTTP REST API to call MCP tools
+4. Clean up by stopping the server
+
+**No manual configuration needed** - the scripts use the same cluster configuration that VS Code loads from `mcp.json`.
 
 ### Manual Testing Examples
 

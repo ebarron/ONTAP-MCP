@@ -5,12 +5,11 @@
 
 set -e  # Exit on any error
 
-# Configuration
-CLUSTER_NAME="greg-vsim-1"
-SVM_NAME="vs0"
+# Configuration - defaults with environment variable overrides
+SVM_NAME="${TEST_SVM_NAME:-vs0}"
 VOLUME_NAME="test_lifecycle_$(date +%s)"
-SIZE="100MB"
-AGGREGATE_NAME="aggr1_1"
+SIZE="100MB"  
+AGGREGATE_NAME="${TEST_AGGREGATE_NAME:-aggr1_1}"
 WAIT_TIME=10
 HTTP_PORT=3004
 
@@ -33,6 +32,25 @@ warning() {
     echo -e "${YELLOW}⚠️ $1${NC}"
 }
 
+# Get cluster configuration from MCP server
+get_cluster_config() {
+    local clusters_response=$(curl -s "http://localhost:$HTTP_PORT/clusters" || echo "")
+    
+    if [ -z "$clusters_response" ]; then
+        error "Failed to get clusters from MCP server. Is the server running?"
+        exit 1
+    fi
+    
+    local cluster_name=$(echo "$clusters_response" | jq -r '.[0].name' 2>/dev/null || echo "")
+    
+    if [ "$cluster_name" = "null" ] || [ -z "$cluster_name" ]; then
+        error "No clusters found in MCP server configuration"
+        exit 1
+    fi
+    
+    echo "$cluster_name"
+}
+
 error() {
     echo -e "${RED}❌ $1${NC}"
 }
@@ -41,7 +59,7 @@ error() {
 start_server() {
     log "🌐 Starting ONTAP MCP HTTP server on port $HTTP_PORT..."
     
-    ONTAP_CLUSTERS='[{"name":"'$CLUSTER_NAME'","cluster_ip":"10.193.184.184","username":"admin","password":"Netapp1!","description":"Test cluster"}]' \
+    # Use the clusters from environment variable
     node build/index.js --http=$HTTP_PORT &
     
     SERVER_PID=$!
@@ -100,7 +118,6 @@ trap cleanup EXIT
 # Main test execution
 main() {
     log "🚀 Starting Volume Lifecycle Test (REST mode)"
-    log "📋 Volume: $VOLUME_NAME, Size: $SIZE, SVM: $SVM_NAME"
     
     # Build project
     log "🔨 Building project..."
@@ -109,6 +126,13 @@ main() {
     # Start server
     start_server
     sleep 3  # Give server time to fully initialize
+    
+    # Get cluster configuration from server
+    log "🔍 Getting cluster configuration from MCP server..."
+    CLUSTER_NAME=$(get_cluster_config)
+    
+    log "📋 Using cluster: $CLUSTER_NAME"
+    log "📋 Volume: $VOLUME_NAME, Size: $SIZE, SVM: $SVM_NAME"
     
     # Step 1: Create volume
     log "🔧 Step 1: Creating volume '$VOLUME_NAME'..."

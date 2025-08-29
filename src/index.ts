@@ -33,23 +33,6 @@ if (process.env.ONTAP_CLUSTERS) {
   }
 }
 
-// Pre-register clusters (optional - remove if you prefer dynamic registration only)
-// clusterManager.addCluster({
-//   name: "production",
-//   cluster_ip: "10.193.184.184",
-//   username: "admin", 
-//   password: "Netapp1!",
-//   description: "Production ONTAP cluster"
-// });
-// 
-// clusterManager.addCluster({
-//   name: "development",
-//   cluster_ip: "10.193.184.185",
-//   username: "admin",
-//   password: "DevPassword123",
-//   description: "Development ONTAP cluster"
-// });
-
 // Input schemas for validation
 const GetClusterInfoSchema = z.object({
   cluster_ip: z.string(),
@@ -924,6 +907,32 @@ async function startHttpServer(port: number = 3000) {
             content: [{
               type: "text", 
               text: `Volumes on cluster '${args.cluster_name}': ${volumes.length}\n\n${volumes.map((vol: any) => `- ${vol.name} (${vol.uuid}) - Size: ${vol.size}, State: ${vol.state}, SVM: ${vol.svm?.name || 'N/A'}`).join('\n')}`
+            }]
+          };
+          break;
+        case 'cluster_list_aggregates':
+          if (!args.cluster_name) {
+            throw new Error('cluster_name is required');
+          }
+          const aggrClient = clusterManager.getClient(args.cluster_name);
+          const aggregates = await aggrClient.listAggregates();
+          result = {
+            content: [{
+              type: "text",
+              text: `Aggregates on cluster '${args.cluster_name}': ${aggregates.length}\n\n${aggregates.map((aggr: any) => `- ${aggr.name} (${aggr.uuid}) - State: ${aggr.state}, Available: ${aggr.space?.block_storage?.available || 'N/A'}, Used: ${aggr.space?.block_storage?.used || 'N/A'}`).join('\n')}`
+            }]
+          };
+          break;
+        case 'cluster_list_svms':
+          if (!args.cluster_name) {
+            throw new Error('cluster_name is required');
+          }
+          const svmClient = clusterManager.getClient(args.cluster_name);
+          const svms = await svmClient.listSvms();
+          result = {
+            content: [{
+              type: "text",
+              text: `SVMs on cluster '${args.cluster_name}': ${svms.length}\n\n${svms.map((svm: any) => `- ${svm.name} (${svm.uuid}) - State: ${svm.state}`).join('\n')}`
             }]
           };
           break;
