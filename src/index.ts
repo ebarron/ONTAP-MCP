@@ -120,6 +120,31 @@ const GetVolumeStatsClusterSchema = z.object({
   volume_uuid: z.string(),
 });
 
+// Volume management schemas
+const OfflineVolumeSchema = z.object({
+  cluster_ip: z.string(),
+  username: z.string(),
+  password: z.string(),
+  volume_uuid: z.string(),
+});
+
+const DeleteVolumeSchema = z.object({
+  cluster_ip: z.string(),
+  username: z.string(),
+  password: z.string(),
+  volume_uuid: z.string(),
+});
+
+const OfflineVolumeClusterSchema = z.object({
+  cluster_name: z.string(),
+  volume_uuid: z.string(),
+});
+
+const DeleteVolumeClusterSchema = z.object({
+  cluster_name: z.string(),
+  volume_uuid: z.string(),
+});
+
 const server = new Server(
   {
     name: "netapp-ontap-mcp",
@@ -222,6 +247,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["cluster_ip", "username", "password", "svm_name", "volume_name", "size"],
         },
       },
+      {
+        name: "offline_volume",
+        description: "Take a volume offline (required before deletion). WARNING: This will make the volume inaccessible.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+            username: { type: "string", description: "Username for authentication" },
+            password: { type: "string", description: "Password for authentication" },
+            volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
+          },
+          required: ["cluster_ip", "username", "password", "volume_uuid"],
+        },
+      },
+      {
+        name: "delete_volume",
+        description: "Delete a volume (must be offline first). WARNING: This action is irreversible and will permanently destroy all data.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+            username: { type: "string", description: "Username for authentication" },
+            password: { type: "string", description: "Password for authentication" },
+            volume_uuid: { type: "string", description: "UUID of the volume to delete" },
+          },
+          required: ["cluster_ip", "username", "password", "volume_uuid"],
+        },
+      },
       
       // Multi-cluster management tools
       {
@@ -296,6 +349,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
           },
           required: ["cluster_name", "svm_name", "volume_name", "size"],
+        },
+      },
+      {
+        name: "cluster_offline_volume",
+        description: "Take a volume offline on a registered cluster by cluster name (required before deletion). WARNING: This will make the volume inaccessible.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cluster_name: { type: "string", description: "Name of the registered cluster" },
+            volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
+          },
+          required: ["cluster_name", "volume_uuid"],
+        },
+      },
+      {
+        name: "cluster_delete_volume",
+        description: "Delete a volume on a registered cluster by cluster name (must be offline first). WARNING: This action is irreversible and will permanently destroy all data.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cluster_name: { type: "string", description: "Name of the registered cluster" },
+            volume_uuid: { type: "string", description: "UUID of the volume to delete" },
+          },
+          required: ["cluster_name", "volume_uuid"],
         },
       },
       {
@@ -422,6 +499,74 @@ SVM: ${svm_name}
 Size: ${size}`,
           }],
         };
+      }
+
+      case "offline_volume": {
+        const { cluster_ip, username, password, volume_uuid } = OfflineVolumeSchema.parse(args);
+        const client = new OntapApiClient(cluster_ip, username, password);
+        
+        // Get volume info first for safety check
+        try {
+          const volumeInfo = await client.getVolumeInfo(volume_uuid);
+          if (volumeInfo.state === 'offline') {
+            return {
+              content: [{
+                type: "text",
+                text: `Volume '${volumeInfo.name}' (${volume_uuid}) is already offline.`,
+              }],
+            };
+          }
+          
+          await client.offlineVolume(volume_uuid);
+          
+          return {
+            content: [{
+              type: "text",
+              text: `Volume '${volumeInfo.name}' (${volume_uuid}) has been taken offline successfully.
+⚠️  Volume is now inaccessible until brought back online.
+💡 You can now delete this volume if needed using the delete_volume tool.`,
+            }],
+          };
+        } catch (error) {
+          throw new Error(`Failed to offline volume: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      case "delete_volume": {
+        const { cluster_ip, username, password, volume_uuid } = DeleteVolumeSchema.parse(args);
+        const client = new OntapApiClient(cluster_ip, username, password);
+        
+        // Get volume info first for safety check
+        try {
+          const volumeInfo = await client.getVolumeInfo(volume_uuid);
+          
+          if (volumeInfo.state !== 'offline') {
+            return {
+              content: [{
+                type: "text",
+                text: `❌ Cannot delete volume '${volumeInfo.name}' (${volume_uuid}).
+The volume must be offline before deletion.
+Current state: ${volumeInfo.state}
+
+Use the offline_volume tool first:
+offline_volume --volume_uuid="${volume_uuid}"`,
+              }],
+              isError: true,
+            };
+          }
+          
+          await client.deleteVolume(volume_uuid);
+          
+          return {
+            content: [{
+              type: "text",
+              text: `✅ Volume '${volumeInfo.name}' (${volume_uuid}) has been permanently deleted.
+⚠️  This action cannot be undone. All data has been destroyed.`,
+            }],
+          };
+        } catch (error) {
+          throw new Error(`Failed to delete volume: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
 
       // Multi-cluster operations
@@ -561,6 +706,72 @@ Size: ${size}`,
         };
       }
 
+      case "cluster_offline_volume": {
+        const { cluster_name, volume_uuid } = OfflineVolumeClusterSchema.parse(args);
+        const client = clusterManager.getClient(cluster_name);
+        
+        try {
+          const volumeInfo = await client.getVolumeInfo(volume_uuid);
+          if (volumeInfo.state === 'offline') {
+            return {
+              content: [{
+                type: "text",
+                text: `Volume '${volumeInfo.name}' (${volume_uuid}) on cluster '${cluster_name}' is already offline.`,
+              }],
+            };
+          }
+          
+          await client.offlineVolume(volume_uuid);
+          
+          return {
+            content: [{
+              type: "text",
+              text: `Volume '${volumeInfo.name}' (${volume_uuid}) on cluster '${cluster_name}' has been taken offline successfully.
+⚠️  Volume is now inaccessible until brought back online.
+💡 You can now delete this volume if needed using the cluster_delete_volume tool.`,
+            }],
+          };
+        } catch (error) {
+          throw new Error(`Failed to offline volume on cluster '${cluster_name}': ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      case "cluster_delete_volume": {
+        const { cluster_name, volume_uuid } = DeleteVolumeClusterSchema.parse(args);
+        const client = clusterManager.getClient(cluster_name);
+        
+        try {
+          const volumeInfo = await client.getVolumeInfo(volume_uuid);
+          
+          if (volumeInfo.state !== 'offline') {
+            return {
+              content: [{
+                type: "text",
+                text: `❌ Cannot delete volume '${volumeInfo.name}' (${volume_uuid}) on cluster '${cluster_name}'.
+The volume must be offline before deletion.
+Current state: ${volumeInfo.state}
+
+Use the cluster_offline_volume tool first:
+cluster_offline_volume --cluster_name="${cluster_name}" --volume_uuid="${volume_uuid}"`,
+              }],
+              isError: true,
+            };
+          }
+          
+          await client.deleteVolume(volume_uuid);
+          
+          return {
+            content: [{
+              type: "text",
+              text: `✅ Volume '${volumeInfo.name}' (${volume_uuid}) on cluster '${cluster_name}' has been permanently deleted.
+⚠️  This action cannot be undone. All data has been destroyed.`,
+            }],
+          };
+        } catch (error) {
+          throw new Error(`Failed to delete volume on cluster '${cluster_name}': ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
       case "cluster_get_volume_stats": {
         const { cluster_name, volume_uuid } = GetVolumeStatsClusterSchema.parse(args);
         const client = clusterManager.getClient(cluster_name);
@@ -638,6 +849,70 @@ async function startHttpServer(port: number = 3000) {
               text: `Registered clusters (${clusters.length}):\n\n${clusters.map(c => `- ${c.name}: ${c.cluster_ip} (${c.description || 'No description'})`).join('\n')}`
             }]
           };
+          break;
+        case 'cluster_create_volume':
+          if (!args.cluster_name || !args.svm_name || !args.volume_name || !args.size) {
+            throw new Error('cluster_name, svm_name, volume_name, and size are required');
+          }
+          const createClient = clusterManager.getClient(args.cluster_name);
+          const createResult = await createClient.createVolume({
+            svm_name: args.svm_name,
+            volume_name: args.volume_name,
+            size: args.size,
+            aggregate_name: args.aggregate_name
+          });
+          result = {
+            content: [{
+              type: "text",
+              text: `Volume created successfully on cluster '${args.cluster_name}':\nName: ${args.volume_name}\nUUID: ${createResult.uuid}\nSVM: ${args.svm_name}\nSize: ${args.size}`
+            }]
+          };
+          break;
+        case 'cluster_offline_volume':
+          if (!args.cluster_name || !args.volume_uuid) {
+            throw new Error('cluster_name and volume_uuid are required');
+          }
+          const offlineClient = clusterManager.getClient(args.cluster_name);
+          const volumeInfo = await offlineClient.getVolumeInfo(args.volume_uuid);
+          if (volumeInfo.state === 'offline') {
+            result = {
+              content: [{
+                type: "text",
+                text: `Volume '${volumeInfo.name}' (${args.volume_uuid}) on cluster '${args.cluster_name}' is already offline.`
+              }]
+            };
+          } else {
+            await offlineClient.offlineVolume(args.volume_uuid);
+            result = {
+              content: [{
+                type: "text",
+                text: `Volume '${volumeInfo.name}' (${args.volume_uuid}) on cluster '${args.cluster_name}' has been taken offline successfully.`
+              }]
+            };
+          }
+          break;
+        case 'cluster_delete_volume':
+          if (!args.cluster_name || !args.volume_uuid) {
+            throw new Error('cluster_name and volume_uuid are required');
+          }
+          const deleteClient = clusterManager.getClient(args.cluster_name);
+          const deleteVolumeInfo = await deleteClient.getVolumeInfo(args.volume_uuid);
+          if (deleteVolumeInfo.state !== 'offline') {
+            result = {
+              content: [{
+                type: "text",
+                text: `❌ Cannot delete volume '${deleteVolumeInfo.name}' (${args.volume_uuid}). Volume must be offline before deletion. Current state: ${deleteVolumeInfo.state}`
+              }]
+            };
+          } else {
+            await deleteClient.deleteVolume(args.volume_uuid);
+            result = {
+              content: [{
+                type: "text",
+                text: `✅ Volume '${deleteVolumeInfo.name}' (${args.volume_uuid}) on cluster '${args.cluster_name}' has been permanently deleted.`
+              }]
+            };
+          }
           break;
         case 'cluster_list_volumes':
           if (!args.cluster_name) {

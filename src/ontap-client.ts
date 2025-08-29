@@ -295,13 +295,36 @@ export class OntapApiClient {
       (body as any).aggregates = [{ name: params.aggregate_name }];
     }
 
-    const response = await this.makeRequest<CreateVolumeResponse>(
+    const response = await this.makeRequest<any>(
       '/storage/volumes',
       'POST',
       body
     );
     
-    return response;
+    // Handle different response formats from ONTAP API
+    if (response.uuid) {
+      // Direct UUID response
+      return {
+        uuid: response.uuid,
+        job: response.job
+      };
+    } else {
+      // If no UUID is returned, we need to get it by listing volumes and finding the one we just created
+      // Wait a short moment for the volume to be created
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const volumes = await this.listVolumes(params.svm_name);
+      const newVolume = volumes.find(v => v.name === params.volume_name);
+      
+      if (newVolume) {
+        return {
+          uuid: newVolume.uuid,
+          job: response.job
+        };
+      } else {
+        throw new Error(`Volume '${params.volume_name}' was not found after creation`);
+      }
+    }
   }
 
   /**
@@ -329,6 +352,39 @@ export class OntapApiClient {
     const endpoint = '/storage/aggregates?fields=uuid,name,state,space';
     const response = await this.makeRequest<{ records: Array<{ uuid: string; name: string; state: string; space: any }> }>(endpoint);
     return response.records || [];
+  }
+
+  /**
+   * Take a volume offline
+   * @param volumeUuid UUID of the volume to offline
+   */
+  async offlineVolume(volumeUuid: string): Promise<void> {
+    const endpoint = `/storage/volumes/${volumeUuid}`;
+    const body = {
+      state: "offline"
+    };
+    
+    await this.makeRequest(endpoint, 'PATCH', body);
+  }
+
+  /**
+   * Delete a volume (must be offline first)
+   * @param volumeUuid UUID of the volume to delete
+   */
+  async deleteVolume(volumeUuid: string): Promise<void> {
+    const endpoint = `/storage/volumes/${volumeUuid}`;
+    
+    await this.makeRequest(endpoint, 'DELETE');
+  }
+
+  /**
+   * Get volume information by UUID
+   * @param volumeUuid UUID of the volume
+   */
+  async getVolumeInfo(volumeUuid: string): Promise<VolumeInfo> {
+    const endpoint = `/storage/volumes/${volumeUuid}?fields=name,state,size,svm.name,type`;
+    const response = await this.makeRequest<VolumeInfo>(endpoint);
+    return response;
   }
 
   /**
