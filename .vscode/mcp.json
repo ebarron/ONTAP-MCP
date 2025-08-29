@@ -1,9 +1,3 @@
 {
-  "servers": {
-    "netapp-ontap-mcp": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["build/index.js"]
-    }
-  }
+	"servers": {}
 }
