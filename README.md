@@ -154,7 +154,7 @@ npm run dev:http
 
 ## 🧪 Testing
 
-The project includes comprehensive testing tools for volume lifecycle operations. **All test scripts now automatically use the cluster configuration from the MCP server - no environment variables needed!**
+The project includes comprehensive testing tools for volume lifecycle operations. **All test scripts automatically use the cluster configuration from your VS Code MCP settings - no separate environment setup needed!**
 
 ### Volume Lifecycle Testing
 
@@ -177,13 +177,13 @@ node check-aggregates.js
 
 ### How It Works
 
-The test scripts now automatically:
+The test scripts automatically:
 1. Start the MCP server in HTTP mode  
-2. Get cluster configuration from the server (same clusters configured in VS Code)
+2. Get cluster configuration from the server (same clusters configured in your VS Code MCP settings)
 3. Use the HTTP REST API to call MCP tools
 4. Clean up by stopping the server
 
-**No manual configuration needed** - the scripts use the same cluster configuration that VS Code loads from `mcp.json`.
+**No manual configuration needed** - the scripts use the same cluster configuration that VS Code loads from your `mcp.json` file.
 
 ### Manual Testing Examples
 
@@ -222,7 +222,32 @@ The server implements a safe volume deletion workflow:
 
 You have several options for registering ONTAP clusters with the MCP server:
 
-### Method 1: Environment Variables (Recommended for Production)
+### Method 1: VS Code MCP Configuration (Recommended)
+
+Configure clusters directly in your VS Code MCP settings file (`~/.config/Code/User/mcp.json` or similar):
+
+```json
+{
+  "servers": {
+    "netapp-ontap-mcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/ONTAP-MCP/build/index.js"],
+      "env": {
+        "ONTAP_CLUSTERS": "[{\"name\":\"production\",\"cluster_ip\":\"10.193.184.184\",\"username\":\"admin\",\"password\":\"Netapp1!\",\"description\":\"Production cluster\"},{\"name\":\"development\",\"cluster_ip\":\"10.193.184.185\",\"username\":\"admin\",\"password\":\"DevPassword123\",\"description\":\"Dev cluster\"}]"
+      }
+    }
+  }
+}
+```
+
+This approach ensures:
+- ✅ **Secure**: Credentials stored in your local VS Code configuration
+- ✅ **Convenient**: Same clusters available to both VS Code and test scripts
+- ✅ **Persistent**: Configuration survives VS Code restarts
+- ✅ **Private**: Not committed to version control
+
+### Method 2: Environment Variables (Production/CI)
 
 Set the `ONTAP_CLUSTERS` environment variable with a JSON array:
 
@@ -245,7 +270,7 @@ export ONTAP_CLUSTERS='[
 ]'
 ```
 
-### Method 2: Dynamic Registration
+### Method 3: Dynamic Registration (Runtime)
 
 Use the MCP tools to register clusters at runtime:
 
@@ -258,58 +283,15 @@ This uses the `add_cluster` tool. You can then:
 - Get cluster info: "Get info for all clusters"
 - Use cluster-specific tools: "List volumes on cluster production"
 
-### Method 3: Code Pre-registration (Development)
+### Configuration Helper
 
-Uncomment and modify the pre-registration code in `src/index.ts`:
-
-```typescript
-clusterManager.addCluster({
-  name: "production",
-  cluster_ip: "10.193.184.184",
-  username: "admin",
-  password: "Netapp1!",
-  description: "Production ONTAP cluster"
-});
-```
-
-### Method 2: Environment Variables (Production)
-
-Set the `ONTAP_CLUSTERS` environment variable with a JSON array:
+Use the interactive setup script to generate properly formatted configuration:
 
 ```bash
-export ONTAP_CLUSTERS='[
-  {
-    "name": "production",
-    "cluster_ip": "10.193.184.184", 
-    "username": "admin",
-    "password": "Netapp1!",
-    "description": "Production cluster"
-  },
-  {
-    "name": "development",
-    "cluster_ip": "10.193.184.185",
-    "username": "admin", 
-    "password": "DevPassword123",
-    "description": "Dev cluster"
-  }
-]'
+./setup-test-env.sh
 ```
 
-Copy `.env.example` to `.env` and customize for your environment.
-
-### Method 3: Code Pre-registration
-
-Uncomment and modify the pre-registration code in `src/index.ts`:
-
-```typescript
-clusterManager.addCluster({
-  name: "production",
-  cluster_ip: "10.193.184.184",
-  username: "admin",
-  password: "Netapp1!",
-  description: "Production ONTAP cluster"
-});
-```
+This script will guide you through configuring clusters and generate the correct JSON format for your environment.
 
 ## Authentication
 
