@@ -5,6 +5,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -12,6 +13,8 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import express from "express";
+import cors from "cors";
 import { OntapApiClient, OntapClusterManager } from "./ontap-client.js";
 
 // Create global cluster manager instance
@@ -588,11 +591,101 @@ Throughput: ${JSON.stringify(stats.throughput || {})}`,
   }
 });
 
-// Start the server
-async function main() {
+// Start the server with transport detection
+async function startStdioServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("NetApp ONTAP Multi-Cluster MCP Server running on stdio");
+}
+
+async function startHttpServer(port: number = 3000) {
+  const app = express();
+  
+  // Middleware
+  app.use(cors());
+  app.use(express.json());
+  
+  // Health check endpoint
+  app.get('/health', (req, res) => {
+    res.json({ 
+      status: 'healthy', 
+      server: 'NetApp ONTAP MCP Server',
+      clusters: clusterManager.listClusters().map(c => c.name),
+      timestamp: new Date().toISOString()
+    });
+  });
+  
+  // MCP Server-Sent Events endpoint
+  app.get('/sse', (req, res) => {
+    const transport = new SSEServerTransport('/sse', res);
+    server.connect(transport);
+  });
+  
+  // RESTful API endpoints for direct tool access
+  app.post('/api/tools/:toolName', async (req, res) => {
+    try {
+      const { toolName } = req.params;
+      const args = req.body;
+      
+      // Direct tool execution (simplified)
+      let result;
+      switch (toolName) {
+        case 'list_registered_clusters':
+          const clusters = clusterManager.listClusters();
+          result = {
+            content: [{
+              type: "text",
+              text: `Registered clusters (${clusters.length}):\n\n${clusters.map(c => `- ${c.name}: ${c.cluster_ip} (${c.description || 'No description'})`).join('\n')}`
+            }]
+          };
+          break;
+        case 'cluster_list_volumes':
+          if (!args.cluster_name) {
+            throw new Error('cluster_name is required');
+          }
+          const client = clusterManager.getClient(args.cluster_name);
+          const volumes = await client.listVolumes(args.svm_name);
+          result = {
+            content: [{
+              type: "text", 
+              text: `Volumes on cluster '${args.cluster_name}': ${volumes.length}\n\n${volumes.map((vol: any) => `- ${vol.name} (${vol.uuid}) - Size: ${vol.size}, State: ${vol.state}, SVM: ${vol.svm?.name || 'N/A'}`).join('\n')}`
+            }]
+          };
+          break;
+        default:
+          throw new Error(`Tool '${toolName}' not implemented in REST API`);
+      }
+      
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Start HTTP server
+  app.listen(port, () => {
+    console.error(`NetApp ONTAP MCP Server running on HTTP port ${port}`);
+    console.error(`Health check: http://localhost:${port}/health`);
+    console.error(`MCP SSE endpoint: http://localhost:${port}/sse`);
+    console.error(`RESTful API: http://localhost:${port}/api/tools/{toolName}`);
+  });
+}
+
+async function main() {
+  // Detect transport method from command line arguments
+  const args = process.argv.slice(2);
+  const httpArg = args.find(arg => arg.startsWith('--http'));
+  const port = httpArg ? parseInt(httpArg.split('=')[1]) || 3000 : 3000;
+  
+  if (args.includes('--http') || httpArg) {
+    // HTTP mode
+    await startHttpServer(port);
+  } else {
+    // Default: STDIO mode
+    await startStdioServer();
+  }
 }
 
 main().catch((error) => {
