@@ -224,8 +224,9 @@ You have several options for registering ONTAP clusters with the MCP server:
 
 ### Method 1: VS Code MCP Configuration (Recommended)
 
-Configure clusters directly in your VS Code MCP settings file (`~/.config/Code/User/mcp.json` or similar):
+Configure clusters directly in your VS Code MCP settings file:
 
+**New Object Format (Recommended):**
 ```json
 {
   "servers": {
@@ -234,12 +235,48 @@ Configure clusters directly in your VS Code MCP settings file (`~/.config/Code/U
       "command": "node",
       "args": ["/path/to/ONTAP-MCP/build/index.js"],
       "env": {
-        "ONTAP_CLUSTERS": "[{\"name\":\"production\",\"cluster_ip\":\"10.193.184.184\",\"username\":\"admin\",\"password\":\"Netapp1!\",\"description\":\"Production cluster\"},{\"name\":\"development\",\"cluster_ip\":\"10.193.184.185\",\"username\":\"admin\",\"password\":\"DevPassword123\",\"description\":\"Dev cluster\"}]"
+        "ONTAP_CLUSTERS": {
+          "production": {
+            "cluster_ip": "10.193.184.184",
+            "username": "admin",
+            "password": "Netapp1!",
+            "description": "Production cluster"
+          },
+          "development": {
+            "cluster_ip": "10.193.184.185",
+            "username": "admin",
+            "password": "DevPassword123",
+            "description": "Development cluster"
+          }
+        }
       }
     }
   }
 }
 ```
+
+**Legacy Array Format (Still Supported):**
+```json
+{
+  "servers": {
+    "netapp-ontap-mcp": {
+      "type": "stdio",
+      "command": "node", 
+      "args": ["/path/to/ONTAP-MCP/build/index.js"],
+      "env": {
+        "ONTAP_CLUSTERS": "[{\"name\":\"production\",\"cluster_ip\":\"10.193.184.184\",\"username\":\"admin\",\"password\":\"Netapp1!\",\"description\":\"Production cluster\"}]"
+      }
+    }
+  }
+}
+```
+
+**Benefits of the New Object Format:**
+- ✅ **Much More Readable**: Each cluster clearly separated and easy to identify
+- ✅ **Easier to Edit**: Simple to add, remove, or modify cluster configurations
+- ✅ **Better Organization**: Cluster names serve as clear identifiers
+- ✅ **Self-Documenting**: Structure makes the configuration obvious
+- ✅ **Backward Compatible**: Server handles both old and new formats automatically
 
 This approach ensures:
 - ✅ **Secure**: Credentials stored in your local VS Code configuration
@@ -249,8 +286,25 @@ This approach ensures:
 
 ### Method 2: Environment Variables (Production/CI)
 
-Set the `ONTAP_CLUSTERS` environment variable with a JSON array:
+**New Object Format:**
+```bash
+export ONTAP_CLUSTERS='{
+  "production": {
+    "cluster_ip": "10.193.184.184",
+    "username": "admin",
+    "password": "Netapp1!",
+    "description": "Production cluster"
+  },
+  "development": {
+    "cluster_ip": "10.193.184.185",
+    "username": "admin",
+    "password": "DevPassword123", 
+    "description": "Development cluster"
+  }
+}'
+```
 
+**Legacy Array Format:**
 ```bash
 export ONTAP_CLUSTERS='[
   {

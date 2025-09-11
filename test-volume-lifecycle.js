@@ -169,8 +169,27 @@ class VolumeLifecycleTest {
   // REST Mode: Call HTTP API endpoints
   async startHttpServer() {
     return new Promise((resolve, reject) => {
-      // Use the same cluster configuration that's in the MCP JSON
-      const clustersEnv = '[{"name":"greg-vsim-1","cluster_ip":"10.193.184.184","username":"admin","password":"Netapp1!","description":"Gregs vSim ONTAP cluster"},{"name":"julia-vsim-1","cluster_ip":"10.193.77.89","username":"admin","password":"Netapp1!","description":"Julias first vSim ONTAP cluster"},{"name":"julia-vsim-2","cluster_ip":"10.61.183.200","username":"admin","password":"!nT3r$1gH+ K1ouD","description":"Julias second vSim cluster"}]';
+      // Use the same cluster configuration that's in the MCP JSON (new object format)
+      const clustersEnv = JSON.stringify({
+        "greg-vsim-1": {
+          "cluster_ip": "10.193.184.184",
+          "username": "admin",
+          "password": "Netapp1!",
+          "description": "Gregs vSim ONTAP cluster"
+        },
+        "julia-vsim-1": {
+          "cluster_ip": "10.193.77.89",
+          "username": "admin",
+          "password": "Netapp1!",
+          "description": "Julias first vSim ONTAP cluster"
+        },
+        "julia-vsim-2": {
+          "cluster_ip": "10.61.183.200",
+          "username": "admin",
+          "password": "!nT3r$1gH+ K1ouD",
+          "description": "Julias second vSim cluster"
+        }
+      });
 
       this.serverProcess = spawn('node', ['build/index.js', `--http=${this.httpPort}`], {
         cwd: process.cwd(),

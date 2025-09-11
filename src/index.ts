@@ -20,17 +20,82 @@ import { OntapApiClient, OntapClusterManager } from "./ontap-client.js";
 // Create global cluster manager instance
 const clusterManager = new OntapClusterManager();
 
+/**
+ * Interface for cluster configuration in object format (new format)
+ */
+interface ClusterConfigObject {
+  [clusterName: string]: {
+    cluster_ip: string;
+    username: string;
+    password: string;
+    description?: string;
+  };
+}
+
+/**
+ * Interface for cluster configuration in array format (legacy)
+ */
+interface ClusterConfigArray {
+  name: string;
+  cluster_ip: string;
+  username: string;
+  password: string;
+  description?: string;
+}
+
+/**
+ * Parse cluster configuration from environment variable
+ * Supports both new object format and legacy array format
+ */
+function parseClusterConfig(): ClusterConfigArray[] {
+  const clustersEnv = process.env.ONTAP_CLUSTERS;
+  if (!clustersEnv) {
+    console.error('No ONTAP_CLUSTERS environment variable found');
+    return [];
+  }
+
+  try {
+    // When MCP passes JSON objects as environment variables, they get stringified
+    const parsed = typeof clustersEnv === 'string' ? JSON.parse(clustersEnv) : clustersEnv;
+    
+    // Check if it's the new object format
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      // Convert object format to array format for internal use
+      const clusters: ClusterConfigArray[] = [];
+      for (const [clusterName, config] of Object.entries(parsed as ClusterConfigObject)) {
+        clusters.push({
+          name: clusterName,
+          cluster_ip: config.cluster_ip,
+          username: config.username,
+          password: config.password,
+          description: config.description
+        });
+      }
+      console.error(`Pre-registered ${clusters.length} clusters from object format`);
+      return clusters;
+    }
+    
+    // Handle legacy array format
+    if (Array.isArray(parsed)) {
+      console.error(`Pre-registered ${parsed.length} clusters from array format`);
+      return parsed as ClusterConfigArray[];
+    }
+    
+    console.error('ONTAP_CLUSTERS is not in a recognized format');
+    return [];
+    
+  } catch (error) {
+    console.error('Error parsing ONTAP_CLUSTERS environment variable:', error);
+    return [];
+  }
+}
+
 // Pre-register clusters from environment variables (recommended for production)
 if (process.env.ONTAP_CLUSTERS) {
-  try {
-    const clusters = JSON.parse(process.env.ONTAP_CLUSTERS);
-    clusters.forEach((cluster: any) => {
-      clusterManager.addCluster(cluster);
-    });
-    console.error(`Pre-registered ${clusters.length} clusters from environment`);
-  } catch (error) {
-    console.error("Error parsing ONTAP_CLUSTERS environment variable:", error);
-  }
+  const clusters = parseClusterConfig();
+  clusters.forEach((cluster: ClusterConfigArray) => {
+    clusterManager.addCluster(cluster);
+  });
 }
 
 // Input schemas for validation

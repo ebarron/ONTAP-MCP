@@ -42,8 +42,21 @@ read -p "Default aggregate name for testing (default: aggr1_1): " aggregate_name
 svm_name=${svm_name:-vs0}
 aggregate_name=${aggregate_name:-aggr1_1}
 
-# Create the JSON configuration
-json_config=$(cat <<EOF
+# Create the JSON configuration (new object format)
+json_config_object=$(cat <<EOF
+{
+  "$cluster_name": {
+    "cluster_ip": "$cluster_ip",
+    "username": "$username",
+    "password": "$password",
+    "description": "$description"
+  }
+}
+EOF
+)
+
+# Create the JSON configuration (legacy array format)
+json_config_array=$(cat <<EOF
 [
   {
     "name": "$cluster_name",
@@ -57,14 +70,20 @@ EOF
 )
 
 echo ""
-echo "Generated configuration:"
-echo "$json_config" | jq '.' 2>/dev/null || echo "$json_config"
+echo "Generated configuration (New Object Format - Recommended):"
+echo "$json_config_object" | jq '.' 2>/dev/null || echo "$json_config_object"
+echo ""
+echo "Generated configuration (Legacy Array Format):"
+echo "$json_config_array" | jq '.' 2>/dev/null || echo "$json_config_array"
 
 echo ""
-echo "To use this configuration, run the following commands:"
+echo "To use this configuration, choose your preferred format:"
 echo ""
-echo "# Set cluster configuration"
-echo "export ONTAP_CLUSTERS='$json_config'"
+echo "# OPTION 1: New Object Format (Recommended)"
+echo "export ONTAP_CLUSTERS='$json_config_object'"
+echo ""
+echo "# OPTION 2: Legacy Array Format (Still Supported)"  
+echo "export ONTAP_CLUSTERS='$json_config_array'"
 echo ""
 if [ "$svm_name" != "vs0" ]; then
     echo "# Set custom SVM name for testing"
@@ -83,20 +102,20 @@ echo "./test-volume-lifecycle.sh             # Test REST API via bash"
 echo "node check-aggregates.js               # Check aggregates"
 echo ""
 
-# Offer to set for current session
-read -p "Set these environment variables for the current session? (y/N): " -n 1 -r
+# Offer to set for current session (default to new object format)
+read -p "Set environment variables for current session using NEW object format? (Y/n): " -n 1 -r
 echo ""
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    export ONTAP_CLUSTERS="$json_config"
+if [[ $REPLY =~ ^[Nn]$ ]]; then
+    echo "Environment variables not set. Use the export commands above."
+else
+    export ONTAP_CLUSTERS="$json_config_object"
     if [ "$svm_name" != "vs0" ]; then
         export TEST_SVM_NAME="$svm_name"
     fi
     if [ "$aggregate_name" != "aggr1_1" ]; then
         export TEST_AGGREGATE_NAME="$aggregate_name"
     fi
-    echo "✅ Environment variables set for current session!"
+    echo "✅ Environment variables set for current session using NEW object format!"
     echo ""
     echo "You can now run the test scripts directly."
-else
-    echo "Environment variables not set. Use the export commands above."
 fi
