@@ -18,6 +18,14 @@ This is an MCP (Model Context Protocol) server project for NetApp ONTAP REST API
 - Structure code with clear separation between API clients and MCP tools
 - Include comprehensive JSDoc comments for all functions
 
+## Git/Version Control Guidelines
+- **NEVER commit changes without explicit user permission**
+- **NEVER run git add, git commit, or git push without being explicitly told to do so**
+- Make requested changes, build and test to verify they work
+- Show results and confirm functionality
+- Wait for explicit instruction before any git operations
+- The user controls all decisions about when and how to commit changes
+
 ## NetApp ONTAP Integration
 - Use HTTPS for all API communications
 - Implement proper authentication (basic auth, certificates, or OAuth)

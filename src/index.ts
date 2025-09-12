@@ -11,6 +11,7 @@ import {
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
+  InitializeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import express from "express";
@@ -44,13 +45,46 @@ interface ClusterConfigArray {
 }
 
 /**
- * Parse cluster configuration from environment variable
+ * Parse cluster configuration from initialization options or environment variable
  * Supports both new object format and legacy array format
  */
-function parseClusterConfig(): ClusterConfigArray[] {
+function parseClusterConfig(initOptions?: any): ClusterConfigArray[] {
+  // First try initialization options
+  if (initOptions?.ONTAP_CLUSTERS) {
+    try {
+      const parsed = initOptions.ONTAP_CLUSTERS;
+      
+      // Check if it's the new object format
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Convert object format to array format for internal use
+        const clusters: ClusterConfigArray[] = [];
+        for (const [clusterName, config] of Object.entries(parsed as ClusterConfigObject)) {
+          clusters.push({
+            name: clusterName,
+            cluster_ip: config.cluster_ip,
+            username: config.username,
+            password: config.password,
+            description: config.description
+          });
+        }
+        console.error(`Pre-registered ${clusters.length} clusters from initializationOptions object format`);
+        return clusters;
+      }
+      
+      // Handle legacy array format
+      if (Array.isArray(parsed)) {
+        console.error(`Pre-registered ${parsed.length} clusters from initializationOptions array format`);
+        return parsed as ClusterConfigArray[];
+      }
+    } catch (error) {
+      console.error('Error parsing ONTAP_CLUSTERS from initializationOptions:', error);
+    }
+  }
+
+  // Fallback to environment variable
   const clustersEnv = process.env.ONTAP_CLUSTERS;
   if (!clustersEnv) {
-    console.error('No ONTAP_CLUSTERS environment variable found');
+    console.error('No ONTAP_CLUSTERS found in initializationOptions or environment variables');
     return [];
   }
 
@@ -71,13 +105,13 @@ function parseClusterConfig(): ClusterConfigArray[] {
           description: config.description
         });
       }
-      console.error(`Pre-registered ${clusters.length} clusters from object format`);
+      console.error(`Pre-registered ${clusters.length} clusters from environment variable object format`);
       return clusters;
     }
     
     // Handle legacy array format
     if (Array.isArray(parsed)) {
-      console.error(`Pre-registered ${parsed.length} clusters from array format`);
+      console.error(`Pre-registered ${parsed.length} clusters from environment variable array format`);
       return parsed as ClusterConfigArray[];
     }
     
@@ -90,12 +124,22 @@ function parseClusterConfig(): ClusterConfigArray[] {
   }
 }
 
-// Pre-register clusters from environment variables (recommended for production)
-if (process.env.ONTAP_CLUSTERS) {
-  const clusters = parseClusterConfig();
-  clusters.forEach((cluster: ClusterConfigArray) => {
-    clusterManager.addCluster(cluster);
-  });
+/**
+ * Load clusters from configuration
+ */
+function loadClusters(initOptions?: any): void {
+  console.error('=== ONTAP MCP Server Cluster Loading ===');
+  const clusters = parseClusterConfig(initOptions);
+  
+  if (clusters.length > 0) {
+    clusters.forEach((cluster: ClusterConfigArray) => {
+      clusterManager.addCluster(cluster);
+      console.error(`Added cluster: ${cluster.name} at ${cluster.cluster_ip}`);
+    });
+    console.error(`Successfully loaded ${clusters.length} clusters`);
+  } else {
+    console.error('No clusters loaded - clusters must be added manually via add_cluster tool');
+  }
 }
 
 // Input schemas for validation
@@ -205,6 +249,36 @@ const server = new Server(
     },
   }
 );
+
+// Handle initialization to load clusters from initializationOptions
+server.setRequestHandler(InitializeRequestSchema, async (request) => {
+  console.error('=== MCP Server Initialization ===');
+  console.error('Initialization options received:', !!request.params?.initializationOptions);
+  console.error('InitializationOptions content:', JSON.stringify(request.params?.initializationOptions, null, 2));
+  
+  // Load clusters from initialization options (if any)
+  if (request.params?.initializationOptions) {
+    loadClusters(request.params.initializationOptions);
+  }
+  
+  // Fallback: Try to load from environment variables if no clusters loaded yet
+  if (clusterManager.listClusters().length === 0) {
+    console.error('No clusters from initializationOptions, trying environment variables...');
+    loadClusters();
+  }
+  
+  return {
+    protocolVersion: "2024-11-05",
+    capabilities: {
+      resources: {},
+      tools: {},
+    },
+    serverInfo: {
+      name: "netapp-ontap-mcp",
+      version: "2.0.0",
+    },
+  };
+});
 
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
