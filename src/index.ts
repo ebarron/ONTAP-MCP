@@ -18,6 +18,66 @@ import express from "express";
 import cors from "cors";
 import { OntapApiClient, OntapClusterManager } from "./ontap-client.js";
 
+// Import snapshot policy tools
+import {
+  createCreateSnapshotPolicyToolDefinition,
+  handleCreateSnapshotPolicy,
+  createListSnapshotPoliciesToolDefinition,
+  handleListSnapshotPolicies,
+  createGetSnapshotPolicyToolDefinition,
+  handleGetSnapshotPolicy,
+  createDeleteSnapshotPolicyToolDefinition,
+  handleDeleteSnapshotPolicy
+} from "./tools/snapshot-policy-tools.js";
+
+// Import export policy tools
+import {
+  createListExportPoliciesToolDefinition,
+  handleListExportPolicies,
+  createGetExportPolicyToolDefinition,
+  handleGetExportPolicy,
+  createCreateExportPolicyToolDefinition,
+  handleCreateExportPolicy,
+  createDeleteExportPolicyToolDefinition,
+  handleDeleteExportPolicy,
+  createAddExportRuleToolDefinition,
+  handleAddExportRule,
+  createUpdateExportRuleToolDefinition,
+  handleUpdateExportRule,
+  createDeleteExportRuleToolDefinition,
+  handleDeleteExportRule,
+  createConfigureVolumeNfsAccessToolDefinition,
+  handleConfigureVolumeNfsAccess,
+  createDisableVolumeNfsAccessToolDefinition,
+  handleDisableVolumeNfsAccess
+} from "./tools/export-policy-tools.js";
+
+// Import volume update tools
+import {
+  createGetVolumeConfigurationToolDefinition,
+  handleGetVolumeConfiguration,
+  createUpdateVolumeSecurityStyleToolDefinition,
+  handleUpdateVolumeSecurityStyle,
+  createResizeVolumeToolDefinition,
+  handleResizeVolume,
+  createUpdateVolumeCommentToolDefinition,
+  handleUpdateVolumeComment
+} from "./tools/volume-update-tools.js";
+
+// Import snapshot schedule tools
+import {
+  createListSnapshotSchedulesToolDefinition,
+  handleListSnapshotSchedules,
+  createGetSnapshotScheduleToolDefinition,
+  handleGetSnapshotSchedule,
+  createCreateSnapshotScheduleToolDefinition,
+  handleCreateSnapshotSchedule,
+  createUpdateSnapshotScheduleToolDefinition,
+  handleUpdateSnapshotSchedule,
+  createDeleteSnapshotScheduleToolDefinition,
+  handleDeleteSnapshotSchedule
+} from "./tools/snapshot-schedule-tools.js";
+
 // Create global cluster manager instance
 const clusterManager = new OntapClusterManager();
 
@@ -509,6 +569,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["cluster_name", "volume_uuid"],
         },
       },
+      
+      // Snapshot Policy Management Tools
+      createListSnapshotPoliciesToolDefinition(),
+      createGetSnapshotPolicyToolDefinition(),
+      createCreateSnapshotPolicyToolDefinition(),
+      createDeleteSnapshotPolicyToolDefinition(),
+
+      // Export Policy Management Tools
+      createListExportPoliciesToolDefinition(),
+      createGetExportPolicyToolDefinition(),
+      createCreateExportPolicyToolDefinition(),
+      createDeleteExportPolicyToolDefinition(),
+      createAddExportRuleToolDefinition(),
+      createUpdateExportRuleToolDefinition(),
+      createDeleteExportRuleToolDefinition(),
+      createConfigureVolumeNfsAccessToolDefinition(),
+      createDisableVolumeNfsAccessToolDefinition(),
+
+      // Volume Configuration and Update Tools
+      createGetVolumeConfigurationToolDefinition(),
+      createUpdateVolumeSecurityStyleToolDefinition(),
+      createResizeVolumeToolDefinition(),
+      createUpdateVolumeCommentToolDefinition(),
+
+      // Snapshot Schedule Management Tools
+      createListSnapshotSchedulesToolDefinition(),
+      createGetSnapshotScheduleToolDefinition(),
+      createCreateSnapshotScheduleToolDefinition(),
+      createUpdateSnapshotScheduleToolDefinition(),
+      createDeleteSnapshotScheduleToolDefinition(),
     ],
   };
 });
@@ -908,6 +998,120 @@ Latency: ${JSON.stringify(stats.latency || {})}
 Throughput: ${JSON.stringify(stats.throughput || {})}`,
           }],
         };
+      }
+
+      // Snapshot Policy Management Tools
+      case "list_snapshot_policies": {
+        const result = await handleListSnapshotPolicies(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "get_snapshot_policy": {
+        const result = await handleGetSnapshotPolicy(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "create_snapshot_policy": {
+        const result = await handleCreateSnapshotPolicy(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "delete_snapshot_policy": {
+        const result = await handleDeleteSnapshotPolicy(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      // Export Policy Management Tools
+      case "list_export_policies": {
+        const result = await handleListExportPolicies(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "get_export_policy": {
+        const result = await handleGetExportPolicy(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "create_export_policy": {
+        const result = await handleCreateExportPolicy(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "delete_export_policy": {
+        const result = await handleDeleteExportPolicy(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "add_export_rule": {
+        const result = await handleAddExportRule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "update_export_rule": {
+        const result = await handleUpdateExportRule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "delete_export_rule": {
+        const result = await handleDeleteExportRule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "configure_volume_nfs_access": {
+        const result = await handleConfigureVolumeNfsAccess(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "disable_volume_nfs_access": {
+        const result = await handleDisableVolumeNfsAccess(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      // Volume Configuration and Update Tools
+      case "get_volume_configuration": {
+        const result = await handleGetVolumeConfiguration(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "update_volume_security_style": {
+        const result = await handleUpdateVolumeSecurityStyle(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "resize_volume": {
+        const result = await handleResizeVolume(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "update_volume_comment": {
+        const result = await handleUpdateVolumeComment(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      // Snapshot Schedule Management Tools
+      case "list_snapshot_schedules": {
+        const result = await handleListSnapshotSchedules(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "get_snapshot_schedule": {
+        const result = await handleGetSnapshotSchedule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "create_snapshot_schedule": {
+        const result = await handleCreateSnapshotSchedule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "update_snapshot_schedule": {
+        const result = await handleUpdateSnapshotSchedule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "delete_snapshot_schedule": {
+        const result = await handleDeleteSnapshotSchedule(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
       }
 
       default:

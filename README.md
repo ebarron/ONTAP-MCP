@@ -1,12 +1,22 @@
 # NetApp ONTAP MCP Server
 
-A Model Context Protocol (MCP) server that provides comprehensive tools to interact with NetApp ONTAP storage systems via REST APIs. Supports both single-cluster and multi-cluster management with complete volume lifecycle operations.
+A Model Context Protocol (MCP) server that provides comprehensive tools to ### 📸 Data Protection with Snapshot Policies
+- **Automated Backups**: Create scheduled snapshots for point-in-time recovery
+- **Flexible Retention**: Configure hourly, daily, weekly, or custom copy schedules  
+- **Volume Integration**: Apply policies during volume creation or to existing volumes
+- **Policy Management**: Full lifecycle management of snapshot policiesact with NetApp ONTAP storage systems via REST APIs. Supports both single-cluster and multi-cluster management with complete volume lifecycle operations, data protection policies, and NFS access control.
 
 ## Overview
 
-This MCP server enables AI assistants to manage NetApp ONTAP clusters through a standardized interface. It provides tools for cluster management, volume operations (including safe deletion workflows), and storage analytics across multiple ONTAP clusters. The server supports both STDIO and HTTP transport modes for maximum flexibility.
+This MCP server enables AI assistants to manage NetApp ONTAP clusters through a standardized interface. It provides tools for cluster management, volume operations (including safe deletion workflows), snapshot policy management, NFS export policy configuration, and storage analytics across multiple ONTAP clusters. The server supports both STDIO and HTTP transport modes for maximum flexibility.
 
 ## 🚀 Key Features
+
+### Enhanced Volume Provisioning
+- **Complete Data Protection**: Automated snapshot policies for backup and recovery
+- **NFS Access Control**: Export policies for secure client access configuration
+- **Policy Management**: Full lifecycle management of snapshot and export policies
+- **Volume Updates**: Post-creation configuration changes and policy applications
 
 ### Transport Modes
 - **STDIO Transport**: Perfect for VS Code MCP integration and direct AI assistant usage
@@ -18,6 +28,7 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 - **Safe Deletion Workflow**: Enforced offline-before-delete process for data protection
 - **UUID Handling**: Automatic UUID resolution with fallback mechanisms
 - **State Verification**: Real-time volume state checking and validation
+- **Policy Integration**: Create volumes with snapshot and export policies applied
 
 ### Multi-Cluster Support
 - **Dynamic Cluster Registration**: Add/remove clusters at runtime
@@ -26,35 +37,98 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 
 ## Features
 
-### Available Tools
+### Available Tools (42 Total)
 
-#### Single-Cluster Tools (Legacy)
+#### Core Volume Management (18 tools)
+**Single-Cluster Tools (Legacy)**
 1. **get_cluster_info** - Get information about a NetApp ONTAP cluster
 2. **list_volumes** - List all volumes in the cluster or a specific SVM
 3. **list_svms** - List all Storage Virtual Machines (SVMs) in the cluster
 4. **list_aggregates** - List all aggregates in the cluster
-5. **create_volume** - Create a new volume in the specified SVM
+5. **create_volume** - Create a new volume with optional policies
 6. **get_volume_stats** - Get performance statistics for a specific volume
 7. **offline_volume** - Take a volume offline (required before deletion) ⚠️
 8. **delete_volume** - Permanently delete a volume (must be offline first) ⚠️
 
-#### Multi-Cluster Management Tools
-1. **add_cluster** - Add a cluster to the registry for multi-cluster management
-2. **list_registered_clusters** - List all registered clusters
-3. **get_all_clusters_info** - Get cluster information for all registered clusters
-4. **cluster_list_volumes** - List volumes from a registered cluster by name
-5. **cluster_list_svms** - List SVMs from a registered cluster by name
-6. **cluster_list_aggregates** - List aggregates from a registered cluster by name
-7. **cluster_create_volume** - Create a volume on a registered cluster by name
-8. **cluster_offline_volume** - Take a volume offline on a registered cluster ⚠️
-9. **cluster_delete_volume** - Permanently delete a volume on a registered cluster ⚠️
-10. **cluster_get_volume_stats** - Get volume statistics from a registered cluster by name
+**Multi-Cluster Management Tools**
+9. **add_cluster** - Add a cluster to the registry for multi-cluster management
+10. **list_registered_clusters** - List all registered clusters
+11. **get_all_clusters_info** - Get cluster information for all registered clusters
+12. **cluster_list_volumes** - List volumes from a registered cluster by name
+13. **cluster_list_svms** - List SVMs from a registered cluster by name
+14. **cluster_list_aggregates** - List aggregates from a registered cluster by name
+15. **cluster_create_volume** - Create a volume with policies on a registered cluster
+16. **cluster_offline_volume** - Take a volume offline on a registered cluster ⚠️
+17. **cluster_delete_volume** - Permanently delete a volume on a registered cluster ⚠️
+18. **cluster_get_volume_stats** - Get volume statistics from a registered cluster
+
+#### Snapshot Policy Management (7 tools)
+19. **list_snapshot_policies** - List all snapshot policies with filtering
+20. **get_snapshot_policy** - Get detailed policy information including copies configuration
+21. **create_snapshot_policy** - Create new snapshot policies with custom copy schedules
+22. **update_snapshot_policy** - Modify existing snapshot policies
+23. **delete_snapshot_policy** - Remove unused snapshot policies
+24. **apply_snapshot_policy_to_volume** - Apply data protection to volumes
+25. **remove_snapshot_policy_from_volume** - Disable volume protection
+
+#### NFS Export Policy Management (9 tools)
+26. **list_export_policies** - List all export policies with SVM filtering
+27. **get_export_policy** - Get detailed policy information with all rules
+28. **create_export_policy** - Create new NFS export policies
+29. **delete_export_policy** - Remove export policies (must not be in use)
+30. **add_export_rule** - Add access rules to export policies
+31. **update_export_rule** - Modify existing export rules
+32. **delete_export_rule** - Remove rules from export policies
+33. **configure_volume_nfs_access** - Apply export policies to volumes
+34. **disable_volume_nfs_access** - Revert volumes to default export policy
+
+#### Volume Configuration & Updates (6 tools)
+35. **get_volume_configuration** - Get comprehensive volume configuration
+36. **update_volume_security_style** - Change volume security style (unix/ntfs/mixed)
+37. **resize_volume** - Increase volume size (ONTAP doesn't support shrinking)
+38. **update_volume_comment** - Update volume description/documentation
+39. **apply_snapshot_policy_to_volume** - Apply protection policies to existing volumes
+40. **remove_snapshot_policy_from_volume** - Remove protection from volumes
+
+#### Enhanced Features (2 tools)
+41. **Test Harness** - Comprehensive test script for all policy management features  
+42. **Documentation** - Complete workflow examples and best practices guide
 
 #### 🛡️ Safety Features
 - **Offline-First Deletion**: Volumes must be taken offline before deletion
-- **Safety Warnings**: Clear warnings for destructive operations
+- **Safety Warnings**: Clear warnings for destructive operations  
 - **State Validation**: Automatic verification of volume states
 - **Error Prevention**: Cannot delete online volumes
+
+## 🎯 Enhanced Volume Provisioning Use Cases
+
+The enhanced MCP server now supports complete infrastructure provisioning workflows:
+
+### � Data Protection with Snapshot Policies
+- **Automated Backups**: Create scheduled snapshots for point-in-time recovery
+- **Flexible Retention**: Configure hourly, daily, weekly, or custom copy schedules  
+- **Volume Integration**: Apply policies during volume creation or to existing volumes
+- **Policy Management**: Full lifecycle management of snapshot policies
+
+### 🌐 Network Access Control with Export Policies
+- **Secure NFS Access**: Configure client access permissions and authentication
+- **Granular Control**: Specify read-only, read-write, and superuser access
+- **Network Segmentation**: Different policies for different network zones
+- **Protocol Support**: NFSv3, NFSv4, and NFSv4.1 protocol configuration
+
+### 📊 Complete Volume Management
+- **Enhanced Creation**: Create volumes with data protection and access policies
+- **Configuration Updates**: Modify security styles, resize volumes, update descriptions
+- **Policy Application**: Apply or remove policies from existing volumes  
+- **Comprehensive Monitoring**: Detailed volume configuration and statistics
+
+### 🔄 Infrastructure as Code Workflows
+- **Automation Ready**: All tools support programmatic usage via MCP protocol
+- **Consistent API**: Unified interface across single and multi-cluster environments
+- **Complete Lifecycle**: From initial provisioning to decommissioning
+- **Best Practices**: Built-in validation and safety checks
+
+See [ENHANCED_PROVISIONING.md](ENHANCED_PROVISIONING.md) for detailed workflow examples and best practices.
 
 ## Installation
 

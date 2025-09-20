@@ -1,5 +1,25 @@
 import https from 'https';
 import { z } from 'zod';
+import type { 
+  SnapshotPolicy, 
+  CreateSnapshotPolicyRequest, 
+  UpdateSnapshotPolicyRequest,
+  SnapshotPolicyResponse,
+  ListSnapshotPoliciesParams,
+  VolumeSnapshotConfig
+} from './types/snapshot-types.js';
+import type {
+  ExportPolicy,
+  ExportRule,
+  CreateExportPolicyRequest,
+  CreateExportRuleRequest,
+  UpdateExportRuleRequest,
+  ExportPolicyResponse,
+  ExportRuleResponse,
+  ListExportPoliciesParams,
+  ListExportRulesParams,
+  VolumeNfsConfig
+} from './types/export-policy-types.js';
 
 // Type definitions for ONTAP API responses
 export interface ClusterInfo {
@@ -32,6 +52,7 @@ export interface VolumeInfo {
   size: number;
   state: string;
   type: string;
+  comment?: string;
   svm?: {
     uuid: string;
     name: string;
@@ -40,6 +61,21 @@ export interface VolumeInfo {
     uuid: string;
     name: string;
   }>;
+  nas?: {
+    security_style?: string;
+    export_policy?: {
+      name: string;
+      id?: number;
+    };
+  };
+  snapshot_policy?: {
+    name: string;
+    uuid?: string;
+  };
+  efficiency?: {
+    compression?: string;
+    dedupe?: string;
+  };
 }
 
 export interface VolumeStats {
@@ -74,6 +110,8 @@ export interface CreateVolumeParams {
   volume_name: string;
   size: string;
   aggregate_name?: string;
+  snapshot_policy?: string;
+  nfs_export_policy?: string;
 }
 
 export interface CreateVolumeResponse {
@@ -282,7 +320,7 @@ export class OntapApiClient {
    * Create a new volume
    */
   async createVolume(params: CreateVolumeParams): Promise<CreateVolumeResponse> {
-    const body = {
+    const body: any = {
       name: params.volume_name,
       svm: {
         name: params.svm_name,
@@ -292,7 +330,19 @@ export class OntapApiClient {
 
     // Add aggregate if specified
     if (params.aggregate_name) {
-      (body as any).aggregates = [{ name: params.aggregate_name }];
+      body.aggregates = [{ name: params.aggregate_name }];
+    }
+
+    // Add snapshot policy if specified
+    if (params.snapshot_policy) {
+      body.snapshot_policy = { name: params.snapshot_policy };
+    }
+
+    // Add NFS export policy if specified
+    if (params.nfs_export_policy) {
+      body.nas = {
+        export_policy: { name: params.nfs_export_policy }
+      };
     }
 
     const response = await this.makeRequest<any>(
@@ -382,9 +432,494 @@ export class OntapApiClient {
    * @param volumeUuid UUID of the volume
    */
   async getVolumeInfo(volumeUuid: string): Promise<VolumeInfo> {
-    const endpoint = `/storage/volumes/${volumeUuid}?fields=name,state,size,svm.name,type`;
+    const endpoint = `/storage/volumes/${volumeUuid}?fields=name,state,size,svm,type,comment`;
     const response = await this.makeRequest<VolumeInfo>(endpoint);
     return response;
+  }
+
+  // ================================
+  // Snapshot Policy Management
+  // ================================
+
+  /**
+   * List all snapshot policies
+   */
+  async listSnapshotPolicies(params?: ListSnapshotPoliciesParams): Promise<SnapshotPolicy[]> {
+    let endpoint = '/storage/snapshot-policies?fields=uuid,name,comment,svm,enabled';
+    
+    if (params) {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+      if (queryParams.toString()) {
+        endpoint += `&${queryParams.toString()}`;
+      }
+    }
+    
+    const response = await this.makeRequest<SnapshotPolicyResponse>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Get a specific snapshot policy by name or UUID
+   */
+  async getSnapshotPolicy(nameOrUuid: string, svmName?: string): Promise<SnapshotPolicy> {
+    let endpoint = `/storage/snapshot-policies?name=${encodeURIComponent(nameOrUuid)}&fields=uuid,name,comment,svm,enabled`;
+    
+    if (svmName) {
+      endpoint += `&svm.name=${encodeURIComponent(svmName)}`;
+    }
+    
+    const response = await this.makeRequest<SnapshotPolicyResponse>(endpoint);
+    
+    if (!response.records || response.records.length === 0) {
+      // Try by UUID
+      try {
+        const directResponse = await this.makeRequest<SnapshotPolicy>(`/storage/snapshot-policies/${nameOrUuid}?fields=uuid,name,comment,svm,enabled`);
+        return directResponse;
+      } catch {
+        throw new Error(`Snapshot policy '${nameOrUuid}' not found`);
+      }
+    }
+    
+    return response.records[0];
+  }
+
+  /**
+   * Create a new snapshot policy
+   */
+  async createSnapshotPolicy(policy: CreateSnapshotPolicyRequest): Promise<{ uuid: string }> {
+    const response = await this.makeRequest<{ uuid: string }>(
+      '/storage/snapshot-policies',
+      'POST',
+      policy
+    );
+    return response;
+  }
+
+  /**
+   * Update an existing snapshot policy
+   */
+  async updateSnapshotPolicy(nameOrUuid: string, updates: UpdateSnapshotPolicyRequest): Promise<void> {
+    // First get the policy to determine if we're using name or UUID
+    let policyUuid = nameOrUuid;
+    
+    // If it doesn't look like a UUID, find the policy by name
+    if (!nameOrUuid.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      const policy = await this.getSnapshotPolicy(nameOrUuid);
+      policyUuid = policy.uuid!;
+    }
+    
+    await this.makeRequest(
+      `/storage/snapshot-policies/${policyUuid}`,
+      'PATCH',
+      updates
+    );
+  }
+
+  /**
+   * Delete a snapshot policy
+   */
+  async deleteSnapshotPolicy(nameOrUuid: string): Promise<void> {
+    // First get the policy to determine if we're using name or UUID
+    let policyUuid = nameOrUuid;
+    
+    // If it doesn't look like a UUID, find the policy by name
+    if (!nameOrUuid.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      const policy = await this.getSnapshotPolicy(nameOrUuid);
+      policyUuid = policy.uuid!;
+    }
+    
+    await this.makeRequest(
+      `/storage/snapshot-policies/${policyUuid}`,
+      'DELETE'
+    );
+  }
+
+  /**
+   * Apply a snapshot policy to a volume
+   */
+  async applySnapshotPolicyToVolume(volumeUuid: string, policyName: string): Promise<void> {
+    const body = {
+      snapshot_policy: {
+        name: policyName
+      }
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Remove snapshot policy from a volume (set to default)
+   */
+  async removeSnapshotPolicyFromVolume(volumeUuid: string): Promise<void> {
+    const body = {
+      snapshot_policy: {
+        name: "default"
+      }
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  // ================================
+  // Export Policy Management
+  // ================================
+
+  /**
+   * List all export policies
+   */
+  async listExportPolicies(params?: ListExportPoliciesParams): Promise<ExportPolicy[]> {
+    let endpoint = '/protocols/nfs/export-policies?fields=id,name,svm,rules';
+    
+    if (params) {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+      if (queryParams.toString()) {
+        endpoint += `&${queryParams.toString()}`;
+      }
+    }
+    
+    const response = await this.makeRequest<ExportPolicyResponse>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Get a specific export policy by name or ID
+   */
+  async getExportPolicy(nameOrId: string | number, svmName?: string): Promise<ExportPolicy> {
+    if (typeof nameOrId === 'number' || /^\d+$/.test(nameOrId.toString())) {
+      // It's an ID
+      const endpoint = `/protocols/nfs/export-policies/${nameOrId}?fields=id,name,svm,rules`;
+      return await this.makeRequest<ExportPolicy>(endpoint);
+    } else {
+      // It's a name, search for it
+      let endpoint = `/protocols/nfs/export-policies?name=${encodeURIComponent(nameOrId.toString())}&fields=id,name,svm,rules`;
+      
+      if (svmName) {
+        endpoint += `&svm.name=${encodeURIComponent(svmName)}`;
+      }
+      
+      const response = await this.makeRequest<ExportPolicyResponse>(endpoint);
+      
+      if (!response.records || response.records.length === 0) {
+        throw new Error(`Export policy '${nameOrId}' not found`);
+      }
+      
+      return response.records[0];
+    }
+  }
+
+  /**
+   * Create a new export policy
+   */
+  async createExportPolicy(policy: CreateExportPolicyRequest): Promise<{ id: number }> {
+    const response = await this.makeRequest<{ id: number }>(
+      '/protocols/nfs/export-policies',
+      'POST',
+      policy
+    );
+    return response;
+  }
+
+  /**
+   * Delete an export policy
+   */
+  async deleteExportPolicy(nameOrId: string | number, svmName?: string): Promise<void> {
+    let policyId: number;
+    
+    if (typeof nameOrId === 'number' || /^\d+$/.test(nameOrId.toString())) {
+      policyId = Number(nameOrId);
+    } else {
+      const policy = await this.getExportPolicy(nameOrId, svmName);
+      policyId = policy.id!;
+    }
+    
+    await this.makeRequest(
+      `/protocols/nfs/export-policies/${policyId}`,
+      'DELETE'
+    );
+  }
+
+  /**
+   * List export rules for a specific policy
+   */
+  async listExportRules(policyNameOrId: string | number, svmName?: string, params?: ListExportRulesParams): Promise<ExportRule[]> {
+    let policyId: number;
+    
+    if (typeof policyNameOrId === 'number' || /^\d+$/.test(policyNameOrId.toString())) {
+      policyId = Number(policyNameOrId);
+    } else {
+      const policy = await this.getExportPolicy(policyNameOrId, svmName);
+      policyId = policy.id!;
+    }
+    
+    let endpoint = `/protocols/nfs/export-policies/${policyId}/rules?fields=index,clients,protocols,ro_rule,rw_rule,superuser,allow_device_creation,allow_suid,anonymous_user,comment`;
+    
+    if (params) {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+      if (queryParams.toString()) {
+        endpoint += `&${queryParams.toString()}`;
+      }
+    }
+    
+    const response = await this.makeRequest<ExportRuleResponse>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Add a new export rule to a policy
+   */
+  async addExportRule(policyNameOrId: string | number, rule: CreateExportRuleRequest, svmName?: string): Promise<{ index: number }> {
+    let policyId: number;
+    
+    if (typeof policyNameOrId === 'number' || /^\d+$/.test(policyNameOrId.toString())) {
+      policyId = Number(policyNameOrId);
+    } else {
+      const policy = await this.getExportPolicy(policyNameOrId, svmName);
+      policyId = policy.id!;
+    }
+    
+    const response = await this.makeRequest<{ index: number }>(
+      `/protocols/nfs/export-policies/${policyId}/rules`,
+      'POST',
+      rule
+    );
+    return response;
+  }
+
+  /**
+   * Update an existing export rule
+   */
+  async updateExportRule(
+    policyNameOrId: string | number, 
+    ruleIndex: number, 
+    updates: UpdateExportRuleRequest, 
+    svmName?: string
+  ): Promise<void> {
+    let policyId: number;
+    
+    if (typeof policyNameOrId === 'number' || /^\d+$/.test(policyNameOrId.toString())) {
+      policyId = Number(policyNameOrId);
+    } else {
+      const policy = await this.getExportPolicy(policyNameOrId, svmName);
+      policyId = policy.id!;
+    }
+    
+    await this.makeRequest(
+      `/protocols/nfs/export-policies/${policyId}/rules/${ruleIndex}`,
+      'PATCH',
+      updates
+    );
+  }
+
+  /**
+   * Delete an export rule from a policy
+   */
+  async deleteExportRule(
+    policyNameOrId: string | number, 
+    ruleIndex: number, 
+    svmName?: string
+  ): Promise<void> {
+    let policyId: number;
+    
+    if (typeof policyNameOrId === 'number' || /^\d+$/.test(policyNameOrId.toString())) {
+      policyId = Number(policyNameOrId);
+    } else {
+      const policy = await this.getExportPolicy(policyNameOrId, svmName);
+      policyId = policy.id!;
+    }
+    
+    await this.makeRequest(
+      `/protocols/nfs/export-policies/${policyId}/rules/${ruleIndex}`,
+      'DELETE'
+    );
+  }
+
+  /**
+   * Configure NFS access for a volume
+   */
+  async configureVolumeNfsAccess(volumeUuid: string, exportPolicyName: string): Promise<void> {
+    const body = {
+      nas: {
+        export_policy: {
+          name: exportPolicyName
+        }
+      }
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Disable NFS access for a volume (set to default export policy)
+   */
+  async disableVolumeNfsAccess(volumeUuid: string): Promise<void> {
+    const body = {
+      nas: {
+        export_policy: {
+          name: "default"
+        }
+      }
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Update volume security style
+   */
+  async updateVolumeSecurityStyle(volumeUuid: string, securityStyle: string): Promise<void> {
+    const body = {
+      nas: {
+        security_style: securityStyle
+      }
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Resize a volume
+   */
+  async resizeVolume(volumeUuid: string, newSize: string): Promise<void> {
+    const sizeInBytes = this.parseSize(newSize);
+    const body = {
+      size: sizeInBytes
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Update volume comment
+   */
+  async updateVolumeComment(volumeUuid: string, comment: string): Promise<void> {
+    const body = {
+      comment: comment
+    };
+    
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  // ================================
+  // Snapshot Schedule Management
+  // ================================
+
+  /**
+   * List all snapshot schedules
+   */
+  async listSnapshotSchedules(params?: any): Promise<any[]> {
+    let endpoint = '/cluster/schedules?fields=uuid,name,type,cron,interval';
+    
+    if (params) {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+      if (queryParams.toString()) {
+        endpoint += `&${queryParams.toString()}`;
+      }
+    }
+    
+    const response = await this.makeRequest<{ records: any[] }>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Get a specific snapshot schedule by name
+   */
+  async getSnapshotSchedule(scheduleName: string): Promise<any> {
+    const endpoint = `/cluster/schedules?name=${encodeURIComponent(scheduleName)}&fields=uuid,name,type,cron,interval`;
+    
+    const response = await this.makeRequest<{ records: any[] }>(endpoint);
+    
+    if (!response.records || response.records.length === 0) {
+      throw new Error(`Snapshot schedule '${scheduleName}' not found`);
+    }
+    
+    return response.records[0];
+  }
+
+  /**
+   * Create a new snapshot schedule
+   */
+  async createSnapshotSchedule(schedule: any): Promise<{ uuid: string }> {
+    const response = await this.makeRequest<{ uuid: string }>(
+      '/cluster/schedules',
+      'POST',
+      schedule
+    );
+    return response;
+  }
+
+  /**
+   * Update an existing snapshot schedule
+   */
+  async updateSnapshotSchedule(scheduleName: string, updates: any): Promise<void> {
+    // First get the schedule to get its UUID
+    const schedule = await this.getSnapshotSchedule(scheduleName);
+    
+    await this.makeRequest(
+      `/cluster/schedules/${schedule.uuid}`,
+      'PATCH',
+      updates
+    );
+  }
+
+  /**
+   * Delete a snapshot schedule
+   */
+  async deleteSnapshotSchedule(scheduleName: string): Promise<void> {
+    // First get the schedule to get its UUID
+    const schedule = await this.getSnapshotSchedule(scheduleName);
+    
+    await this.makeRequest(
+      `/cluster/schedules/${schedule.uuid}`,
+      'DELETE'
+    );
   }
 
   /**
