@@ -110,7 +110,7 @@ class VolumeLifecycleTest {
   // STDIO Mode: Call MCP tools directly via server process
   async callStdioTool(toolName, args) {
     return new Promise((resolve, reject) => {
-      const server = spawn('node', ['build/index.js'], {
+      const server = spawn('node', ['../build/index.js'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -191,7 +191,7 @@ class VolumeLifecycleTest {
         }
       });
 
-      this.serverProcess = spawn('node', ['build/index.js', `--http=${this.httpPort}`], {
+      this.serverProcess = spawn('node', ['../build/index.js', `--http=${this.httpPort}`], {
         cwd: process.cwd(),
         env: {
           ...process.env,

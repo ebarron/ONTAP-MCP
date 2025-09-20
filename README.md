@@ -228,7 +228,19 @@ npm run dev:http
 
 ## 🧪 Testing
 
-The project includes comprehensive testing tools for volume lifecycle operations. **All test scripts automatically use the cluster configuration from your VS Code MCP settings - no separate environment setup needed!**
+The project includes a comprehensive testing suite located in the `test/` directory. **All test scripts automatically use the cluster configuration from your VS Code MCP settings - no separate environment setup needed!**
+
+### Core Testing Tools
+
+| Test Tool | Purpose | Transport Mode |
+|-----------|---------|----------------|
+| `test-volume-lifecycle.js` | Complete volume CRUD workflow testing | STDIO & REST |
+| `test-volume-lifecycle.sh` | Volume lifecycle via shell script | REST only |
+| `check-aggregates.js` | Cross-cluster aggregate verification | REST |
+| `verify-tool-count.sh` | Tool registration validation | Local |
+| `test-comprehensive.js` | Full feature testing suite | REST |
+| `test-policy-management.sh` | Policy workflow testing | REST |
+| `setup-test-env.sh` | Interactive environment setup | Local |
 
 ### Volume Lifecycle Testing
 
@@ -239,14 +251,17 @@ Test the complete create → wait → offline → delete workflow:
 npm run build
 
 # Test using Node.js (supports both STDIO and REST modes)
-node test-volume-lifecycle.js stdio    # Test STDIO transport
-node test-volume-lifecycle.js rest     # Test HTTP REST API
+node test/test-volume-lifecycle.js stdio    # Test STDIO transport
+node test/test-volume-lifecycle.js rest     # Test HTTP REST API
 
 # Test using Bash script (REST API only)  
-./test-volume-lifecycle.sh
+./test/test-volume-lifecycle.sh
 
 # Check aggregates across all clusters
-node check-aggregates.js
+node test/check-aggregates.js
+
+# Verify all tools are registered correctly
+./test/verify-tool-count.sh
 ```
 
 ### How It Works
@@ -258,6 +273,8 @@ The test scripts automatically:
 4. Clean up by stopping the server
 
 **No manual configuration needed** - the scripts use the same cluster configuration that VS Code loads from your `mcp.json` file.
+
+📋 **For comprehensive testing documentation, see [test/TESTING.md](test/TESTING.md)** - includes complete environment setup, test strategies, workflow validation, and troubleshooting guides.
 
 ### Manual Testing Examples
 
@@ -416,7 +433,7 @@ This uses the `add_cluster` tool. You can then:
 Use the interactive setup script to generate properly formatted configuration:
 
 ```bash
-./setup-test-env.sh
+./test/setup-test-env.sh
 ```
 
 This script will guide you through configuring clusters and generate the correct JSON format for your environment.
@@ -517,14 +534,31 @@ The server includes comprehensive error handling for:
 ```
 src/
 ├── index.ts          # Main MCP server implementation with dual transport
-└── ontap-client.ts   # NetApp ONTAP REST API client
+```
+src/
+├── index.ts          # Main MCP server implementation with dual transport
+├── ontap-client.ts   # NetApp ONTAP REST API client
+└── tools/            # Tool implementations organized by category
+    ├── export-policy-tools.ts    # NFS export policy management
+    ├── snapshot-policy-tools.ts  # Snapshot policy lifecycle
+    ├── snapshot-schedule-tools.ts # Snapshot scheduling
+    └── volume-update-tools.ts     # Volume configuration updates
 
-build/               # Compiled TypeScript output
-test-volume-lifecycle.js   # Node.js volume lifecycle test
-test-volume-lifecycle.sh   # Bash script for REST API testing
-HTTP_CONFIG.md      # HTTP transport configuration guide
-.github/            # GitHub and Copilot configuration
-.vscode/            # VS Code configuration
+test/                    # Testing infrastructure and validation tools
+├── TESTING.md                    # Comprehensive testing guide and documentation
+├── test-volume-lifecycle.js      # Node.js volume lifecycle test (STDIO/REST)
+├── test-volume-lifecycle.sh      # Bash script for REST API testing  
+├── check-aggregates.js           # Cross-cluster aggregate verification
+├── verify-tool-count.sh          # Tool registration validation
+├── setup-test-env.sh             # Interactive environment configuration
+├── test-comprehensive.js         # Complete feature testing suite
+├── test-policy-management.sh     # Policy workflow testing
+└── working-policy-format.js      # Policy format validation
+
+build/                   # Compiled TypeScript output
+HTTP_CONFIG.md          # HTTP transport configuration guide
+.github/                # GitHub and Copilot configuration
+.vscode/                # VS Code configuration
 ```
 
 ### Adding New Tools
@@ -554,6 +588,9 @@ ISC License
 
 ## 📚 Additional Resources
 
+- [test/TESTING.md](test/TESTING.md) - Comprehensive testing guide and procedures
+- [ENHANCED_PROVISIONING.md](ENHANCED_PROVISIONING.md) - Complete provisioning workflows
+- [HTTP_CONFIG.md](HTTP_CONFIG.md) - HTTP transport configuration
 - [NetApp ONTAP REST API Documentation](https://docs.netapp.com/us-en/ontap-automation/)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=ModelContextProtocol.mcp)
@@ -607,10 +644,10 @@ Before submitting:
 npm run build
 
 # Test STDIO transport
-node test-volume-lifecycle.js stdio
+node test/test-volume-lifecycle.js stdio
 
 # Test HTTP transport
-./test-volume-lifecycle.sh
+./test/test-volume-lifecycle.sh
 
 # Verify both transports work
 npm start  # Test STDIO

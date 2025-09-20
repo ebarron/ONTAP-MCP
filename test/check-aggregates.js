@@ -174,7 +174,7 @@ async function startHttpServer() {
   });
   
   return new Promise((resolve, reject) => {
-    const server = spawn('node', ['build/index.js', '--http=3000'], {
+    const server = spawn('node', ['../build/index.js', '--http=3000'], {
       cwd: process.cwd(),
       env: {
         ...process.env,

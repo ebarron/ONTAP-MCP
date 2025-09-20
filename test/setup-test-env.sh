@@ -96,10 +96,10 @@ fi
 echo ""
 echo "# Then run tests:"
 echo "npm run build"
-echo "node test-volume-lifecycle.js stdio    # Test STDIO mode"
-echo "node test-volume-lifecycle.js rest     # Test REST mode"
-echo "./test-volume-lifecycle.sh             # Test REST API via bash"
-echo "node check-aggregates.js               # Check aggregates"
+echo "node test/test-volume-lifecycle.js stdio    # Test STDIO mode"
+echo "node test/test-volume-lifecycle.js rest     # Test REST mode"  
+echo "./test/test-volume-lifecycle.sh             # Test REST API via bash"
+echo "node test/check-aggregates.js               # Check aggregates"
 echo ""
 
 # Offer to set for current session (default to new object format)

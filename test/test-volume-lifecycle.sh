@@ -60,7 +60,7 @@ start_server() {
     log "🌐 Starting ONTAP MCP HTTP server on port $HTTP_PORT..."
     
     # Use the clusters from environment variable
-    node build/index.js --http=$HTTP_PORT &
+    node ../build/index.js --http=$HTTP_PORT &
     
     SERVER_PID=$!
     echo $SERVER_PID > /tmp/ontap-mcp-test.pid
