@@ -7,9 +7,27 @@
  */
 
 import { spawn } from 'child_process';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Load cluster configuration from external file
+function loadClusters() {
+  try {
+    const clustersPath = join(__dirname, 'clusters.json');
+    const clustersData = readFileSync(clustersPath, 'utf8');
+    return JSON.parse(clustersData);
+  } catch (error) {
+    throw new Error(`Failed to load clusters from clusters.json: ${error.message}`);
+  }
 }
 
 // Get clusters from the MCP server via HTTP API
@@ -72,16 +90,20 @@ async function getTestConfig(httpPort = 3000) {
     throw new Error('No clusters found in MCP server configuration');
   }
 
-  const firstCluster = clusters[0];
+  // Find karan-ontap-1 cluster specifically since user confirmed it's working
+  const karanCluster = clusters.find(c => c.name === 'karan-ontap-1');
+  if (!karanCluster) {
+    throw new Error('karan-ontap-1 cluster not found in configuration');
+  }
   
   return {
-    cluster_name: firstCluster.name,
-    svm_name: process.env.TEST_SVM_NAME || 'vs0', // Allow override via env var
+    cluster_name: karanCluster.name,
+    svm_name: process.env.TEST_SVM_NAME || 'vs123', // Use vs123 which exists on karan-ontap-1
     volume_name: `test_lifecycle_${Date.now()}`,
     size: '100MB',
-    aggregate_name: process.env.TEST_AGGREGATE_NAME || 'aggr1_1', // Allow override via env var
+    aggregate_name: process.env.TEST_AGGREGATE_NAME || 'sti248_vsim_ocvs076k_aggr1', // Use actual aggregate from karan-ontap-1
     wait_time: 10000, // 10 seconds
-    cluster_info: firstCluster
+    cluster_info: karanCluster
   };
 }
 
@@ -110,8 +132,21 @@ class VolumeLifecycleTest {
   // STDIO Mode: Call MCP tools directly via server process
   async callStdioTool(toolName, args) {
     return new Promise((resolve, reject) => {
-      const server = spawn('node', ['../build/index.js'], {
+      // Load cluster configuration for STDIO mode too
+      let clustersConfig;
+      try {
+        clustersConfig = loadClusters();
+      } catch (error) {
+        reject(new Error(`Failed to load cluster configuration: ${error.message}`));
+        return;
+      }
+
+      const server = spawn('node', ['build/index.js'], {
         cwd: process.cwd(),
+        env: {
+          ...process.env,
+          ONTAP_CLUSTERS: JSON.stringify(clustersConfig)
+        },
         stdio: ['pipe', 'pipe', 'pipe']
       });
 
@@ -169,29 +204,19 @@ class VolumeLifecycleTest {
   // REST Mode: Call HTTP API endpoints
   async startHttpServer() {
     return new Promise((resolve, reject) => {
-      // Use the same cluster configuration that's in the MCP JSON (new object format)
-      const clustersEnv = JSON.stringify({
-        "greg-vsim-1": {
-          "cluster_ip": "10.193.184.184",
-          "username": "admin",
-          "password": "Netapp1!",
-          "description": "Gregs vSim ONTAP cluster"
-        },
-        "julia-vsim-1": {
-          "cluster_ip": "10.193.77.89",
-          "username": "admin",
-          "password": "Netapp1!",
-          "description": "Julias first vSim ONTAP cluster"
-        },
-        "julia-vsim-2": {
-          "cluster_ip": "10.61.183.200",
-          "username": "admin",
-          "password": "!nT3r$1gH+ K1ouD",
-          "description": "Julias second vSim cluster"
-        }
-      });
+      // Load cluster configuration from external file
+      let clustersConfig;
+      try {
+        clustersConfig = loadClusters();
+        console.log(`[DEBUG] Loaded ${Object.keys(clustersConfig).length} clusters from clusters.json`);
+      } catch (error) {
+        reject(new Error(`Failed to load cluster configuration: ${error.message}`));
+        return;
+      }
 
-      this.serverProcess = spawn('node', ['../build/index.js', `--http=${this.httpPort}`], {
+      const clustersEnv = JSON.stringify(clustersConfig);
+
+      this.serverProcess = spawn('node', ['build/index.js', `--http=${this.httpPort}`], {
         cwd: process.cwd(),
         env: {
           ...process.env,
@@ -251,11 +276,8 @@ class VolumeLifecycleTest {
   }
 
   async callTool(toolName, args) {
-    if (this.mode === 'stdio') {
-      return await this.callStdioTool(toolName, args);
-    } else {
-      return await this.callRestTool(toolName, args);
-    }
+    // Since we start an HTTP server in both modes, use REST calls
+    return await this.callRestTool(toolName, args);
   }
 
   // Test Steps
@@ -372,11 +394,10 @@ class VolumeLifecycleTest {
     try {
       await this.log(`🚀 Starting Volume Lifecycle Test (${this.mode.toUpperCase()} mode)`);
       
-      if (this.mode === 'rest') {
-        await this.log(`🌐 Starting HTTP server on port ${this.httpPort}...`);
-        await this.startHttpServer();
-        await this.sleep(2000); // Give server time to fully start
-      }
+      // Start HTTP server for configuration (both modes need this)
+      await this.log(`🌐 Starting HTTP server on port ${this.httpPort} for configuration...`);
+      await this.startHttpServer();
+      await this.sleep(2000); // Give server time to fully start
 
       // Initialize configuration after server is started
       await this.log(`🔧 Initializing test configuration...`);
@@ -395,10 +416,9 @@ class VolumeLifecycleTest {
       await this.log(`❌ Test FAILED: ${error.message}`);
       throw error;
     } finally {
-      if (this.mode === 'rest') {
-        await this.log(`🛑 Stopping HTTP server...`);
-        await this.stopHttpServer();
-      }
+      // Stop HTTP server in both modes since we start it in both modes
+      await this.log(`🛑 Stopping HTTP server...`);
+      await this.stopHttpServer();
     }
   }
 }

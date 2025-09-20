@@ -45,15 +45,36 @@ import {
   createUpdateExportRuleToolDefinition,
   handleUpdateExportRule,
   createDeleteExportRuleToolDefinition,
-  handleDeleteExportRule,
-  createConfigureVolumeNfsAccessToolDefinition,
-  handleConfigureVolumeNfsAccess,
-  createDisableVolumeNfsAccessToolDefinition,
-  handleDisableVolumeNfsAccess
+  handleDeleteExportRule
 } from "./tools/export-policy-tools.js";
 
-// Import volume update tools
+// Import volume tools (all volume-related functionality consolidated)
 import {
+  // Legacy single-cluster volume tools
+  createListVolumesToolDefinition,
+  handleListVolumes,
+  createCreateVolumeToolDefinition,
+  handleCreateVolume,
+  createGetVolumeStatsToolDefinition,
+  handleGetVolumeStats,
+  createOfflineVolumeToolDefinition,
+  handleOfflineVolume,
+  createDeleteVolumeToolDefinition,
+  handleDeleteVolume,
+  
+  // Multi-cluster volume tools
+  createClusterListVolumesToolDefinition,
+  handleClusterListVolumes,
+  createClusterCreateVolumeToolDefinition,
+  handleClusterCreateVolume,
+  createClusterOfflineVolumeToolDefinition,
+  handleClusterOfflineVolume,
+  createClusterDeleteVolumeToolDefinition,
+  handleClusterDeleteVolume,
+  createClusterGetVolumeStatsToolDefinition,
+  handleClusterGetVolumeStats,
+  
+  // Volume configuration and update tools
   createGetVolumeConfigurationToolDefinition,
   handleGetVolumeConfiguration,
   createUpdateVolumeSecurityStyleToolDefinition,
@@ -61,8 +82,26 @@ import {
   createResizeVolumeToolDefinition,
   handleResizeVolume,
   createUpdateVolumeCommentToolDefinition,
-  handleUpdateVolumeComment
-} from "./tools/volume-update-tools.js";
+  handleUpdateVolumeComment,
+  
+  // Volume NFS access tools
+  createConfigureVolumeNfsAccessToolDefinition,
+  handleConfigureVolumeNfsAccess,
+  createDisableVolumeNfsAccessToolDefinition,
+  handleDisableVolumeNfsAccess
+} from "./tools/volume-tools.js";
+
+// Import volume update tools - DEPRECATED: moved to volume-tools.ts
+// import {
+//   createGetVolumeConfigurationToolDefinition,
+//   handleGetVolumeConfiguration,
+//   createUpdateVolumeSecurityStyleToolDefinition,
+//   handleUpdateVolumeSecurityStyle,
+//   createResizeVolumeToolDefinition,
+//   handleResizeVolume,
+//   createUpdateVolumeCommentToolDefinition,
+//   handleUpdateVolumeComment
+// } from "./tools/volume-update-tools.js";
 
 // Import snapshot schedule tools
 import {
@@ -195,8 +234,20 @@ function loadClusters(initOptions?: any): void {
     clusters.forEach((cluster: ClusterConfigArray) => {
       clusterManager.addCluster(cluster);
       console.error(`Added cluster: ${cluster.name} at ${cluster.cluster_ip}`);
+      
+      // Debug: Verify cluster was added
+      const addedCluster = clusterManager.getCluster(cluster.name);
+      if (addedCluster) {
+        console.error(`✅ Verified cluster '${cluster.name}' is in registry`);
+      } else {
+        console.error(`❌ Failed to verify cluster '${cluster.name}' in registry`);
+      }
     });
+    
+    // Debug: Check total clusters in registry
+    const totalClusters = clusterManager.listClusters();
     console.error(`Successfully loaded ${clusters.length} clusters`);
+    console.error(`Registry now contains ${totalClusters.length} clusters: ${totalClusters.map(c => c.name).join(', ')}`);
   } else {
     console.error('No clusters loaded - clusters must be added manually via add_cluster tool');
   }
@@ -359,20 +410,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "list_volumes",
-        description: "List all volumes in the cluster or a specific SVM",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-            username: { type: "string", description: "Username for authentication" },
-            password: { type: "string", description: "Password for authentication" },
-            svm_name: { type: "string", description: "Optional: Filter volumes by SVM name" },
-          },
-          required: ["cluster_ip", "username", "password"],
-        },
-      },
-      {
         name: "list_svms",
         description: "List all Storage Virtual Machines (SVMs) in the cluster",
         inputSchema: {
@@ -396,65 +433,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             password: { type: "string", description: "Password for authentication" },
           },
           required: ["cluster_ip", "username", "password"],
-        },
-      },
-      {
-        name: "get_volume_stats",
-        description: "Get performance statistics for a specific volume",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-            username: { type: "string", description: "Username for authentication" },
-            password: { type: "string", description: "Password for authentication" },
-            volume_uuid: { type: "string", description: "UUID of the volume to get statistics for" },
-          },
-          required: ["cluster_ip", "username", "password", "volume_uuid"],
-        },
-      },
-      {
-        name: "create_volume",
-        description: "Create a new volume in the specified SVM",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-            username: { type: "string", description: "Username for authentication" },
-            password: { type: "string", description: "Password for authentication" },
-            svm_name: { type: "string", description: "Name of the SVM where the volume will be created" },
-            volume_name: { type: "string", description: "Name of the new volume" },
-            size: { type: "string", description: "Size of the volume (e.g., '100GB', '1TB')" },
-            aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
-          },
-          required: ["cluster_ip", "username", "password", "svm_name", "volume_name", "size"],
-        },
-      },
-      {
-        name: "offline_volume",
-        description: "Take a volume offline (required before deletion). WARNING: This will make the volume inaccessible.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-            username: { type: "string", description: "Username for authentication" },
-            password: { type: "string", description: "Password for authentication" },
-            volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
-          },
-          required: ["cluster_ip", "username", "password", "volume_uuid"],
-        },
-      },
-      {
-        name: "delete_volume",
-        description: "Delete a volume (must be offline first). WARNING: This action is irreversible and will permanently destroy all data.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-            username: { type: "string", description: "Username for authentication" },
-            password: { type: "string", description: "Password for authentication" },
-            volume_uuid: { type: "string", description: "UUID of the volume to delete" },
-          },
-          required: ["cluster_ip", "username", "password", "volume_uuid"],
         },
       },
       
@@ -485,18 +463,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: { type: "object", properties: {} },
       },
       {
-        name: "cluster_list_volumes",
-        description: "List volumes from a registered cluster by cluster name",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_name: { type: "string", description: "Name of the registered cluster" },
-            svm_name: { type: "string", description: "Optional: Filter volumes by SVM name" },
-          },
-          required: ["cluster_name"],
-        },
-      },
-      {
         name: "cluster_list_svms",
         description: "List SVMs from a registered cluster by cluster name",
         inputSchema: {
@@ -518,57 +484,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["cluster_name"],
         },
       },
-      {
-        name: "cluster_create_volume",
-        description: "Create a volume on a registered cluster by cluster name",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_name: { type: "string", description: "Name of the registered cluster" },
-            svm_name: { type: "string", description: "Name of the SVM where the volume will be created" },
-            volume_name: { type: "string", description: "Name of the new volume" },
-            size: { type: "string", description: "Size of the volume (e.g., '100GB', '1TB')" },
-            aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
-          },
-          required: ["cluster_name", "svm_name", "volume_name", "size"],
-        },
-      },
-      {
-        name: "cluster_offline_volume",
-        description: "Take a volume offline on a registered cluster by cluster name (required before deletion). WARNING: This will make the volume inaccessible.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_name: { type: "string", description: "Name of the registered cluster" },
-            volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
-          },
-          required: ["cluster_name", "volume_uuid"],
-        },
-      },
-      {
-        name: "cluster_delete_volume",
-        description: "Delete a volume on a registered cluster by cluster name (must be offline first). WARNING: This action is irreversible and will permanently destroy all data.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_name: { type: "string", description: "Name of the registered cluster" },
-            volume_uuid: { type: "string", description: "UUID of the volume to delete" },
-          },
-          required: ["cluster_name", "volume_uuid"],
-        },
-      },
-      {
-        name: "cluster_get_volume_stats",
-        description: "Get volume statistics from a registered cluster by cluster name",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cluster_name: { type: "string", description: "Name of the registered cluster" },
-            volume_uuid: { type: "string", description: "UUID of the volume to get statistics for" },
-          },
-          required: ["cluster_name", "volume_uuid"],
-        },
-      },
       
       // Snapshot Policy Management Tools
       createListSnapshotPoliciesToolDefinition(),
@@ -584,14 +499,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       createAddExportRuleToolDefinition(),
       createUpdateExportRuleToolDefinition(),
       createDeleteExportRuleToolDefinition(),
-      createConfigureVolumeNfsAccessToolDefinition(),
-      createDisableVolumeNfsAccessToolDefinition(),
 
-      // Volume Configuration and Update Tools
+      // Volume Management Tools (all volume-related functionality)
+      // Legacy single-cluster volume tools
+      createListVolumesToolDefinition(),
+      createCreateVolumeToolDefinition(),
+      createGetVolumeStatsToolDefinition(),
+      createOfflineVolumeToolDefinition(),
+      createDeleteVolumeToolDefinition(),
+      
+      // Multi-cluster volume tools  
+      createClusterListVolumesToolDefinition(),
+      createClusterCreateVolumeToolDefinition(),
+      createClusterOfflineVolumeToolDefinition(),
+      createClusterDeleteVolumeToolDefinition(),
+      createClusterGetVolumeStatsToolDefinition(),
+      
+      // Volume configuration and update tools
       createGetVolumeConfigurationToolDefinition(),
       createUpdateVolumeSecurityStyleToolDefinition(),
       createResizeVolumeToolDefinition(),
       createUpdateVolumeCommentToolDefinition(),
+      
+      // Volume NFS access tools
+      createConfigureVolumeNfsAccessToolDefinition(),
+      createDisableVolumeNfsAccessToolDefinition(),
 
       // Snapshot Schedule Management Tools
       createListSnapshotSchedulesToolDefinition(),
@@ -1136,6 +1068,10 @@ async function startStdioServer() {
 }
 
 async function startHttpServer(port: number = 3000) {
+  // Initialize clusters from environment variables for HTTP mode
+  console.error('=== HTTP Mode: Loading clusters from environment ===');
+  loadClusters();
+  
   const app = express();
   
   // Middleware
@@ -1168,7 +1104,10 @@ async function startHttpServer(port: number = 3000) {
       let result;
       switch (toolName) {
         case 'list_registered_clusters':
+          console.error(`=== DEBUG: HTTP API - list_registered_clusters called ===`);
           const clusters = clusterManager.listClusters();
+          console.error(`DEBUG: clusterManager.listClusters() returned ${clusters.length} clusters`);
+          console.error(`DEBUG: clusters = ${JSON.stringify(clusters.map(c => ({ name: c.name, ip: c.cluster_ip })))}`);
           result = {
             content: [{
               type: "text",
@@ -1306,9 +1245,13 @@ async function main() {
   const httpArg = args.find(arg => arg.startsWith('--http'));
   const port = httpArg ? parseInt(httpArg.split('=')[1]) || 3000 : 3000;
   
-  if (args.includes('--http') || httpArg) {
+  // Check for both --http flag and positional argument
+  const isHttpMode = args.includes('--http') || httpArg || args[0] === 'http';
+  const httpPort = args[0] === 'http' && args[1] ? parseInt(args[1]) || 3000 : port;
+  
+  if (isHttpMode) {
     // HTTP mode
-    await startHttpServer(port);
+    await startHttpServer(httpPort);
   } else {
     // Default: STDIO mode
     await startStdioServer();

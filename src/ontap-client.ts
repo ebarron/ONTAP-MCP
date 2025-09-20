@@ -5,9 +5,16 @@ import type {
   CreateSnapshotPolicyRequest, 
   UpdateSnapshotPolicyRequest,
   SnapshotPolicyResponse,
-  ListSnapshotPoliciesParams,
-  VolumeSnapshotConfig
+  ListSnapshotPoliciesParams
 } from './types/snapshot-types.js';
+import type {
+  VolumeInfo,
+  VolumeStats,
+  CreateVolumeParams,
+  CreateVolumeResponse,
+  VolumeSnapshotConfig,
+  VolumeNfsConfig
+} from './types/volume-types.js';
 import type {
   ExportPolicy,
   ExportRule,
@@ -17,8 +24,7 @@ import type {
   ExportPolicyResponse,
   ExportRuleResponse,
   ListExportPoliciesParams,
-  ListExportRulesParams,
-  VolumeNfsConfig
+  ListExportRulesParams
 } from './types/export-policy-types.js';
 
 // Type definitions for ONTAP API responses
@@ -43,82 +49,6 @@ export interface ClusterInfo {
       address: string;
       netmask: string;
     };
-  };
-}
-
-export interface VolumeInfo {
-  uuid: string;
-  name: string;
-  size: number;
-  state: string;
-  type: string;
-  comment?: string;
-  svm?: {
-    uuid: string;
-    name: string;
-  };
-  aggregates?: Array<{
-    uuid: string;
-    name: string;
-  }>;
-  nas?: {
-    security_style?: string;
-    export_policy?: {
-      name: string;
-      id?: number;
-    };
-  };
-  snapshot_policy?: {
-    name: string;
-    uuid?: string;
-  };
-  efficiency?: {
-    compression?: string;
-    dedupe?: string;
-  };
-}
-
-export interface VolumeStats {
-  uuid: string;
-  iops?: {
-    read: number;
-    write: number;
-    other: number;
-    total: number;
-  };
-  throughput?: {
-    read: number;
-    write: number;
-    other: number;
-    total: number;
-  };
-  latency?: {
-    read: number;
-    write: number;
-    other: number;
-    total: number;
-  };
-  space?: {
-    used: number;
-    available: number;
-    total: number;
-  };
-}
-
-export interface CreateVolumeParams {
-  svm_name: string;
-  volume_name: string;
-  size: string;
-  aggregate_name?: string;
-  snapshot_policy?: string;
-  nfs_export_policy?: string;
-}
-
-export interface CreateVolumeResponse {
-  uuid: string;
-  job?: {
-    uuid: string;
-    state: string;
   };
 }
 

@@ -5,13 +5,15 @@
 
 set -e  # Exit on any error
 
+# Get the project root directory (parent of test directory)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # Configuration - defaults with environment variable overrides
-SVM_NAME="${TEST_SVM_NAME:-vs0}"
 VOLUME_NAME="test_lifecycle_$(date +%s)"
 SIZE="100MB"  
-AGGREGATE_NAME="${TEST_AGGREGATE_NAME:-aggr1_1}"
 WAIT_TIME=10
 HTTP_PORT=3004
+SERVER_LOG="/tmp/mcp-server-test.log"
 
 # Colors for output
 RED='\033[0;31m'
@@ -24,6 +26,11 @@ log() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
 }
 
+# Alias info to log for consistency
+info() {
+    log "$1"
+}
+
 success() {
     echo -e "${GREEN}✅ $1${NC}"
 }
@@ -32,19 +39,90 @@ warning() {
     echo -e "${YELLOW}⚠️ $1${NC}"
 }
 
-# Get cluster configuration from MCP server
+error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Get SVM configuration for a cluster
+get_svm_name() {
+    local cluster_name="$1"
+    
+    # Get list of SVMs for this cluster
+    local svms_response=$(curl -s -X POST "http://localhost:$HTTP_PORT/api/tools/cluster_list_svms" \
+                              -H "Content-Type: application/json" \
+                              -d "{\"cluster_name\":\"$cluster_name\"}" 2>/dev/null || echo "")
+    
+    if [ -z "$svms_response" ]; then
+        error "Failed to get SVMs from cluster $cluster_name"
+        exit 1
+    fi
+    
+    # Parse SVM name from response (look for first SVM in the list)
+    local svm_name=$(echo "$svms_response" | jq -r '.content[0].text' | grep -E "^- " | head -1 | sed 's/^- \([^ ]*\) .*/\1/' || echo "")
+    
+    if [ -z "$svm_name" ]; then
+        error "Could not find any SVM on cluster $cluster_name"
+        error "SVM response: $svms_response"
+        exit 1
+    fi
+    
+    echo "$svm_name"
+}
+
+# Get aggregate configuration for a cluster
+get_aggregate_name() {
+    local cluster_name="$1"
+    
+    # Get list of aggregates for this cluster
+    local aggs_response=$(curl -s -X POST "http://localhost:$HTTP_PORT/api/tools/cluster_list_aggregates" \
+                              -H "Content-Type: application/json" \
+                              -d "{\"cluster_name\":\"$cluster_name\"}" 2>/dev/null || echo "")
+    
+    if [ -z "$aggs_response" ]; then
+        error "Failed to get aggregates from cluster $cluster_name"
+        exit 1
+    fi
+    
+    # Parse aggregate name from response (look for first aggregate in the list)
+    local agg_name=$(echo "$aggs_response" | jq -r '.content[0].text' | grep -E "^- " | head -1 | sed 's/^- \([^ ]*\) .*/\1/' || echo "")
+    
+    if [ -z "$agg_name" ]; then
+        error "Could not find any aggregate on cluster $cluster_name"
+        error "Aggregate response: $aggs_response"
+        exit 1
+    fi
+    
+    echo "$agg_name"
+}
+
 get_cluster_config() {
-    local clusters_response=$(curl -s "http://localhost:$HTTP_PORT/clusters" || echo "")
+    local clusters_response=$(curl -s -X POST "http://localhost:$HTTP_PORT/api/tools/list_registered_clusters" \
+                                  -H "Content-Type: application/json" \
+                                  -d '{}' 2>/dev/null || echo "")
     
     if [ -z "$clusters_response" ]; then
         error "Failed to get clusters from MCP server. Is the server running?"
         exit 1
     fi
     
-    local cluster_name=$(echo "$clusters_response" | jq -r '.[0].name' 2>/dev/null || echo "")
+    # Parse the MCP tool response format
+    local cluster_text=$(echo "$clusters_response" | jq -r '.content[0].text' 2>/dev/null || echo "")
     
-    if [ "$cluster_name" = "null" ] || [ -z "$cluster_name" ]; then
+    if [ "$cluster_text" = "null" ] || [ -z "$cluster_text" ]; then
         error "No clusters found in MCP server configuration"
+        exit 1
+    fi
+    
+    # Look for karan-ontap-1 specifically since we know it has the right aggregates
+    local cluster_name=$(echo "$cluster_text" | grep -E "^- karan-ontap-1:" | head -1 | sed 's/^- \([^:]*\):.*/\1/' || echo "")
+    
+    # If karan-ontap-1 not found, fall back to first cluster
+    if [ -z "$cluster_name" ]; then
+        cluster_name=$(echo "$cluster_text" | grep -E "^- " | head -1 | sed 's/^- \([^:]*\):.*/\1/' || echo "")
+    fi
+    
+    if [ -z "$cluster_name" ]; then
+        error "Could not parse cluster name from server response"
         exit 1
     fi
     
@@ -55,27 +133,44 @@ error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
-# Start HTTP server
+# Start the MCP server in HTTP mode
 start_server() {
-    log "🌐 Starting ONTAP MCP HTTP server on port $HTTP_PORT..."
+    info "Starting MCP server on port $HTTP_PORT..."
     
-    # Use the clusters from environment variable
-    node ../build/index.js --http=$HTTP_PORT &
+    # Read the clusters configuration from our test file
+    local clusters_config
+    if [ -f "test/clusters.json" ]; then
+        clusters_config=$(cat test/clusters.json | jq -c .)
+    else
+        error "clusters.json not found - please run sync-clusters.js first"
+        exit 1
+    fi
     
+    # Start server with cluster configuration
+    ONTAP_CLUSTERS="$clusters_config" node build/index.js http "$HTTP_PORT" > "$SERVER_LOG" 2>&1 &
     SERVER_PID=$!
-    echo $SERVER_PID > /tmp/ontap-mcp-test.pid
     
     # Wait for server to start
-    for i in {1..10}; do
-        if curl -s http://localhost:$HTTP_PORT/health > /dev/null 2>&1; then
-            success "HTTP server started successfully"
+    sleep 5
+    
+    # Check if server is responding with health check
+    local health_check_attempts=0
+    local max_attempts=10
+    while [ $health_check_attempts -lt $max_attempts ]; do
+        if curl -s "http://localhost:$HTTP_PORT/health" > /dev/null 2>&1; then
+            info "Server started successfully with PID: $SERVER_PID"
             return 0
         fi
+        health_check_attempts=$((health_check_attempts + 1))
         sleep 1
     done
     
-    error "Failed to start HTTP server"
-    return 1
+    # If we get here, server didn't respond
+    error "Server failed to respond to health checks. Check logs:"
+    if [ -f "$SERVER_LOG" ]; then
+        cat "$SERVER_LOG"
+    fi
+    exit 1
 }
 
 # Stop HTTP server
@@ -121,7 +216,7 @@ main() {
     
     # Build project
     log "🔨 Building project..."
-    npm run build
+    cd "$PROJECT_ROOT" && npm run build
     
     # Start server
     start_server
@@ -131,8 +226,18 @@ main() {
     log "🔍 Getting cluster configuration from MCP server..."
     CLUSTER_NAME=$(get_cluster_config)
     
+    # Discover SVM for this cluster
+    log "🔍 Discovering SVM for cluster $CLUSTER_NAME..."
+    SVM_NAME=$(get_svm_name "$CLUSTER_NAME")
+    
+    # Discover aggregate for this cluster
+    log "🔍 Discovering aggregate for cluster $CLUSTER_NAME..."
+    AGGREGATE_NAME=$(get_aggregate_name "$CLUSTER_NAME")
+    
     log "📋 Using cluster: $CLUSTER_NAME"
-    log "📋 Volume: $VOLUME_NAME, Size: $SIZE, SVM: $SVM_NAME"
+    log "📋 Using SVM: $SVM_NAME"
+    log "📋 Using aggregate: $AGGREGATE_NAME"
+    log "📋 Volume: $VOLUME_NAME, Size: $SIZE"
     
     # Step 1: Create volume
     log "🔧 Step 1: Creating volume '$VOLUME_NAME'..."

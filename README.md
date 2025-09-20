@@ -37,7 +37,7 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 
 ## Features
 
-### Available Tools (42 Total)
+### Available Tools (38 Total)
 
 #### Core Volume Management (18 tools)
 **Single-Cluster Tools (Legacy)**
@@ -90,9 +90,9 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 39. **apply_snapshot_policy_to_volume** - Apply protection policies to existing volumes
 40. **remove_snapshot_policy_from_volume** - Remove protection from volumes
 
-#### Enhanced Features (2 tools)
-41. **Test Harness** - Comprehensive test script for all policy management features  
-42. **Documentation** - Complete workflow examples and best practices guide
+#### Enhanced Features (0 separate tools)
+- **Test Harness** - Comprehensive test script for all policy management features  
+- **Documentation** - Complete workflow examples and best practices guide
 
 #### 🛡️ Safety Features
 - **Offline-First Deletion**: Volumes must be taken offline before deletion
@@ -228,51 +228,66 @@ npm run dev:http
 
 ## 🧪 Testing
 
-The project includes a comprehensive testing suite located in the `test/` directory. **All test scripts automatically use the cluster configuration from your VS Code MCP settings - no separate environment setup needed!**
+The project includes a comprehensive testing suite located in the `test/` directory with external cluster configuration for maximum maintainability.
+
+### Comprehensive Test Runner
+
+**Run all tests with a single command:**
+```bash
+# Build and run complete test suite (9 tests)
+./test/run-all-tests.sh
+```
 
 ### Core Testing Tools
 
 | Test Tool | Purpose | Transport Mode |
 |-----------|---------|----------------|
-| `test-volume-lifecycle.js` | Complete volume CRUD workflow testing | STDIO & REST |
-| `test-volume-lifecycle.sh` | Volume lifecycle via shell script | REST only |
+| `run-all-tests.sh` | **Complete regression test suite runner** | All modes |
+| `test-volume-lifecycle.js` | Volume CRUD workflow testing | STDIO & REST |
+| `test-volume-lifecycle.sh` | Volume lifecycle via shell with auto-discovery | REST only |
 | `check-aggregates.js` | Cross-cluster aggregate verification | REST |
 | `verify-tool-count.sh` | Tool registration validation | Local |
 | `test-comprehensive.js` | Full feature testing suite | REST |
 | `test-policy-management.sh` | Policy workflow testing | REST |
 | `setup-test-env.sh` | Interactive environment setup | Local |
 
-### Volume Lifecycle Testing
+### Quick Testing
 
-Test the complete create → wait → offline → delete workflow:
+Test individual components or run the full suite:
 
 ```bash
 # Build project
 npm run build
 
-# Test using Node.js (supports both STDIO and REST modes)
+# Run complete regression test suite (recommended)
+./test/run-all-tests.sh
+
+# Individual test examples:
 node test/test-volume-lifecycle.js stdio    # Test STDIO transport
 node test/test-volume-lifecycle.js rest     # Test HTTP REST API
-
-# Test using Bash script (REST API only)  
-./test/test-volume-lifecycle.sh
-
-# Check aggregates across all clusters
-node test/check-aggregates.js
-
-# Verify all tools are registered correctly
-./test/verify-tool-count.sh
+./test/test-volume-lifecycle.sh             # Shell-based REST API testing
+node test/check-aggregates.js               # Cross-cluster verification
+./test/verify-tool-count.sh                 # Tool count validation
 ```
+
+### External Cluster Configuration
+
+Tests use an external `clusters.json` configuration file for maintainability:
+
+- **Location**: `test/clusters.json`
+- **Sync Tool**: `test/sync-clusters.js` - synchronizes from your VS Code MCP settings
+- **Auto-Discovery**: Shell tests automatically discover available SVMs and aggregates
 
 ### How It Works
 
-The test scripts automatically:
-1. Start the MCP server in HTTP mode  
-2. Get cluster configuration from the server (same clusters configured in your VS Code MCP settings)
-3. Use the HTTP REST API to call MCP tools
-4. Clean up by stopping the server
+The test framework:
+1. Uses external cluster configuration from `test/clusters.json`
+2. Starts the MCP server in HTTP mode automatically
+3. Performs comprehensive testing across all registered clusters
+4. Provides detailed pass/fail reporting with timing
+5. Automatically cleans up resources and stops servers
 
-**No manual configuration needed** - the scripts use the same cluster configuration that VS Code loads from your `mcp.json` file.
+**Enhanced maintainability** - cluster configuration is externalized and can be synchronized from your VS Code MCP settings using the sync utility.
 
 📋 **For comprehensive testing documentation, see [test/TESTING.md](test/TESTING.md)** - includes complete environment setup, test strategies, workflow validation, and troubleshooting guides.
 
@@ -546,8 +561,11 @@ src/
 
 test/                    # Testing infrastructure and validation tools
 ├── TESTING.md                    # Comprehensive testing guide and documentation
+├── run-all-tests.sh              # Complete regression test suite runner
+├── clusters.json                 # External cluster configuration for tests
+├── sync-clusters.js              # Synchronize clusters from VS Code MCP settings
 ├── test-volume-lifecycle.js      # Node.js volume lifecycle test (STDIO/REST)
-├── test-volume-lifecycle.sh      # Bash script for REST API testing  
+├── test-volume-lifecycle.sh      # Bash script for REST API testing with auto-discovery
 ├── check-aggregates.js           # Cross-cluster aggregate verification
 ├── verify-tool-count.sh          # Tool registration validation
 ├── setup-test-env.sh             # Interactive environment configuration

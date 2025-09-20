@@ -203,21 +203,6 @@ export interface ListExportRulesParams {
 }
 
 /**
- * Volume NFS configuration
- */
-export interface VolumeNfsConfig {
-  /** Volume UUID */
-  volume_uuid: string;
-  /** Export policy to apply */
-  export_policy: {
-    name: string;
-    id?: number;
-  };
-  /** Whether NFS access is enabled */
-  enabled?: boolean;
-}
-
-/**
  * Common NFS export rule templates for easy configuration
  */
 export const NFS_RULE_TEMPLATES = {

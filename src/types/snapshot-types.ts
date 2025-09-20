@@ -124,14 +124,9 @@ export interface ListSnapshotPoliciesParams {
 }
 
 /**
- * Volume snapshot policy configuration
+ * Snapshot policy list response
  */
-export interface VolumeSnapshotConfig {
-  /** Volume UUID */
-  volume_uuid: string;
-  /** Snapshot policy to apply */
-  snapshot_policy: {
-    name: string;
-    uuid?: string;
-  };
+export interface SnapshotPolicyListResponse {
+  /** Array of policies returned by list operations */
+  policies?: SnapshotPolicy[];
 }

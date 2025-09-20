@@ -25,36 +25,41 @@ async function getClustersFromServer(httpPort = 3000) {
     
     const result = await response.json();
     
-    // Parse the response from the tool
-    if (result.content && result.content[0] && result.content[0].text) {
-      const text = result.content[0].text;
-      
-      // If no clusters, return empty array
-      if (text.includes('No clusters registered')) {
-        return [];
-      }
-      
-      // Extract cluster info from the text response
-      const lines = text.split('\n');
-      const clusters = [];
-      
-      for (const line of lines) {
-        if (line.trim().startsWith('- ')) {
-          const match = line.match(/- ([^:]+): ([^\s]+) \(([^)]*)\)/);
-          if (match) {
-            clusters.push({
-              name: match[1].trim(),
-              cluster_ip: match[2].trim(),
-              description: match[3].trim()
-            });
-          }
+    // Parse the response from the tool - now returns plain string
+    let text;
+    if (typeof result === 'string') {
+      text = result;
+    } else if (result.content && result.content[0] && result.content[0].text) {
+      text = result.content[0].text;
+    } else {
+      text = String(result);
+    }
+    
+    // If no clusters, return empty array
+    if (text.includes('No clusters registered')) {
+      return [];
+    }
+    
+    // Extract cluster info from the text response
+    const lines = text.split('\n');
+    const clusters = [];
+    
+    for (const line of lines) {
+      if (line.trim().startsWith('- ')) {
+        const match = line.match(/- ([^:]+): ([^\s]+) \(([^)]*)\)/);
+        if (match) {
+          clusters.push({
+            name: match[1].trim(),
+            cluster_ip: match[2].trim(),
+            description: match[3].trim()
+          });
         }
       }
       
       return clusters;
     }
     
-    throw new Error('Unexpected response format');
+    return [];
   } catch (error) {
     throw new Error(`Failed to get clusters from MCP server: ${error.message}`);
   }
@@ -77,35 +82,40 @@ async function callMcpTool(toolName, args, httpPort = 3000) {
 
     const result = await response.json();
     
-    if (result.content && result.content[0] && result.content[0].text) {
-      // For aggregates, parse the response to extract the actual data
-      const text = result.content[0].text;
-      const lines = text.split('\n');
-      const aggregates = [];
-      
-      for (const line of lines) {
-        if (line.trim().startsWith('- ') && line.includes('State:')) {
-          // Parse aggregate line: "- aggr1 (uuid) - State: online, Available: 1.5TB, Used: 500GB"
-          const match = line.match(/- ([^\s]+) \([^)]+\) - State: ([^,]+), Available: ([^,]+), Used: (.+)/);
-          if (match) {
-            aggregates.push({
-              name: match[1],
-              state: match[2],
-              space: {
-                block_storage: {
-                  available: match[3],
-                  used: match[4]
-                }
-              }
-            });
-          }
-        }
-      }
-      
-      return aggregates;
+    // Parse the response from the tool - now returns plain string
+    let text;
+    if (typeof result === 'string') {
+      text = result;
+    } else if (result.content && result.content[0] && result.content[0].text) {
+      text = result.content[0].text;
+    } else {
+      text = String(result);
     }
     
-    return result;
+    // For aggregates, parse the response to extract the actual data
+    const lines = text.split('\n');
+    const aggregates = [];
+    
+    for (const line of lines) {
+      if (line.trim().startsWith('- ') && line.includes('State:')) {
+        // Parse aggregate line: "- aggr1 (uuid) - State: online, Available: 1.5TB, Used: 500GB"
+        const match = line.match(/- ([^\s]+) \([^)]+\) - State: ([^,]+), Available: ([^,]+), Used: (.+)/);
+        if (match) {
+          aggregates.push({
+            name: match[1],
+            state: match[2],
+            space: {
+              block_storage: {
+                available: match[3],
+                used: match[4]
+              }
+            }
+          });
+        }
+      }
+    }
+    
+    return aggregates.length > 0 ? aggregates : result;
   } catch (error) {
     throw new Error(`Failed to call MCP tool ${toolName}: ${error.message}`);
   }
@@ -174,8 +184,8 @@ async function startHttpServer() {
   });
   
   return new Promise((resolve, reject) => {
-    const server = spawn('node', ['../build/index.js', '--http=3000'], {
-      cwd: process.cwd(),
+    const server = spawn('node', ['build/index.js', '--http=3000'], {
+      cwd: process.cwd().endsWith('/test') ? '..' : '.',
       env: {
         ...process.env,
         ONTAP_CLUSTERS: clustersEnv

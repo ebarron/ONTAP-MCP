@@ -127,23 +127,6 @@ const DeleteExportRuleSchema = z.object({
   svm_name: z.string().describe("SVM name where policy exists").optional()
 });
 
-const ConfigureVolumeNfsSchema = z.object({
-  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
-  username: z.string().describe("Username for authentication").optional(),
-  password: z.string().describe("Password for authentication").optional(),
-  cluster_name: z.string().describe("Name of the registered cluster").optional(),
-  volume_uuid: z.string().describe("UUID of the volume"),
-  export_policy_name: z.string().describe("Name of the export policy to apply")
-});
-
-const DisableVolumeNfsSchema = z.object({
-  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
-  username: z.string().describe("Username for authentication").optional(),
-  password: z.string().describe("Password for authentication").optional(),
-  cluster_name: z.string().describe("Name of the registered cluster").optional(),
-  volume_uuid: z.string().describe("UUID of the volume")
-});
-
 // ================================
 // Helper Functions
 // ================================
@@ -645,83 +628,3 @@ export async function handleDeleteExportRule(
   }
 }
 
-/**
- * Configure NFS access for a volume
- */
-export function createConfigureVolumeNfsAccessToolDefinition(): Tool {
-  return {
-    name: "configure_volume_nfs_access",
-    description: "Configure NFS access for a volume by applying an export policy",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-        username: { type: "string", description: "Username for authentication" },
-        password: { type: "string", description: "Password for authentication" },
-        cluster_name: { type: "string", description: "Name of the registered cluster" },
-        volume_uuid: { type: "string", description: "UUID of the volume" },
-        export_policy_name: { type: "string", description: "Name of the export policy to apply" }
-      },
-      required: ["volume_uuid", "export_policy_name"]
-    }
-  };
-}
-
-export async function handleConfigureVolumeNfsAccess(
-  args: unknown,
-  clusterManager: OntapClusterManager
-): Promise<string> {
-  const params = ConfigureVolumeNfsSchema.parse(args);
-  const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
-
-  try {
-    // Get volume info first
-    const volumeInfo = await client.getVolumeInfo(params.volume_uuid);
-    
-    await client.configureVolumeNfsAccess(params.volume_uuid, params.export_policy_name);
-
-    return `✅ **NFS access configured successfully!**\n\n🔐 **Export Policy:** ${params.export_policy_name}\n💾 **Volume:** ${volumeInfo.name} (${params.volume_uuid})\n🏢 **SVM:** ${volumeInfo.svm?.name}\n\n💡 The volume is now accessible via NFS according to the export policy rules. Use 'get_export_policy' to review the access rules.`;
-  } catch (error) {
-    return `❌ Error configuring NFS access for volume: ${error instanceof Error ? error.message : String(error)}`;
-  }
-}
-
-/**
- * Disable NFS access for a volume
- */
-export function createDisableVolumeNfsAccessToolDefinition(): Tool {
-  return {
-    name: "disable_volume_nfs_access",
-    description: "Disable NFS access for a volume (reverts to default export policy)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-        username: { type: "string", description: "Username for authentication" },
-        password: { type: "string", description: "Password for authentication" },
-        cluster_name: { type: "string", description: "Name of the registered cluster" },
-        volume_uuid: { type: "string", description: "UUID of the volume" }
-      },
-      required: ["volume_uuid"]
-    }
-  };
-}
-
-export async function handleDisableVolumeNfsAccess(
-  args: unknown,
-  clusterManager: OntapClusterManager
-): Promise<string> {
-  const params = DisableVolumeNfsSchema.parse(args);
-  const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
-
-  try {
-    // Get volume info first
-    const volumeInfo = await client.getVolumeInfo(params.volume_uuid);
-    
-    await client.disableVolumeNfsAccess(params.volume_uuid);
-
-    return `✅ **NFS access disabled successfully!**\n\n💾 **Volume:** ${volumeInfo.name} (${params.volume_uuid})\n🏢 **SVM:** ${volumeInfo.svm?.name}\n🔐 **Export Policy:** Reverted to 'default'\n\n💡 The volume now uses the default export policy of the SVM.`;
-  } catch (error) {
-    return `❌ Error disabling NFS access for volume: ${error instanceof Error ? error.message : String(error)}`;
-  }
-}

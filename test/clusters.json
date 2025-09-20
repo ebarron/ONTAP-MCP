@@ -1,0 +1,26 @@
+{
+  "greg-vsim-1": {
+    "cluster_ip": "10.196.19.12",
+    "username": "admin",
+    "password": "netapp1!",
+    "description": "Gregs vSim-1 ONTAP cluster"
+  },
+  "greg-vsim-2": {
+    "cluster_ip": "10.196.18.252",
+    "username": "admin",
+    "password": "1etapp1!",
+    "description": "Gregs vSim-2 ONTAP cluster"
+  },
+  "julia-vsim-1": {
+    "cluster_ip": "10.193.77.89",
+    "username": "admin",
+    "password": "Netapp1!",
+    "description": "Julias first vSim ONTAP cluster"
+  },
+  "karan-ontap-1": {
+    "cluster_ip": "10.196.61.123",
+    "username": "admin",
+    "password": "netapp1!",
+    "description": "Karans hardware system"
+  }
+}

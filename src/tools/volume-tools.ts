@@ -1,0 +1,874 @@
+/**
+ * NetApp ONTAP MCP Volume Management Tools
+ * 
+ * This module provides comprehensive volume management functionality including:
+ * - Volume lifecycle management (create, list, get stats, offline, delete)
+ * - Volume configuration and updates (security style, resize, comments)
+ * - Volume NFS access control (configure/disable export policies)
+ * - Both single-cluster and multi-cluster operations
+ */
+
+import { z } from 'zod';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
+import type { 
+  VolumeInfo, 
+  VolumeStats, 
+  CreateVolumeParams, 
+  CreateVolumeResponse,
+  VolumeSecurityStyle,
+  ResizeVolumeParams,
+  UpdateVolumeCommentParams,
+  UpdateVolumeSecurityStyleParams,
+  VolumeNfsConfig
+} from '../types/volume-types.js';
+
+// ================================
+// Zod Schemas for Input Validation
+// ================================
+
+// Legacy single-cluster schemas
+const ListVolumesSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
+  username: z.string().describe("Username for authentication"),
+  password: z.string().describe("Password for authentication"),
+  svm_name: z.string().describe("Optional: Filter volumes by SVM name").optional(),
+});
+
+const CreateVolumeSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
+  username: z.string().describe("Username for authentication"),
+  password: z.string().describe("Password for authentication"),
+  svm_name: z.string().describe("Name of the SVM where the volume will be created"),
+  volume_name: z.string().describe("Name of the new volume"),
+  size: z.string().describe("Size of the volume (e.g., '100GB', '1TB')"),
+  aggregate_name: z.string().describe("Optional: Name of the aggregate to use").optional(),
+});
+
+const GetVolumeStatsSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
+  username: z.string().describe("Username for authentication"),
+  password: z.string().describe("Password for authentication"),
+  volume_uuid: z.string().describe("UUID of the volume to get statistics for"),
+});
+
+const OfflineVolumeSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
+  username: z.string().describe("Username for authentication"),
+  password: z.string().describe("Password for authentication"),
+  volume_uuid: z.string().describe("UUID of the volume to take offline"),
+});
+
+const DeleteVolumeSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
+  username: z.string().describe("Username for authentication"),
+  password: z.string().describe("Password for authentication"),
+  volume_uuid: z.string().describe("UUID of the volume to delete"),
+});
+
+// Multi-cluster schemas
+const ClusterListVolumesSchema = z.object({
+  cluster_name: z.string().describe("Name of the registered cluster"),
+  svm_name: z.string().describe("Optional: Filter volumes by SVM name").optional(),
+});
+
+const ClusterCreateVolumeSchema = z.object({
+  cluster_name: z.string().describe("Name of the registered cluster"),
+  svm_name: z.string().describe("Name of the SVM where the volume will be created"),
+  volume_name: z.string().describe("Name of the new volume"),
+  size: z.string().describe("Size of the volume (e.g., '100GB', '1TB')"),
+  aggregate_name: z.string().describe("Optional: Name of the aggregate to use").optional(),
+});
+
+const ClusterVolumeUuidSchema = z.object({
+  cluster_name: z.string().describe("Name of the registered cluster"),
+  volume_uuid: z.string().describe("UUID of the volume"),
+});
+
+// Volume configuration and update schemas  
+const GetVolumeConfigurationSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
+  username: z.string().describe("Username for authentication").optional(),
+  password: z.string().describe("Password for authentication").optional(),
+  cluster_name: z.string().describe("Name of the registered cluster").optional(),
+  volume_uuid: z.string().describe("UUID of the volume")
+});
+
+const UpdateVolumeSecurityStyleSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
+  username: z.string().describe("Username for authentication").optional(),
+  password: z.string().describe("Password for authentication").optional(),
+  cluster_name: z.string().describe("Name of the registered cluster").optional(),
+  volume_uuid: z.string().describe("UUID of the volume"),
+  security_style: z.enum(['unix', 'ntfs', 'mixed', 'unified']).describe("New security style for the volume")
+});
+
+const ResizeVolumeSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
+  username: z.string().describe("Username for authentication").optional(),
+  password: z.string().describe("Password for authentication").optional(),
+  cluster_name: z.string().describe("Name of the registered cluster").optional(),
+  volume_uuid: z.string().describe("UUID of the volume"),
+  new_size: z.string().describe("New size for the volume (e.g., '500GB', '2TB')")
+});
+
+const UpdateVolumeCommentSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
+  username: z.string().describe("Username for authentication").optional(),
+  password: z.string().describe("Password for authentication").optional(),
+  cluster_name: z.string().describe("Name of the registered cluster").optional(),
+  volume_uuid: z.string().describe("UUID of the volume"),
+  comment: z.string().describe("New comment/description for the volume").optional()
+});
+
+const ConfigureVolumeNfsAccessSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
+  username: z.string().describe("Username for authentication").optional(),
+  password: z.string().describe("Password for authentication").optional(),
+  cluster_name: z.string().describe("Name of the registered cluster").optional(),
+  volume_uuid: z.string().describe("UUID of the volume"),
+  export_policy_name: z.string().describe("Name of the export policy to apply")
+});
+
+const DisableVolumeNfsAccessSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster").optional(),
+  username: z.string().describe("Username for authentication").optional(),
+  password: z.string().describe("Password for authentication").optional(),
+  cluster_name: z.string().describe("Name of the registered cluster").optional(),
+  volume_uuid: z.string().describe("UUID of the volume")
+});
+
+// ================================
+// Helper Functions
+// ================================
+
+/**
+ * Get API client from either cluster credentials or cluster registry
+ */
+function getApiClient(
+  clusterManager: OntapClusterManager,
+  clusterName?: string,
+  clusterIp?: string,
+  username?: string,
+  password?: string
+): OntapApiClient {
+  if (clusterName) {
+    return clusterManager.getClient(clusterName);
+  } else if (clusterIp && username && password) {
+    return new OntapApiClient(clusterIp, username, password);
+  } else {
+    throw new Error("Either cluster_name or (cluster_ip, username, password) must be provided");
+  }
+}
+
+/**
+ * Format bytes to human readable format
+ */
+function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let size = bytes;
+  let unitIndex = 0;
+  
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  
+  return `${size.toFixed(2)} ${units[unitIndex]}`;
+}
+
+/**
+ * Format volume configuration for display
+ */
+function formatVolumeConfig(volume: any): string {
+  let result = `💾 **Volume: ${volume.name}** (${volume.uuid})\\n\\n`;
+  result += `🏢 **SVM:** ${volume.svm?.name}\\n`;
+  result += `📊 **Size:** ${formatBytes(volume.size)}\\n`;
+  result += `📁 **Aggregate:** ${volume.aggregates?.[0]?.name || 'Unknown'}\\n`;
+  result += `🔒 **Security Style:** ${volume.nas?.security_style || 'Unknown'}\\n`;
+  result += `📈 **State:** ${volume.state}\\n`;
+  if (volume.comment) result += `💬 **Comment:** ${volume.comment}\\n`;
+
+  // Snapshot policy
+  if (volume.snapshot_policy?.name) {
+    result += `\\n📸 **Snapshot Policy:** ${volume.snapshot_policy.name}\\n`;
+  } else {
+    result += `\\n📸 **Snapshot Policy:** None (default)\\n`;
+  }
+
+  // Export policy
+  if (volume.nas?.export_policy?.name) {
+    result += `🔐 **Export Policy:** ${volume.nas.export_policy.name}\\n`;
+  } else {
+    result += `🔐 **Export Policy:** default\\n`;
+  }
+
+  // Volume efficiency
+  if (volume.efficiency?.compression) {
+    result += `\\n🗜️ **Compression:** ${volume.efficiency.compression}\\n`;
+  }
+  if (volume.efficiency?.dedupe) {
+    result += `📦 **Deduplication:** ${volume.efficiency.dedupe}\\n`;
+  }
+
+  return result;
+}
+
+/**
+ * Format volume statistics for display
+ */
+function formatVolumeStats(stats: VolumeStats): string {
+  let result = `📊 **Volume Performance Statistics**\\n\\n`;
+  result += `🔗 **Volume UUID:** ${stats.uuid}\\n\\n`;
+  
+  if (stats.iops) {
+    result += `⚡ **IOPS:**\\n`;
+    result += `   • Read: ${stats.iops.read}\\n`;
+    result += `   • Write: ${stats.iops.write}\\n`;
+    result += `   • Other: ${stats.iops.other}\\n`;
+    result += `   • Total: ${stats.iops.total}\\n\\n`;
+  }
+  
+  if (stats.throughput) {
+    result += `📈 **Throughput (bytes/sec):**\\n`;
+    result += `   • Read: ${formatBytes(stats.throughput.read)}/s\\n`;
+    result += `   • Write: ${formatBytes(stats.throughput.write)}/s\\n`;
+    result += `   • Other: ${formatBytes(stats.throughput.other)}/s\\n`;
+    result += `   • Total: ${formatBytes(stats.throughput.total)}/s\\n\\n`;
+  }
+  
+  if (stats.latency) {
+    result += `⏱️ **Latency (microseconds):**\\n`;
+    result += `   • Read: ${stats.latency.read}μs\\n`;
+    result += `   • Write: ${stats.latency.write}μs\\n`;
+    result += `   • Other: ${stats.latency.other}μs\\n`;
+    result += `   • Total: ${stats.latency.total}μs\\n\\n`;
+  }
+  
+  if (stats.space) {
+    result += `💿 **Space Usage:**\\n`;
+    result += `   • Used: ${formatBytes(stats.space.used)}\\n`;
+    result += `   • Available: ${formatBytes(stats.space.available)}\\n`;
+    result += `   • Total: ${formatBytes(stats.space.total)}\\n`;
+    const utilization = ((stats.space.used / stats.space.total) * 100).toFixed(1);
+    result += `   • Utilization: ${utilization}%\\n`;
+  }
+  
+  return result;
+}
+
+// ================================
+// Legacy Single-Cluster Volume Tools
+// ================================
+
+export function createListVolumesToolDefinition(): Tool {
+  return {
+    name: "list_volumes",
+    description: "List all volumes in the cluster or a specific SVM",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        svm_name: { type: "string", description: "Optional: Filter volumes by SVM name" },
+      },
+      required: ["cluster_ip", "username", "password"],
+    },
+  };
+}
+
+export async function handleListVolumes(args: any): Promise<any> {
+  const params = ListVolumesSchema.parse(args);
+  const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
+  
+  try {
+    const volumes = await client.listVolumes(params.svm_name);
+    
+    if (volumes.length === 0) {
+      return params.svm_name 
+        ? `No volumes found in SVM "${params.svm_name}"`
+        : "No volumes found in cluster";
+    }
+    
+    let result = `📚 **Volumes on cluster ${params.cluster_ip}**\\n`;
+    if (params.svm_name) {
+      result += `🏢 **SVM Filter:** ${params.svm_name}\\n`;
+    }
+    result += `\\n📊 **Found ${volumes.length} volume(s):**\\n\\n`;
+    
+    volumes.forEach((volume, index) => {
+      result += `${index + 1}. **${volume.name}**\\n`;
+      result += `   • UUID: ${volume.uuid}\\n`;
+      result += `   • SVM: ${volume.svm?.name}\\n`;
+      result += `   • Size: ${formatBytes(volume.size)}\\n`;
+      result += `   • State: ${volume.state}\\n`;
+      if (volume.comment) {
+        result += `   • Comment: ${volume.comment}\\n`;
+      }
+      result += `\\n`;
+    });
+    
+    return result;
+  } catch (error) {
+    return `❌ Error listing volumes: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createCreateVolumeToolDefinition(): Tool {
+  return {
+    name: "create_volume",
+    description: "Create a new volume in the specified SVM",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        svm_name: { type: "string", description: "Name of the SVM where the volume will be created" },
+        volume_name: { type: "string", description: "Name of the new volume" },
+        size: { type: "string", description: "Size of the volume (e.g., '100GB', '1TB')" },
+        aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
+      },
+      required: ["cluster_ip", "username", "password", "svm_name", "volume_name", "size"],
+    },
+  };
+}
+
+export async function handleCreateVolume(args: any): Promise<any> {
+  const params = CreateVolumeSchema.parse(args);
+  const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
+  
+  try {
+    const createParams: CreateVolumeParams = {
+      svm_name: params.svm_name,
+      volume_name: params.volume_name,
+      size: params.size,
+      aggregate_name: params.aggregate_name,
+    };
+    
+    const result = await client.createVolume(createParams);
+    
+    return `✅ **Volume created successfully!**\n\n` +
+           `📦 **Volume Name:** ${params.volume_name}\n` +
+           `🆔 **UUID:** ${result.uuid}\n` +
+           `🏢 **SVM:** ${params.svm_name}\n` +
+           `📊 **Size:** ${params.size}\n` +
+           `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\n` : ''}` +
+           `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\n` : ''}`;
+  } catch (error) {
+    return `❌ **Error creating volume:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createGetVolumeStatsToolDefinition(): Tool {
+  return {
+    name: "get_volume_stats",
+    description: "Get performance statistics for a specific volume",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        volume_uuid: { type: "string", description: "UUID of the volume to get statistics for" },
+      },
+      required: ["cluster_ip", "username", "password", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleGetVolumeStats(args: any): Promise<any> {
+  const params = GetVolumeStatsSchema.parse(args);
+  const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
+  
+  try {
+    const stats = await client.getVolumeStats(params.volume_uuid);
+    
+    return formatVolumeStats(stats);
+  } catch (error) {
+    return `❌ **Error getting volume statistics:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createOfflineVolumeToolDefinition(): Tool {
+  return {
+    name: "offline_volume",
+    description: "Take a volume offline (required before deletion). WARNING: This will make the volume inaccessible.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
+      },
+      required: ["cluster_ip", "username", "password", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleOfflineVolume(args: any): Promise<any> {
+  const params = OfflineVolumeSchema.parse(args);
+  const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
+  
+  try {
+    await client.offlineVolume(params.volume_uuid);
+    
+    return `⚠️ **Volume taken offline successfully**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `📴 **Status:** Offline\\n\\n` +
+           `⚠️ **Warning:** The volume is now inaccessible. You can now safely delete it if needed.`;
+  } catch (error) {
+    return `❌ **Error taking volume offline:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createDeleteVolumeToolDefinition(): Tool {
+  return {
+    name: "delete_volume",
+    description: "Delete a volume (must be offline first). WARNING: This action is irreversible and will permanently destroy all data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        volume_uuid: { type: "string", description: "UUID of the volume to delete" },
+      },
+      required: ["cluster_ip", "username", "password", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleDeleteVolume(args: any): Promise<any> {
+  const params = DeleteVolumeSchema.parse(args);
+  const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
+  
+  try {
+    await client.deleteVolume(params.volume_uuid);
+    
+    return `✅ **Volume deleted successfully**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `🗑️ **Status:** Permanently deleted\\n\\n` +
+           `⚠️ **Note:** This action was irreversible. All data has been permanently destroyed.`;
+  } catch (error) {
+    return `❌ **Error deleting volume:** ${error instanceof Error ? error.message : String(error)}\\n\\n` +
+           `💡 **Tip:** Ensure the volume is offline before deletion using the offline_volume tool.`;
+  }
+}
+
+// ================================
+// Multi-Cluster Volume Tools
+// ================================
+
+export function createClusterListVolumesToolDefinition(): Tool {
+  return {
+    name: "cluster_list_volumes",
+    description: "List volumes from a registered cluster by cluster name",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        svm_name: { type: "string", description: "Optional: Filter volumes by SVM name" },
+      },
+      required: ["cluster_name"],
+    },
+  };
+}
+
+export async function handleClusterListVolumes(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ClusterListVolumesSchema.parse(args);
+  
+  try {
+    const client = clusterManager.getClient(params.cluster_name);
+    const volumes = await client.listVolumes(params.svm_name);
+    
+    if (volumes.length === 0) {
+      return params.svm_name 
+        ? `No volumes found in SVM "${params.svm_name}" on cluster "${params.cluster_name}"`
+        : `No volumes found on cluster "${params.cluster_name}"`;
+    }
+    
+    let result = `📚 **Volumes on cluster ${params.cluster_name}**\\n`;
+    if (params.svm_name) {
+      result += `🏢 **SVM Filter:** ${params.svm_name}\\n`;
+    }
+    result += `\\n📊 **Found ${volumes.length} volume(s):**\\n\\n`;
+    
+    volumes.forEach((volume, index) => {
+      result += `${index + 1}. **${volume.name}**\\n`;
+      result += `   • UUID: ${volume.uuid}\\n`;
+      result += `   • SVM: ${volume.svm?.name}\\n`;
+      result += `   • Size: ${formatBytes(volume.size)}\\n`;
+      result += `   • State: ${volume.state}\\n`;
+      if (volume.comment) {
+        result += `   • Comment: ${volume.comment}\\n`;
+      }
+      result += `\\n`;
+    });
+    
+    return result;
+  } catch (error) {
+    return `❌ Error listing volumes: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createClusterCreateVolumeToolDefinition(): Tool {
+  return {
+    name: "cluster_create_volume",
+    description: "Create a volume on a registered cluster by cluster name",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        svm_name: { type: "string", description: "Name of the SVM where the volume will be created" },
+        volume_name: { type: "string", description: "Name of the new volume" },
+        size: { type: "string", description: "Size of the volume (e.g., '100GB', '1TB')" },
+        aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
+      },
+      required: ["cluster_name", "svm_name", "volume_name", "size"],
+    },
+  };
+}
+
+export async function handleClusterCreateVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ClusterCreateVolumeSchema.parse(args);
+  
+  try {
+    const client = clusterManager.getClient(params.cluster_name);
+    
+    const createParams: CreateVolumeParams = {
+      svm_name: params.svm_name,
+      volume_name: params.volume_name,
+      size: params.size,
+      aggregate_name: params.aggregate_name,
+    };
+    
+    const result = await client.createVolume(createParams);
+    
+    return `✅ **Volume created successfully!**\\n\\n` +
+           `🎯 **Cluster:** ${params.cluster_name}\\n` +
+           `📦 **Volume Name:** ${params.volume_name}\\n` +
+           `🆔 **UUID:** ${result.uuid}\\n` +
+           `🏢 **SVM:** ${params.svm_name}\\n` +
+           `📊 **Size:** ${params.size}\\n` +
+           `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\\n` : ''}` +
+           `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\\n` : ''}`;
+  } catch (error) {
+    return `❌ **Error creating volume:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createClusterOfflineVolumeToolDefinition(): Tool {
+  return {
+    name: "cluster_offline_volume",
+    description: "Take a volume offline on a registered cluster by cluster name (required before deletion). WARNING: This will make the volume inaccessible.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
+      },
+      required: ["cluster_name", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleClusterOfflineVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ClusterVolumeUuidSchema.parse(args);
+  
+  try {
+    const client = clusterManager.getClient(params.cluster_name);
+    await client.offlineVolume(params.volume_uuid);
+    
+    return `⚠️ **Volume taken offline successfully**\\n\\n` +
+           `🎯 **Cluster:** ${params.cluster_name}\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `📴 **Status:** Offline\\n\\n` +
+           `⚠️ **Warning:** The volume is now inaccessible. You can now safely delete it if needed.`;
+  } catch (error) {
+    return `❌ **Error taking volume offline:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createClusterDeleteVolumeToolDefinition(): Tool {
+  return {
+    name: "cluster_delete_volume",
+    description: "Delete a volume on a registered cluster by cluster name (must be offline first). WARNING: This action is irreversible and will permanently destroy all data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume to delete" },
+      },
+      required: ["cluster_name", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleClusterDeleteVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ClusterVolumeUuidSchema.parse(args);
+  
+  try {
+    const client = clusterManager.getClient(params.cluster_name);
+    await client.deleteVolume(params.volume_uuid);
+    
+    return `✅ **Volume deleted successfully**\\n\\n` +
+           `🎯 **Cluster:** ${params.cluster_name}\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `🗑️ **Status:** Permanently deleted\\n\\n` +
+           `⚠️ **Note:** This action was irreversible. All data has been permanently destroyed.`;
+  } catch (error) {
+    return `❌ **Error deleting volume:** ${error instanceof Error ? error.message : String(error)}\\n\\n` +
+           `💡 **Tip:** Ensure the volume is offline before deletion using the cluster_offline_volume tool.`;
+  }
+}
+
+export function createClusterGetVolumeStatsToolDefinition(): Tool {
+  return {
+    name: "cluster_get_volume_stats",
+    description: "Get volume statistics from a registered cluster by cluster name",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume to get statistics for" },
+      },
+      required: ["cluster_name", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleClusterGetVolumeStats(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ClusterVolumeUuidSchema.parse(args);
+  
+  try {
+    const client = clusterManager.getClient(params.cluster_name);
+    const stats = await client.getVolumeStats(params.volume_uuid);
+    
+    let result = `🎯 **Cluster:** ${params.cluster_name}\\n\\n`;
+    result += formatVolumeStats(stats);
+    
+    return result;
+  } catch (error) {
+    return `❌ **Error getting volume statistics:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+// ================================
+// Volume Configuration and Update Tools
+// ================================
+
+export function createGetVolumeConfigurationToolDefinition(): Tool {
+  return {
+    name: "get_volume_configuration",
+    description: "Get comprehensive configuration information for a volume including policies, security, and efficiency settings",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume" },
+      },
+      required: ["volume_uuid"],
+    },
+  };
+}
+
+export async function handleGetVolumeConfiguration(args: any, clusterManager: OntapClusterManager): Promise<string> {
+  const params = GetVolumeConfigurationSchema.parse(args);
+  
+  try {
+    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+    
+    // Get detailed volume information with all fields
+    const endpoint = `/storage/volumes/${params.volume_uuid}?fields=uuid,name,size,state,type,comment,svm,aggregates,nas,snapshot_policy,efficiency,space`;
+    const volume = await (client as any).makeRequest(endpoint);
+    
+    return formatVolumeConfig(volume);
+  } catch (error) {
+    return `❌ **Error getting volume configuration:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createUpdateVolumeSecurityStyleToolDefinition(): Tool {
+  return {
+    name: "update_volume_security_style",
+    description: "Update the security style of a volume (unix, ntfs, mixed, unified)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume" },
+        security_style: { type: "string", enum: ["unix", "ntfs", "mixed", "unified"], description: "New security style for the volume" },
+      },
+      required: ["volume_uuid", "security_style"],
+    },
+  };
+}
+
+export async function handleUpdateVolumeSecurityStyle(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = UpdateVolumeSecurityStyleSchema.parse(args);
+  
+  try {
+    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+    await client.updateVolumeSecurityStyle(params.volume_uuid, params.security_style);
+    
+    return `✅ **Volume security style updated successfully**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `🔒 **New Security Style:** ${params.security_style}\\n\\n` +
+           `💡 **Note:** The security style change may affect how permissions are handled for this volume.`;
+  } catch (error) {
+    return `❌ **Error updating volume security style:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createResizeVolumeToolDefinition(): Tool {
+  return {
+    name: "resize_volume",
+    description: "Resize a volume to a new size. Can only increase size (ONTAP doesn't support shrinking volumes with data)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume" },
+        new_size: { type: "string", description: "New size for the volume (e.g., '500GB', '2TB')" },
+      },
+      required: ["volume_uuid", "new_size"],
+    },
+  };
+}
+
+export async function handleResizeVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ResizeVolumeSchema.parse(args);
+  
+  try {
+    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+    await client.resizeVolume(params.volume_uuid, params.new_size);
+    
+    return `✅ **Volume resized successfully**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `📊 **New Size:** ${params.new_size}\\n\\n` +
+           `💡 **Note:** The volume has been expanded. ONTAP does not support shrinking volumes with data.`;
+  } catch (error) {
+    return `❌ **Error resizing volume:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createUpdateVolumeCommentToolDefinition(): Tool {
+  return {
+    name: "update_volume_comment",
+    description: "Update the comment/description field of a volume for better documentation",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume" },
+        comment: { type: "string", description: "New comment/description for the volume (or empty to clear)" },
+      },
+      required: ["volume_uuid"],
+    },
+  };
+}
+
+export async function handleUpdateVolumeComment(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = UpdateVolumeCommentSchema.parse(args);
+  
+  try {
+    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+    const comment = params.comment || "";
+    await client.updateVolumeComment(params.volume_uuid, comment);
+    
+    return `✅ **Volume comment updated successfully**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `💬 **New Comment:** ${comment || "(cleared)"}\\n\\n` +
+           `📝 **Note:** The volume description has been updated for better documentation.`;
+  } catch (error) {
+    return `❌ **Error updating volume comment:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+// ================================
+// Volume NFS Access Control Tools
+// ================================
+
+export function createConfigureVolumeNfsAccessToolDefinition(): Tool {
+  return {
+    name: "configure_volume_nfs_access",
+    description: "Configure NFS access for a volume by applying an export policy",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume" },
+        export_policy_name: { type: "string", description: "Name of the export policy to apply" },
+      },
+      required: ["volume_uuid", "export_policy_name"],
+    },
+  };
+}
+
+export async function handleConfigureVolumeNfsAccess(args: any, clusterManager: OntapClusterManager): Promise<string> {
+  const params = ConfigureVolumeNfsAccessSchema.parse(args);
+  
+  try {
+    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+    await client.configureVolumeNfsAccess(params.volume_uuid, params.export_policy_name);
+    
+    return `✅ **NFS access configured successfully**\n\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\n` +
+           `🔐 **Export Policy:** ${params.export_policy_name}\n\n` +
+           `🌐 **Note:** The volume is now accessible via NFS according to the rules defined in the export policy.`;
+  } catch (error) {
+    return `❌ **Error configuring NFS access:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createDisableVolumeNfsAccessToolDefinition(): Tool {
+  return {
+    name: "disable_volume_nfs_access",
+    description: "Disable NFS access for a volume (reverts to default export policy)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume" },
+      },
+      required: ["volume_uuid"],
+    },
+  };
+}
+
+export async function handleDisableVolumeNfsAccess(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = DisableVolumeNfsAccessSchema.parse(args);
+  
+  try {
+    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+    await client.disableVolumeNfsAccess(params.volume_uuid);
+    
+    return `✅ **NFS access disabled successfully**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+           `🔐 **Export Policy:** default\\n\\n` +
+           `🔒 **Note:** The volume has been reverted to the default export policy, which typically restricts access.`;
+  } catch (error) {
+    return `❌ **Error disabling NFS access:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
