@@ -62,32 +62,50 @@ npm run build
 echo ""
 log "=== Running All Tests ==="
 
-# Test 1: Volume Lifecycle (JavaScript)
-run_test "Volume Lifecycle (JavaScript)" "node test/test-volume-lifecycle.js"
+# Test 1: Volume Lifecycle (STDIO Mode)
+run_test "Volume Lifecycle (STDIO Mode)" "node test/test-volume-lifecycle.js stdio"
 
-# Test 2: Tool Count Verification  
+# Test 2: Volume Lifecycle (REST Mode) 
+run_test "Volume Lifecycle (REST Mode)" "node test/test-volume-lifecycle.js rest"
+
+# Test 3: Tool Count Verification  
 run_test "Tool Count Verification" "bash test/verify-tool-count.sh"
 
-# Test 3: API Fields Test
+# Test 4: API Fields Test
 run_test "API Fields Test" "node test/test-api-fields.js"
 
-# Test 4: API Fixes Test
+# Test 5: API Fixes Test
 run_test "API Fixes Test" "node test/test-api-fixes.js"
 
-# Test 5: Parameter Filtering Test
+# Test 6: Parameter Filtering Test
 run_test "Parameter Filtering Test" "node test/test-param-filtering.js"
 
-# Test 6: Snapshot Policy Formats
+# Test 7: Snapshot Policy Formats
 run_test "Snapshot Policy Formats" "node test/test-snapshot-policy-formats.js"
 
-# Test 7: Comprehensive Test Suite
+# Test 8: Comprehensive Test Suite
 run_test "Comprehensive Test Suite" "node test/test-comprehensive.js"
 
-# Test 8: Policy Management (Shell)
+# Test 9: Policy Management (Shell)
 run_test "Policy Management (Shell)" "bash test/test-policy-management.sh"
 
-# Test 9: Volume Lifecycle (Shell)
+# Test 10: Volume Lifecycle (Shell)
 run_test "Volume Lifecycle (Shell)" "bash test/test-volume-lifecycle.sh"
+
+# Test 11: CIFS Tools Registration Verification
+run_test "CIFS Tools Registration" "node test/test-cifs-simple.js"
+
+# Test 12: CIFS ACL Creation Test
+run_test "CIFS ACL Creation Test" "node test/test-cifs-creation-acl.js"
+
+# Test 13: User Scenario Test (Original CIFS Workflow)
+run_test "User Scenario Test" "node test/test-user-scenario.js"
+
+# Test 14: CIFS Lifecycle Test (STDIO Mode)
+run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
+
+# Test 15: CIFS Lifecycle Test (REST Mode) - Now fully working with dual transport support!
+run_test "CIFS Lifecycle (REST Mode)" "node test/test-cifs-lifecycle.js rest"
 
 echo ""
 log "=== Test Summary ==="

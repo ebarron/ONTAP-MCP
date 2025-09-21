@@ -192,6 +192,8 @@ export interface CreateVolumeParams {
   snapshot_policy?: string;
   /** Optional NFS export policy name */
   nfs_export_policy?: string;
+  /** Optional CIFS share configuration */
+  cifs_share?: VolumeCifsConfig;
 }
 
 /**
@@ -259,6 +261,36 @@ export interface VolumeSnapshotConfig {
   volume_uuid: string;
   /** Snapshot policy to apply */
   snapshot_policy: SnapshotPolicyReference;
+}
+
+/**
+ * Volume CIFS configuration for volume creation
+ */
+export interface VolumeCifsConfig {
+  /** CIFS share name */
+  share_name: string;
+  /** Optional share comment */
+  comment?: string;
+  /** Share properties */
+  properties?: {
+    /** Enable access-based enumeration */
+    access_based_enumeration?: boolean;
+    /** Enable encryption */
+    encryption?: boolean;
+    /** Offline files policy */
+    offline_files?: 'none' | 'manual' | 'documents' | 'programs';
+    /** Oplocks */
+    oplocks?: boolean;
+  };
+  /** Access control entries */
+  access_control?: Array<{
+    /** Permission level */
+    permission: 'no_access' | 'read' | 'change' | 'full_control';
+    /** User or group name */
+    user_or_group: string;
+    /** Type of user/group */
+    type?: 'windows' | 'unix_user' | 'unix_group';
+  }>;
 }
 
 /**

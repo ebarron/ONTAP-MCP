@@ -1,4 +1,4 @@
-import https from 'https';
+import * as https from 'https';
 import { z } from 'zod';
 import type { 
   SnapshotPolicy, 
@@ -26,6 +26,15 @@ import type {
   ListExportPoliciesParams,
   ListExportRulesParams
 } from './types/export-policy-types.js';
+import type {
+  CifsShareInfo,
+  CreateCifsShareRequest,
+  UpdateCifsShareRequest,
+  ListCifsSharesParams,
+  CifsShareResponse,
+  DeleteCifsShareParams,
+  UpdateCifsShareAclParams
+} from './types/cifs-types.js';
 
 // Type definitions for ONTAP API responses
 export interface ClusterInfo {
@@ -282,12 +291,10 @@ export class OntapApiClient {
     );
     
     // Handle different response formats from ONTAP API
+    let volumeUuid: string;
     if (response.uuid) {
       // Direct UUID response
-      return {
-        uuid: response.uuid,
-        job: response.job
-      };
+      volumeUuid = response.uuid;
     } else {
       // If no UUID is returned, we need to get it by listing volumes and finding the one we just created
       // Wait a short moment for the volume to be created
@@ -297,14 +304,33 @@ export class OntapApiClient {
       const newVolume = volumes.find(v => v.name === params.volume_name);
       
       if (newVolume) {
-        return {
-          uuid: newVolume.uuid,
-          job: response.job
-        };
+        volumeUuid = newVolume.uuid;
       } else {
         throw new Error(`Volume '${params.volume_name}' was not found after creation`);
       }
     }
+
+    // Create CIFS share if specified
+    if (params.cifs_share) {
+      try {
+        await this.createCifsShare({
+          name: params.cifs_share.share_name,
+          path: `/vol/${params.volume_name}`,
+          svm_name: params.svm_name,
+          comment: params.cifs_share.comment,
+          properties: params.cifs_share.properties,
+          access_control: params.cifs_share.access_control
+        });
+      } catch (error) {
+        // Log the error but don't fail the volume creation
+        console.error(`Warning: Failed to create CIFS share '${params.cifs_share.share_name}': ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    return {
+      uuid: volumeUuid,
+      job: response.job
+    };
   }
 
   /**
@@ -850,6 +876,175 @@ export class OntapApiClient {
       `/cluster/schedules/${schedule.uuid}`,
       'DELETE'
     );
+  }
+
+  // ================================
+  // CIFS Share Management
+  // ================================
+
+  /**
+   * List all CIFS shares
+   */
+  async listCifsShares(params?: ListCifsSharesParams): Promise<CifsShareInfo[]> {
+    let endpoint = '/protocols/cifs/shares?fields=name,path,svm,comment,volume';
+    
+    if (params) {
+      if (params['svm.name']) {
+        endpoint += `&svm.name=${encodeURIComponent(params['svm.name'])}`;
+      }
+      if (params['name']) {
+        endpoint += `&name=${encodeURIComponent(params['name'])}`;
+      }
+      if (params['volume.name']) {
+        endpoint += `&volume.name=${encodeURIComponent(params['volume.name'])}`;
+      }
+    }
+    
+    const response = await this.makeRequest<CifsShareResponse>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Get a specific CIFS share by name and SVM
+   */
+  async getCifsShare(shareName: string, svmName: string): Promise<CifsShareInfo> {
+    const endpoint = `/protocols/cifs/shares?name=${encodeURIComponent(shareName)}&svm.name=${encodeURIComponent(svmName)}&fields=name,path,svm,comment,volume,acls`;
+    
+    const response = await this.makeRequest<CifsShareResponse>(endpoint);
+    
+    if (!response.records || response.records.length === 0) {
+      throw new Error(`CIFS share '${shareName}' not found in SVM '${svmName}'`);
+    }
+    
+    return response.records[0];
+  }
+
+  /**
+   * Create a new CIFS share
+   */
+  async createCifsShare(shareConfig: CreateCifsShareRequest): Promise<{ name: string }> {
+    // First get the SVM to get its UUID
+    const svms = await this.listSvms();
+    const svm = svms.find(s => s.name === shareConfig.svm_name);
+    if (!svm) {
+      throw new Error(`SVM '${shareConfig.svm_name}' not found`);
+    }
+
+    const body: any = {
+      name: shareConfig.name,
+      path: shareConfig.path,
+      svm: {
+        name: svm.name,
+        uuid: svm.uuid
+      }
+    };
+
+    if (shareConfig.comment) {
+      body.comment = shareConfig.comment;
+    }
+
+    if (shareConfig.properties) {
+      body.properties = shareConfig.properties;
+    }
+
+    // Set ACLs during creation if specified
+    if (shareConfig.access_control && shareConfig.access_control.length > 0) {
+      body.acls = shareConfig.access_control;
+    }
+
+    const response = await this.makeRequest<{ name: string }>(
+      '/protocols/cifs/shares',
+      'POST',
+      body
+    );
+
+    return response;
+  }
+
+  /**
+   * Update a CIFS share
+   */
+  async updateCifsShare(shareConfig: UpdateCifsShareRequest): Promise<void> {
+    // First get the share to get SVM UUID
+    const share = await this.getCifsShare(shareConfig.name, shareConfig.svm_name);
+    
+    const body: any = {};
+
+    if (shareConfig.comment !== undefined) {
+      body.comment = shareConfig.comment;
+    }
+
+    if (shareConfig.properties) {
+      body.properties = shareConfig.properties;
+    }
+
+    // Only update share properties, not ACLs (ACLs require recreation)
+    await this.makeRequest(
+      `/protocols/cifs/shares?name=${encodeURIComponent(shareConfig.name)}&svm.uuid=${encodeURIComponent(share.svm!.uuid!)}`,
+      'PATCH',
+      body
+    );
+
+    // Handle ACL updates separately (requires recreation)
+    if (shareConfig.access_control) {
+      await this.updateCifsShareAcl({
+        name: shareConfig.name,
+        svm_name: shareConfig.svm_name,
+        access_control: shareConfig.access_control
+      });
+    }
+  }
+
+  /**
+   * Delete a CIFS share
+   */
+  async deleteCifsShare(params: DeleteCifsShareParams): Promise<void> {
+    // First get the share to ensure it exists and get its full details
+    const share = await this.getCifsShare(params.name, params.svm_name);
+    
+    // Use query-based endpoint structure
+    await this.makeRequest(
+      `/protocols/cifs/shares?name=${encodeURIComponent(params.name)}&svm.uuid=${encodeURIComponent(share.svm!.uuid!)}`,
+      'DELETE'
+    );
+  }
+
+  /**
+   * Update CIFS share ACL (Access Control List)
+   * Note: NetApp ONTAP does not support direct ACL updates after creation.
+   * This method implements ACL updates by recreating the share.
+   */
+  async updateCifsShareAcl(params: UpdateCifsShareAclParams): Promise<void> {
+    // Get current share details
+    const currentShare = await this.getCifsShare(params.name, params.svm_name);
+    
+    // Delete the existing share
+    await this.deleteCifsShare({
+      name: params.name,
+      svm_name: params.svm_name
+    });
+    
+    // Recreate the share with new ACLs
+    await this.createCifsShare({
+      name: params.name,
+      path: currentShare.path,
+      svm_name: params.svm_name,
+      comment: currentShare.comment,
+      access_control: params.access_control
+    });
+  }
+
+  /**
+   * Get CIFS share ACL
+   */
+  async getCifsShareAcl(shareName: string, svmName: string): Promise<any> {
+    // First get the share to get SVM UUID
+    const share = await this.getCifsShare(shareName, svmName);
+    
+    const endpoint = `/protocols/cifs/shares/acls?name=${encodeURIComponent(shareName)}&svm.uuid=${encodeURIComponent(share.svm!.uuid!)}`;
+    
+    const response = await this.makeRequest<{ records: any[] }>(endpoint);
+    return response.records || [];
   }
 
   /**

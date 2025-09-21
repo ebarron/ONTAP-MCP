@@ -1,6 +1,25 @@
 # NetApp ONTAP MCP Server
 
-A Model Context Protocol (MCP) server that provides comprehensive tools to ### 📸 Data Protection with Snapshot Policies
+A Model Context Protocol (MCP) server that provides comprehe34. **configure_volume_nfs_access** - Apply export policies to volumes
+35. **disable_volume_nfs_access** - Revert volumes to default export policy
+
+#### CIFS/SMB Share Management (8 tools)
+36. **list_cifs_shares** - List all CIFS shares in the cluster or filtered by SVM
+37. **get_cifs_share** - Get detailed information about a specific CIFS share
+38. **create_cifs_share** - Create a new CIFS share with specified access permissions
+39. **update_cifs_share** - Update an existing CIFS share's properties and access control  
+40. **delete_cifs_share** - Delete a CIFS share ⚠️ (removes client access)
+41. **cluster_list_cifs_shares** - List CIFS shares from a registered cluster by name
+42. **cluster_create_cifs_share** - Create a new CIFS share on a registered cluster
+43. **cluster_delete_cifs_share** - Delete a CIFS share from a registered cluster ⚠️
+
+#### Volume Configuration & Updates (6 tools)
+44. **get_volume_configuration** - Get comprehensive volume configuration
+45. **update_volume_security_style** - Change volume security style (unix/ntfs/mixed)
+46. **resize_volume** - Increase volume size (ONTAP doesn't support shrinking)
+47. **update_volume_comment** - Update volume description/documentation
+48. **apply_snapshot_policy_to_volume** - Apply protection policies to existing volumes
+49. **remove_snapshot_policy_from_volume** - Remove protection from volumess to ### 📸 Data Protection with Snapshot Policies
 - **Automated Backups**: Create scheduled snapshots for point-in-time recovery
 - **Flexible Retention**: Configure hourly, daily, weekly, or custom copy schedules  
 - **Volume Integration**: Apply policies during volume creation or to existing volumes
@@ -14,7 +33,9 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 
 ### Enhanced Volume Provisioning
 - **Complete Data Protection**: Automated snapshot policies for backup and recovery
-- **NFS Access Control**: Export policies for secure client access configuration
+- **NFS Access Control**: Export policies for secure client access configuration  
+- **CIFS/SMB Shares**: Complete Windows file sharing with access control lists
+- **Integrated Provisioning**: Create volumes with CIFS shares, NFS policies, and protection
 - **Policy Management**: Full lifecycle management of snapshot and export policies
 - **Volume Updates**: Post-creation configuration changes and policy applications
 
@@ -30,6 +51,12 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 - **State Verification**: Real-time volume state checking and validation
 - **Policy Integration**: Create volumes with snapshot and export policies applied
 
+### CIFS/SMB Share Management  
+- **Complete Share Lifecycle**: Create, configure, update, and delete CIFS shares
+- **Integrated Volume Creation**: Provision volumes with CIFS shares in one operation
+- **Access Control**: Configure user/group permissions with granular access rights
+- **Share Properties**: Control encryption, oplocks, offline files, and security settings
+
 ### Multi-Cluster Support
 - **Dynamic Cluster Registration**: Add/remove clusters at runtime
 - **Environment Configuration**: Pre-configure clusters via environment variables
@@ -37,7 +64,7 @@ This MCP server enables AI assistants to manage NetApp ONTAP clusters through a 
 
 ## Features
 
-### Available Tools (38 Total)
+### Available Tools (46 Total)
 
 #### Core Volume Management (18 tools)
 **Single-Cluster Tools (Legacy)**
@@ -303,6 +330,14 @@ echo "List all volumes on cluster production"
 # Test volume deletion (safe workflow)
 echo "Offline volume test_vol on cluster production"
 echo "Delete volume test_vol on cluster production"
+
+# Test CIFS share creation with volume
+echo "Create a volume with CIFS share named share1 with full access for administrators"
+
+# Test CIFS share management
+echo "List all CIFS shares on cluster production"
+echo "Update CIFS share permissions for share1"
+echo "Delete CIFS share share1"
 ```
 
 ## 🔄 Volume Lifecycle Management

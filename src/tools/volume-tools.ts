@@ -27,6 +27,23 @@ import type {
 // Zod Schemas for Input Validation
 // ================================
 
+// CIFS share configuration schema
+const CifsShareConfigSchema = z.object({
+  share_name: z.string().describe("CIFS share name"),
+  comment: z.string().optional().describe("Optional share comment"),
+  properties: z.object({
+    access_based_enumeration: z.boolean().optional().describe("Enable access-based enumeration"),
+    encryption: z.boolean().optional().describe("Enable encryption"),
+    offline_files: z.enum(['none', 'manual', 'documents', 'programs']).optional().describe("Offline files policy"),
+    oplocks: z.boolean().optional().describe("Oplocks")
+  }).optional().describe("Share properties"),
+  access_control: z.array(z.object({
+    permission: z.enum(['no_access', 'read', 'change', 'full_control']).describe("Permission level"),
+    user_or_group: z.string().describe("User or group name"),
+    type: z.enum(['windows', 'unix_user', 'unix_group']).optional().describe("Type of user/group")
+  })).optional().describe("Access control entries")
+});
+
 // Legacy single-cluster schemas
 const ListVolumesSchema = z.object({
   cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
@@ -43,6 +60,7 @@ const CreateVolumeSchema = z.object({
   volume_name: z.string().describe("Name of the new volume"),
   size: z.string().describe("Size of the volume (e.g., '100GB', '1TB')"),
   aggregate_name: z.string().describe("Optional: Name of the aggregate to use").optional(),
+  cifs_share: CifsShareConfigSchema.optional().describe("Optional CIFS share configuration")
 });
 
 const GetVolumeStatsSchema = z.object({
@@ -78,6 +96,7 @@ const ClusterCreateVolumeSchema = z.object({
   volume_name: z.string().describe("Name of the new volume"),
   size: z.string().describe("Size of the volume (e.g., '100GB', '1TB')"),
   aggregate_name: z.string().describe("Optional: Name of the aggregate to use").optional(),
+  cifs_share: CifsShareConfigSchema.optional().describe("Optional CIFS share configuration")
 });
 
 const ClusterVolumeUuidSchema = z.object({
@@ -318,7 +337,7 @@ export async function handleListVolumes(args: any): Promise<any> {
 export function createCreateVolumeToolDefinition(): Tool {
   return {
     name: "create_volume",
-    description: "Create a new volume in the specified SVM",
+    description: "Create a new volume in the specified SVM with optional CIFS share configuration",
     inputSchema: {
       type: "object",
       properties: {
@@ -329,6 +348,38 @@ export function createCreateVolumeToolDefinition(): Tool {
         volume_name: { type: "string", description: "Name of the new volume" },
         size: { type: "string", description: "Size of the volume (e.g., '100GB', '1TB')" },
         aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
+        cifs_share: {
+          type: "object",
+          properties: {
+            share_name: { type: "string", description: "CIFS share name" },
+            comment: { type: "string", description: "Optional share comment" },
+            properties: {
+              type: "object",
+              properties: {
+                access_based_enumeration: { type: "boolean", description: "Enable access-based enumeration" },
+                encryption: { type: "boolean", description: "Enable encryption" },
+                offline_files: { type: "string", enum: ["none", "manual", "documents", "programs"], description: "Offline files policy" },
+                oplocks: { type: "boolean", description: "Oplocks" }
+              },
+              description: "Share properties"
+            },
+            access_control: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  permission: { type: "string", enum: ["no_access", "read", "change", "full_control"], description: "Permission level" },
+                  user_or_group: { type: "string", description: "User or group name" },
+                  type: { type: "string", enum: ["windows", "unix_user", "unix_group"], description: "Type of user/group" }
+                },
+                required: ["permission", "user_or_group"]
+              },
+              description: "Access control entries"
+            }
+          },
+          required: ["share_name"],
+          description: "Optional CIFS share configuration"
+        }
       },
       required: ["cluster_ip", "username", "password", "svm_name", "volume_name", "size"],
     },
@@ -345,17 +396,36 @@ export async function handleCreateVolume(args: any): Promise<any> {
       volume_name: params.volume_name,
       size: params.size,
       aggregate_name: params.aggregate_name,
+      cifs_share: params.cifs_share
     };
     
     const result = await client.createVolume(createParams);
     
-    return `✅ **Volume created successfully!**\n\n` +
+    let response = `✅ **Volume created successfully!**\n\n` +
            `📦 **Volume Name:** ${params.volume_name}\n` +
            `🆔 **UUID:** ${result.uuid}\n` +
            `🏢 **SVM:** ${params.svm_name}\n` +
            `📊 **Size:** ${params.size}\n` +
            `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\n` : ''}` +
            `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\n` : ''}`;
+    
+    // Add CIFS share information if configured
+    if (params.cifs_share) {
+      response += `\n📁 **CIFS Share:** ${params.cifs_share.share_name}\n`;
+      response += `   Path: /vol/${params.volume_name}\n`;
+      if (params.cifs_share.comment) {
+        response += `   Comment: ${params.cifs_share.comment}\n`;
+      }
+      if (params.cifs_share.access_control && params.cifs_share.access_control.length > 0) {
+        response += `   Access Control:\n`;
+        params.cifs_share.access_control.forEach(ace => {
+          response += `   - ${ace.user_or_group}: ${ace.permission}\n`;
+        });
+      }
+      response += `   📋 **Share Status:** Available for client access`;
+    }
+    
+    return response;
   } catch (error) {
     return `❌ **Error creating volume:** ${error instanceof Error ? error.message : String(error)}`;
   }
@@ -517,7 +587,7 @@ export async function handleClusterListVolumes(args: any, clusterManager: OntapC
 export function createClusterCreateVolumeToolDefinition(): Tool {
   return {
     name: "cluster_create_volume",
-    description: "Create a volume on a registered cluster by cluster name",
+    description: "Create a volume on a registered cluster by cluster name with optional CIFS share configuration",
     inputSchema: {
       type: "object",
       properties: {
@@ -526,6 +596,38 @@ export function createClusterCreateVolumeToolDefinition(): Tool {
         volume_name: { type: "string", description: "Name of the new volume" },
         size: { type: "string", description: "Size of the volume (e.g., '100GB', '1TB')" },
         aggregate_name: { type: "string", description: "Optional: Name of the aggregate to use" },
+        cifs_share: {
+          type: "object",
+          properties: {
+            share_name: { type: "string", description: "CIFS share name" },
+            comment: { type: "string", description: "Optional share comment" },
+            properties: {
+              type: "object",
+              properties: {
+                access_based_enumeration: { type: "boolean", description: "Enable access-based enumeration" },
+                encryption: { type: "boolean", description: "Enable encryption" },
+                offline_files: { type: "string", enum: ["none", "manual", "documents", "programs"], description: "Offline files policy" },
+                oplocks: { type: "boolean", description: "Oplocks" }
+              },
+              description: "Share properties"
+            },
+            access_control: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  permission: { type: "string", enum: ["no_access", "read", "change", "full_control"], description: "Permission level" },
+                  user_or_group: { type: "string", description: "User or group name" },
+                  type: { type: "string", enum: ["windows", "unix_user", "unix_group"], description: "Type of user/group" }
+                },
+                required: ["permission", "user_or_group"]
+              },
+              description: "Access control entries"
+            }
+          },
+          required: ["share_name"],
+          description: "Optional CIFS share configuration"
+        }
       },
       required: ["cluster_name", "svm_name", "volume_name", "size"],
     },
@@ -543,11 +645,12 @@ export async function handleClusterCreateVolume(args: any, clusterManager: Ontap
       volume_name: params.volume_name,
       size: params.size,
       aggregate_name: params.aggregate_name,
+      cifs_share: params.cifs_share
     };
     
     const result = await client.createVolume(createParams);
     
-    return `✅ **Volume created successfully!**\\n\\n` +
+    let response = `✅ **Volume created successfully!**\\n\\n` +
            `🎯 **Cluster:** ${params.cluster_name}\\n` +
            `📦 **Volume Name:** ${params.volume_name}\\n` +
            `🆔 **UUID:** ${result.uuid}\\n` +
@@ -555,6 +658,24 @@ export async function handleClusterCreateVolume(args: any, clusterManager: Ontap
            `📊 **Size:** ${params.size}\\n` +
            `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\\n` : ''}` +
            `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\\n` : ''}`;
+    
+    // Add CIFS share information if configured
+    if (params.cifs_share) {
+      response += `\\n📁 **CIFS Share:** ${params.cifs_share.share_name}\\n`;
+      response += `   Path: /vol/${params.volume_name}\\n`;
+      if (params.cifs_share.comment) {
+        response += `   Comment: ${params.cifs_share.comment}\\n`;
+      }
+      if (params.cifs_share.access_control && params.cifs_share.access_control.length > 0) {
+        response += `   Access Control:\\n`;
+        params.cifs_share.access_control.forEach(ace => {
+          response += `   - ${ace.user_or_group}: ${ace.permission}\\n`;
+        });
+      }
+      response += `   📋 **Share Status:** Available for client access`;
+    }
+    
+    return response;
   } catch (error) {
     return `❌ **Error creating volume:** ${error instanceof Error ? error.message : String(error)}`;
   }

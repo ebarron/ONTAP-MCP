@@ -48,6 +48,26 @@ import {
   handleDeleteExportRule
 } from "./tools/export-policy-tools.js";
 
+// Import CIFS share tools
+import {
+  createListCifsSharesToolDefinition,
+  handleListCifsShares,
+  createGetCifsShareToolDefinition,
+  handleGetCifsShare,
+  createCreateCifsShareToolDefinition,
+  handleCreateCifsShare,
+  createUpdateCifsShareToolDefinition,
+  handleUpdateCifsShare,
+  createDeleteCifsShareToolDefinition,
+  handleDeleteCifsShare,
+  createClusterListCifsSharesToolDefinition,
+  handleClusterListCifsShares,
+  createClusterCreateCifsShareToolDefinition,
+  handleClusterCreateCifsShare,
+  createClusterDeleteCifsShareToolDefinition,
+  handleClusterDeleteCifsShare
+} from "./tools/cifs-share-tools.js";
+
 // Import volume tools (all volume-related functionality consolidated)
 import {
   // Legacy single-cluster volume tools
@@ -524,6 +544,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // Volume NFS access tools
       createConfigureVolumeNfsAccessToolDefinition(),
       createDisableVolumeNfsAccessToolDefinition(),
+
+      // CIFS Share Management Tools
+      // Legacy single-cluster CIFS tools
+      createListCifsSharesToolDefinition(),
+      createGetCifsShareToolDefinition(),
+      createCreateCifsShareToolDefinition(),
+      createUpdateCifsShareToolDefinition(),
+      createDeleteCifsShareToolDefinition(),
+      
+      // Multi-cluster CIFS tools
+      createClusterListCifsSharesToolDefinition(),
+      createClusterCreateCifsShareToolDefinition(),
+      createClusterDeleteCifsShareToolDefinition(),
 
       // Snapshot Schedule Management Tools
       createListSnapshotSchedulesToolDefinition(),
@@ -1020,6 +1053,47 @@ Throughput: ${JSON.stringify(stats.throughput || {})}`,
         return { content: [{ type: "text", text: result }] };
       }
 
+      // CIFS Share Management Tools
+      case "list_cifs_shares": {
+        const result = await handleListCifsShares(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "get_cifs_share": {
+        const result = await handleGetCifsShare(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "create_cifs_share": {
+        const result = await handleCreateCifsShare(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "update_cifs_share": {
+        const result = await handleUpdateCifsShare(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "delete_cifs_share": {
+        const result = await handleDeleteCifsShare(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "cluster_list_cifs_shares": {
+        const result = await handleClusterListCifsShares(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "cluster_create_cifs_share": {
+        const result = await handleClusterCreateCifsShare(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      case "cluster_delete_cifs_share": {
+        const result = await handleClusterDeleteCifsShare(args, clusterManager);
+        return { content: [{ type: "text", text: result }] };
+      }
+
       // Snapshot Schedule Management Tools
       case "list_snapshot_schedules": {
         const result = await handleListSnapshotSchedules(args, clusterManager);
@@ -1215,6 +1289,146 @@ async function startHttpServer(port: number = 3000) {
             content: [{
               type: "text",
               text: `SVMs on cluster '${args.cluster_name}': ${svms.length}\n\n${svms.map((svm: any) => `- ${svm.name} (${svm.uuid}) - State: ${svm.state}`).join('\n')}`
+            }]
+          };
+          break;
+        case 'list_cifs_shares':
+          if (!args.cluster_ip && !args.cluster_name) {
+            throw new Error('Either cluster_ip (with username/password) or cluster_name is required');
+          }
+          const cifsListClient = args.cluster_name ? 
+            clusterManager.getClient(args.cluster_name) : 
+            new OntapApiClient(args.cluster_ip, args.username, args.password);
+          const cifsShares = await cifsListClient.listCifsShares(args.svm_name);
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS shares: ${cifsShares.length}\n\n${cifsShares.map((share: any) => `- ${share.name}: ${share.path} (SVM: ${share.svm?.name || 'N/A'})`).join('\n')}`
+            }]
+          };
+          break;
+        case 'cluster_list_cifs_shares':
+          if (!args.cluster_name) {
+            throw new Error('cluster_name is required');
+          }
+          const clusterCifsClient = clusterManager.getClient(args.cluster_name);
+          const clusterCifsShares = await clusterCifsClient.listCifsShares(args.svm_name);
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS shares on cluster '${args.cluster_name}': ${clusterCifsShares.length}\n\n${clusterCifsShares.map((share: any) => `- ${share.name}: ${share.path} (SVM: ${share.svm?.name || 'N/A'})`).join('\n')}`
+            }]
+          };
+          break;
+        case 'get_cifs_share':
+          if (!args.name || (!args.cluster_ip && !args.cluster_name)) {
+            throw new Error('name and either cluster_ip (with username/password) or cluster_name are required');
+          }
+          const getShareClient = args.cluster_name ? 
+            clusterManager.getClient(args.cluster_name) : 
+            new OntapApiClient(args.cluster_ip, args.username, args.password);
+          const shareInfo = await getShareClient.getCifsShare(args.name, args.svm_name);
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS Share Details:\nName: ${shareInfo.name}\nPath: ${shareInfo.path}\nSVM: ${shareInfo.svm?.name || 'N/A'}\nComment: ${shareInfo.comment || 'None'}`
+            }]
+          };
+          break;
+        case 'create_cifs_share':
+          if (!args.name || !args.path || (!args.cluster_ip && !args.cluster_name)) {
+            throw new Error('name, path, and either cluster_ip (with username/password) or cluster_name are required');
+          }
+          const createShareClient = args.cluster_name ? 
+            clusterManager.getClient(args.cluster_name) : 
+            new OntapApiClient(args.cluster_ip, args.username, args.password);
+          const createShareResult = await createShareClient.createCifsShare({
+            name: args.name,
+            path: args.path,
+            svm_name: args.svm_name,
+            comment: args.comment,
+            properties: args.properties,
+            access_control: args.access_control
+          });
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS share '${args.name}' created successfully at path '${args.path}'`
+            }]
+          };
+          break;
+        case 'cluster_create_cifs_share':
+          if (!args.cluster_name || !args.name || !args.path) {
+            throw new Error('cluster_name, name, and path are required');
+          }
+          const clusterCreateShareClient = clusterManager.getClient(args.cluster_name);
+          const clusterCreateShareResult = await clusterCreateShareClient.createCifsShare({
+            name: args.name,
+            path: args.path,
+            svm_name: args.svm_name,
+            comment: args.comment,
+            properties: args.properties,
+            access_control: args.access_control
+          });
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS share '${args.name}' created successfully on cluster '${args.cluster_name}' at path '${args.path}'`
+            }]
+          };
+          break;
+        case 'delete_cifs_share':
+          if (!args.name || (!args.cluster_ip && !args.cluster_name)) {
+            throw new Error('name and either cluster_ip (with username/password) or cluster_name are required');
+          }
+          const deleteShareClient = args.cluster_name ? 
+            clusterManager.getClient(args.cluster_name) : 
+            new OntapApiClient(args.cluster_ip, args.username, args.password);
+          await deleteShareClient.deleteCifsShare({
+            name: args.name,
+            svm_name: args.svm_name
+          });
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS share '${args.name}' has been deleted successfully`
+            }]
+          };
+          break;
+        case 'cluster_delete_cifs_share':
+          if (!args.cluster_name || !args.name) {
+            throw new Error('cluster_name and name are required');
+          }
+          const clusterDeleteShareClient = clusterManager.getClient(args.cluster_name);
+          await clusterDeleteShareClient.deleteCifsShare({
+            name: args.name,
+            svm_name: args.svm_name
+          });
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS share '${args.name}' has been deleted successfully from cluster '${args.cluster_name}'`
+            }]
+          };
+          break;
+        case 'update_cifs_share':
+          if (!args.name || (!args.cluster_ip && !args.cluster_name)) {
+            throw new Error('name and either cluster_ip (with username/password) or cluster_name are required');
+          }
+          const updateShareClient = args.cluster_name ? 
+            clusterManager.getClient(args.cluster_name) : 
+            new OntapApiClient(args.cluster_ip, args.username, args.password);
+          await updateShareClient.updateCifsShare({
+            name: args.name,
+            svm_name: args.svm_name,
+            comment: args.comment,
+            properties: args.properties,
+            access_control: args.access_control
+          });
+          result = {
+            content: [{
+              type: "text",
+              text: `CIFS share '${args.name}' has been updated successfully`
             }]
           };
           break;
