@@ -48,6 +48,9 @@ Thumbs.db
 *.swo
 *~
 
+# Copilot instructions (keep local)
+.github/copilot-instructions.md
+
 # Temporary files
 tmp/
 temp/
