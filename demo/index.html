@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<!--
+NetApp ONTAP MCP Demo Interface
+====================================
+This demo provides a web-based interface for validating the NetApp ONTAP MCP server's
+REST API functionality. The interface replicates NetApp BlueXP styling and provides
+real-time cluster data via MCP API calls.
+
+Purpose:
+- REST API validation and testing
+- Visual demonstration of MCP capabilities  
+- Foundation for future agentic/LLM testing
+
+Requirements:
+- ONTAP MCP Server running on port 3000 (HTTP mode with CORS)
+- Python HTTP server on port 8080 serving this directory
+
+See demo/README.md for complete documentation.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetApp ONTAP MCP Demo</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-base">
+        <!-- Main Header -->
+        <header class="main-header">
+            <div class="header-title">
+                <a class="main-link" href="#">
+                    <svg role="img" aria-labelledby="Netapp-logo" xmlns="http://www.w3.org/2000/svg" width="79" height="14" viewBox="0 0 79 14">
+                        <desc id="Netapp-logo">Netapp logo</desc>
+                        <path d="M76.266 7.186v-.031c0-1.42-1-2.362-2.182-2.362-1.181 0-2.165.942-2.165 2.362v.031c0 1.421.984 2.364 2.165 2.364 1.182 0 2.182-.927 2.182-2.364zM69.42 2.894h2.533v1.228c.616-.797 1.466-1.387 2.78-1.387 2.083 0 4.064 1.563 4.064 4.42v.031c0 2.857-1.948 4.421-4.063 4.421-1.35 0-2.183-.59-2.781-1.277V14H69.42V2.894zM19.156.198h2.367l5.462 6.957V.198h2.532v11.25h-2.182L21.69 4.345v7.103h-2.533V.198M37.043 6.5c-.15-1.086-.816-1.82-1.88-1.82-1.051 0-1.735.722-1.934 1.82h3.814zm-6.296.719v-.033c0-2.441 1.816-4.451 4.416-4.451 2.98 0 4.345 2.218 4.345 4.644 0 .19-.015.415-.034.638h-6.212c.251 1.1 1.05 1.676 2.183 1.676.85 0 1.465-.255 2.165-.878l1.447 1.228c-.831.99-2.03 1.596-3.645 1.596-2.682 0-4.665-1.803-4.665-4.42zM41.089 9.02V4.969h-1.066V2.894h1.066V.709h2.53v2.185h2.1v2.074h-2.1v3.655c0 .558.251.83.817.83.466 0 .882-.111 1.25-.305v1.948c-.534.304-1.152.495-2.002.495-1.547 0-2.595-.59-2.595-2.57M65.857 7.186v-.031c0-1.42-1-2.362-2.18-2.362-1.182 0-2.165.942-2.165 2.362v.031c0 1.421.983 2.364 2.165 2.364 1.18 0 2.18-.927 2.18-2.364zm-6.843-4.292h2.531v1.228c.616-.797 1.465-1.387 2.782-1.387 2.082 0 4.063 1.563 4.063 4.42v.031c0 2.857-1.948 4.421-4.063 4.421-1.35 0-2.183-.59-2.782-1.277V14h-2.53V2.894zM53.874 6.774l-1.549-3.626-1.55 3.626h3.099zM51.205.197h2.305l4.871 11.251H55.71l-1.073-2.507h-4.623l-1.066 2.507h-2.614L51.206.197zM0 .198v11.25h5.48v-6.75H8.61v6.75h5.48V.198H0"></path>
+                    </svg>
+                    BlueXP
+                </a>
+                <div class="demo-tag">
+                    <div class="tag-text">Demo</div>
+                </div>
+            </div>
+            
+            <div class="header-widgets">
+                <button class="search-button">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M15.5956 16.5403C14.1735 17.6046 12.4005 18.2361 10.4782 18.2361C5.79581 18.2361 2 14.4895 2 9.86803C2 5.24652 5.79581 1.5 10.4782 1.5C15.1606 1.5 18.9564 5.24652 18.9564 9.86803C18.9564 11.8796 18.2372 13.7254 17.0389 15.1686L21.7055 19.8168C22.0981 20.2024 22.0982 20.8268 21.7058 21.2117C21.3133 21.5966 20.677 21.596 20.2845 21.2105L15.5956 16.5403ZM17.4602 9.86803C17.4602 13.674 14.3343 16.7593 10.4782 16.7593C6.62211 16.7593 3.49615 13.674 3.49615 9.86803C3.49615 6.06208 6.62211 2.97671 10.4782 2.97671C14.3343 2.97671 17.4602 6.06208 17.4602 9.86803Z" fill="var(--icon-primary)"/>
+                    </svg>
+                    ONTAP MCP Search
+                </button>
+                
+                <button class="caption-button" title="Demo Organization">
+                    <div class="caption-title">Organization</div>
+                    <div class="caption-value">Demo_ONTAP</div>
+                    <div class="caption-chevron">
+                        <span class="chevron">
+                            <span class="chevron-left"></span>
+                            <span class="chevron-right"></span>
+                        </span>
+                    </div>
+                </button>
+                
+                <button class="caption-button" title="MCP Project">
+                    <div class="caption-title">Project</div>
+                    <div class="caption-value">ONTAP-MCP</div>
+                    <div class="caption-chevron">
+                        <span class="chevron">
+                            <span class="chevron-left"></span>
+                            <span class="chevron-right"></span>
+                        </span>
+                    </div>
+                </button>
+                
+                <button class="caption-button" title="MCP Server">
+                    <div class="caption-title">MCP Server</div>
+                    <div class="caption-value">localhost:3000</div>
+                    <div class="caption-chevron">
+                        <span class="chevron">
+                            <span class="chevron-left"></span>
+                            <span class="chevron-right"></span>
+                        </span>
+                    </div>
+                </button>
+                
+                <button class="widget-button" aria-label="Notifications">
+                    <svg role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="24" viewBox="0 0 20 24" fill="none">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M19.5643 16.7004C19.5186 16.6509 19.4729 16.5999 19.4229 16.5504C19.4214 16.5459 19.4171 16.5444 19.4171 16.5444C19.3771 16.5009 19.3357 16.4604 19.2929 16.4184C19.2714 16.3973 19.2514 16.3793 19.2314 16.3598C18.6014 15.7658 17.9386 15.2272 17.8086 13.6295C17.22 6.26056 16.6171 3.31419 12.1671 1.67448C11.4786 1.42094 11.2414 1.0639 11.08 0.745858C11.0543 0.694852 11.0314 0.645346 11.0086 0.595839L11.0071 0.594339C10.8757 0.361809 10.6743 0.174286 10.4186 0.0737729C10.28 0.019766 10.14 -0.00273685 10 0.000263531C9.86286 -0.00273685 9.72 0.019766 9.58143 0.0737729C9.32571 0.174286 9.12429 0.361809 8.99286 0.594339L8.99143 0.595839C8.96857 0.645346 8.94571 0.694852 8.92 0.745858C8.76 1.0639 8.52143 1.42094 7.83286 1.67448C3.38286 3.31419 2.78 6.26056 2.19 13.6295C2.06143 15.2272 1.39857 15.7658 0.768571 16.3598C0.748571 16.3793 0.727143 16.3973 0.705714 16.4184C0.661429 16.4604 0.617143 16.5069 0.575714 16.5504V16.5519C0.531429 16.5954 0.491429 16.6374 0.451429 16.6794C0.45 16.6854 0.447143 16.6884 0.445714 16.6899C0.167143 17.0214 0 17.4595 0 17.9395C0 18.8022 0.538571 19.5252 1.27 19.7398C1.35714 19.7593 1.44286 19.7758 1.52857 19.7938C3.23714 20.1403 4.98143 20.3849 6.75143 20.5184C7.82429 20.6024 8.90714 20.6429 10 20.6429H10.0157C11.1029 20.6429 12.1814 20.6024 13.2471 20.5229C15.0714 20.3849 16.8657 20.1298 18.6257 19.7683C19.41 19.5943 20 18.8427 20 17.9395C20 17.464 19.8343 17.0304 19.5643 16.7004Z" fill="var(--icon-primary)"/>
+                    </svg>
+                </button>
+                
+                <button class="widget-button" aria-label="Settings">
+                    <svg role="img" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M23.872 10.6779L21.504 10.2771C21.3582 10.2553 21.2223 10.1902 21.1139 10.0902C21.0055 9.99014 20.9296 9.8598 20.896 9.71603C20.6764 8.88299 20.3426 8.08449 19.904 7.34338C19.8254 7.22156 19.7837 7.07961 19.7837 6.93459C19.7837 6.78956 19.8254 6.64761 19.904 6.52579L21.296 4.55392C21.3167 4.52617 21.328 4.49242 21.328 4.45773C21.328 4.42305 21.3167 4.38929 21.296 4.36154L19.648 2.67825C19.6302 2.67076 19.6112 2.6669 19.592 2.6669C19.5727 2.6669 19.5537 2.67076 19.536 2.67825H19.456L17.504 4.07298C17.3793 4.1512 17.2351 4.19269 17.088 4.19269C16.9408 4.19269 16.7967 4.1512 16.672 4.07298C15.9115 3.63358 15.0927 3.30434 14.24 3.09506C14.0965 3.06137 13.9664 2.98529 13.8666 2.87668C13.7667 2.76806 13.7017 2.63192 13.68 2.48587L13.28 0.129257C13.2801 0.110976 13.2764 0.0928771 13.269 0.0761713C13.2615 0.0594656 13.2507 0.044539 13.237 0.0323939C13.2234 0.0202487 13.2073 0.0111656 13.1899 0.00575202C13.1725 0.000338458 13.1541 -0.00127913 13.136 0.00100654H10.768C10.7499 -0.00127913 10.7315 0.000338458 10.7141 0.00575202C10.6967 0.0111656 10.6806 0.0202487 10.6669 0.0323939C10.6533 0.044539 10.6424 0.0594656 10.635 0.0761713C10.6276 0.0928771 10.6238 0.110976 10.624 0.129257L10.208 2.51794C10.1918 2.6823 10.1244 2.83737 10.0152 2.96112C9.90609 3.08487 9.76079 3.171 9.59999 3.20727C8.77532 3.43221 7.98434 3.76649 7.24799 4.20123C7.12153 4.2827 6.97434 4.32602 6.82399 4.32602C6.67364 4.32602 6.52646 4.2827 6.39999 4.20123L4.512 2.69427H4.416C4.38521 2.6818 4.35078 2.6818 4.31999 2.69427L2.624 4.40964C2.60323 4.43739 2.592 4.47114 2.592 4.50583C2.592 4.54052 2.60323 4.57427 2.624 4.60202L4.01599 6.57388C4.09406 6.69884 4.13547 6.84327 4.13547 6.99069C4.13547 7.13811 4.09406 7.28255 4.01599 7.4075C3.59642 8.15052 3.28399 8.94934 3.088 9.78015C3.05437 9.92392 2.97844 10.0543 2.87004 10.1543C2.76164 10.2543 2.62576 10.3195 2.48 10.3412L0.128001 10.742C0.0926465 10.746 0.0600067 10.7629 0.0363721 10.7896C0.0127375 10.8162 -0.000217442 10.8507 2.76175e-06 10.8863V13.275C-0.000217442 13.3106 0.0127375 13.3451 0.0363721 13.3717C0.0600067 13.3984 0.0926465 13.4153 0.128001 13.4193L2.512 13.8201C2.67603 13.8363 2.8308 13.9038 2.95431 14.0132C3.07782 14.1225 3.16379 14.2681 3.2 14.4293C3.42315 15.2611 3.7568 16.0591 4.192 16.8019C4.27387 16.9254 4.31754 17.0704 4.31754 17.2187C4.31754 17.367 4.27387 17.512 4.192 17.6355L2.8 19.5914C2.77923 19.6191 2.768 19.6529 2.768 19.6876C2.768 19.7222 2.77923 19.756 2.8 19.7837L4.49599 21.3869C4.52738 21.3958 4.56061 21.3958 4.59199 21.3869H4.68799L6.65599 19.9761C6.78608 19.8812 6.9431 19.8307 7.10399 19.8318C7.24013 19.8313 7.37351 19.8702 7.48799 19.9441C8.21027 20.3613 8.98519 20.6794 9.79199 20.8899C9.93547 20.9236 10.0656 20.9997 10.1654 21.1083C10.2652 21.2169 10.3302 21.3531 10.352 21.4991L10.752 23.8717C10.7559 23.9072 10.7728 23.9399 10.7994 23.9636C10.826 23.9872 10.8604 24.0002 10.896 24H13.184C13.2196 24.0002 13.254 23.9872 13.2805 23.9636C13.3071 23.9399 13.324 23.9072 13.328 23.8717L13.728 21.4991C13.7517 21.3539 13.8174 21.2188 13.917 21.1105C14.0165 21.0022 14.1455 20.9255 14.288 20.8899C15.1204 20.673 15.9178 20.3383 16.656 19.896C16.7807 19.8177 16.9248 19.7762 17.072 19.7762C17.2191 19.7762 17.3633 19.8177 17.488 19.896L19.44 21.2907C19.4763 21.3029 19.5156 21.3029 19.552 21.2907L21.232 19.6074C21.2456 19.5954 21.2565 19.5805 21.264 19.564C21.2714 19.5474 21.2753 19.5294 21.2753 19.5112C21.2753 19.493 21.2714 19.475 21.264 19.4584C21.2565 19.4419 21.2456 19.427 21.232 19.415L19.84 17.4432C19.7619 17.3182 19.7205 17.1738 19.7205 17.0263C19.7205 16.8789 19.7619 16.7345 19.84 16.6095C20.2814 15.8699 20.6154 15.0709 20.832 14.2369C20.8656 14.0931 20.9415 13.9628 21.0499 13.8627C21.1583 13.7627 21.2942 13.6976 21.44 13.6758L23.808 13.275C23.842 13.2918 23.8812 13.2944 23.9171 13.2824C23.953 13.2704 23.9828 13.2447 24 13.2109V10.8382C24.0007 10.8007 23.9883 10.7641 23.9649 10.7348C23.9416 10.7056 23.9087 10.6854 23.872 10.6779Z" fill="var(--icon-primary)"/>
+                    </svg>
+                </button>
+                
+                <button class="widget-button" aria-label="Help">
+                    <svg role="img" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 0C5.376 0 0 5.376 0 12C0 18.624 5.376 24 12 24C18.624 24 24 18.624 24 12C24 5.376 18.624 0 12 0Z" fill="var(--icon-primary)"/>
+                    </svg>
+                </button>
+                
+                <button class="widget-button" aria-label="User Settings">
+                    <svg role="img" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="var(--icon-primary)"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Navigation Sidebar -->
+        <div class="main-nav-wrapper">
+            <div class="main-nav-container">
+                <div>
+                    <button class="nav-category nav-category-active" data-nav-category="Storage" title="Storage">
+                        <div class="nav-icon">
+                            <svg aria-hidden="true" width="20" height="13" viewBox="0 0 20 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12.5247 5.18339C12.5077 5.18339 12.4908 5.18446 12.4738 5.18482C12.2255 4.76441 11.8971 4.40496 11.5102 4.12999C11.1233 3.85502 10.6866 3.67073 10.2287 3.58918C9.77074 3.50764 9.3019 3.53068 8.85284 3.6568C8.40378 3.78292 7.98463 4.00927 7.62283 4.32103C7.1418 3.89059 6.5563 3.61601 5.93491 3.52946C5.31352 3.4429 4.68199 3.54796 4.11431 3.83232C3.54663 4.11669 3.06631 4.56857 2.72963 5.13504C2.39295 5.70151 2.21386 6.35909 2.21334 7.03074C2.21334 7.07219 2.21494 7.11322 2.21628 7.15439C1.71118 7.4266 1.30657 7.87356 1.06796 8.42293C0.82935 8.9723 0.770698 9.5919 0.901502 10.1814C1.03231 10.771 1.34491 11.296 1.78871 11.6714C2.2325 12.0468 2.78151 12.2507 3.34686 12.25L12.5247 12.2444C12.9585 12.2465 13.3884 12.1567 13.7898 11.9802C14.1911 11.8037 14.556 11.544 14.8634 11.216C15.1708 10.8879 15.4148 10.498 15.5812 10.0686C15.7477 9.63926 15.8334 9.17887 15.8334 8.71389C15.8334 8.24892 15.7477 7.78852 15.5812 7.35914C15.4148 6.92976 15.1708 6.53985 14.8634 6.2118C14.556 5.88376 14.1911 5.62403 13.7898 5.44755C13.3884 5.27106 12.9585 5.18129 12.5247 5.18339Z" fill="var(--icon-primary)"></path>
+                                <path d="M15.6588 1.81857C15.6408 1.81857 15.6229 1.81857 15.6052 1.82C15.2851 1.32088 14.8503 0.912152 14.3401 0.63062C13.8298 0.349087 13.2601 0.203581 12.6822 0.207198C11.8976 0.204659 11.1348 0.47391 10.5145 0.972244C9.88638 0.44832 8.67381 0.164002 7.86778 0.166842C7.1429 0.159196 6.43412 0.38867 5.84212 0.822668C5.25013 1.25667 4.80501 1.87312 4.57 2.58448C4.74363 2.55819 4.91878 2.54413 5.09425 2.5424C5.89058 2.54165 6.85142 2.7988 7.50008 3.27797C8.13783 2.82519 9.13857 2.58304 9.91139 2.58333C10.5096 2.57912 11.1002 2.72326 11.6338 3.00376C12.1675 3.28425 12.6288 3.69296 12.9793 4.19585C13.9377 4.2054 14.8546 4.6026 15.5348 5.30289C16.2151 6.00318 16.605 6.95124 16.6214 7.94524C16.6206 8.17343 16.599 8.40102 16.5569 8.62499C17.2805 8.44121 17.9247 8.01319 18.3883 7.40822C18.8518 6.80324 19.1084 6.05562 19.1177 5.28289C19.1016 4.3478 18.7282 3.45761 18.0796 2.80799C17.431 2.15837 16.5602 1.80249 15.6588 1.81857Z" fill="var(--icon-primary)"></path>
+                            </svg>
+                        </div>
+                        <div class="nav-label">Storage</div>
+                    </button>
+                    
+                    <button class="nav-category" data-nav-category="Monitoring" title="Monitoring">
+                        <div class="nav-icon">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2 18V16H4V18H2ZM6 18V14H8V18H6ZM10 18V12H12V18H10ZM14 18V10H16V18H14ZM18 18V8H20V18H18ZM2 6V2H18V6H2Z" fill="var(--icon-primary)"/>
+                            </svg>
+                        </div>
+                        <div class="nav-label">Monitoring</div>
+                    </button>
+                    
+                    <button class="nav-category" data-nav-category="Health" title="Health">
+                        <div class="nav-icon">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 2C8.69 2 7.58 2.9 7.17 4.14C6.76 5.38 7.14 6.76 8.17 7.54L10 9L11.83 7.54C12.86 6.76 13.24 5.38 12.83 4.14C12.42 2.9 11.31 2 10 2ZM10 18C6.6 18 3.81 15.79 3.08 12.67C2.35 9.55 4.08 6.38 7.08 5.17L7.5 5L10 7L12.5 5L12.92 5.17C15.92 6.38 17.65 9.55 16.92 12.67C16.19 15.79 13.4 18 10 18Z" fill="var(--icon-primary)"/>
+                            </svg>
+                        </div>
+                        <div class="nav-label">Health</div>
+                    </button>
+                    
+                    <button class="nav-category" data-nav-category="Protection" title="Protection">
+                        <div class="nav-icon">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 1L3 4V8.09C3 12.04 5.41 15.76 9 16.93C12.59 15.76 15 12.04 15 8.09V4L10 1ZM13 8.09C13 10.95 11.45 13.64 9 14.59C6.55 13.64 5 10.95 5 8.09V5.39L10 3.61L13 5.39V8.09ZM7.5 8.5L9 10L12.5 6.5L11.09 5.09L9 7.18L8.91 7.09L7.5 8.5Z" fill="var(--icon-primary)"/>
+                            </svg>
+                        </div>
+                        <div class="nav-label">Protection</div>
+                    </button>
+                    
+                    <button class="nav-category" data-nav-category="Governance" title="Governance">
+                        <div class="nav-icon">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 2C13.1 2 14 2.9 14 4V6H16C17.1 6 18 6.9 18 8V18C18 19.1 17.1 20 16 20H4C2.9 20 2 19.1 2 18V8C2 6.9 2.9 6 4 6H6V4C6 2.9 6.9 2 8 2H12ZM8 4V6H12V4H8ZM4 8V18H16V8H4ZM10 10C11.1 10 12 10.9 12 12C12 13.1 11.1 14 10 14C8.9 14 8 13.1 8 12C8 10.9 8.9 10 10 10Z" fill="var(--icon-primary)"/>
+                            </svg>
+                        </div>
+                        <div class="nav-label">Governance</div>
+                    </button>
+                    
+                    <button class="nav-category" data-nav-category="Mobility" title="Mobility">
+                        <div class="nav-icon">
+                            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2 4V16H6V18H14V16H18V4H2ZM16 14H4V6H16V14ZM8 8V12L12 10L8 8Z" fill="var(--icon-primary)"/>
+                            </svg>
+                        </div>
+                        <div class="nav-label">Mobility</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="app-container">
+            <header class="tab-header">
+                <div class="tab-service">
+                    <svg role="img" aria-labelledby="ontap-icon" width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <desc id="ontap-icon">ONTAP MCP</desc>
+                        <circle class="service-icon-circle" fill-rule="evenodd" clip-rule="evenodd" cx="24" cy="24" r="23" stroke-width="2" stroke="var(--icon-primary)"></circle>
+                        <path d="M22.1905 16C20.8319 16.0091 19.5197 16.4957 18.4834 17.3748C17.4471 18.2539 16.7526 19.4695 16.5214 20.8091C15.2444 20.937 14.0648 21.5492 13.2248 22.5201C12.3849 23.491 11.9483 24.7468 12.0049 26.0297C12.0614 27.3126 12.6067 28.5251 13.5288 29.4182C14.4509 30.3114 15.6798 30.8174 16.9631 30.8323H28.4277V29.9244L16.9631 29.7713C15.9394 29.7286 14.9717 29.2916 14.2625 28.5518C13.5532 27.8119 13.1572 26.8264 13.1572 25.8012C13.1572 24.776 13.5532 23.7904 14.2625 23.0505C14.9717 22.3107 15.9394 21.8737 16.9631 21.831C17.0945 21.8309 17.2211 21.7816 17.318 21.6928C17.4148 21.604 17.4749 21.4821 17.4864 21.3511C17.6012 20.1804 18.1458 19.094 19.015 18.3019C19.8841 17.5099 21.016 17.0685 22.1917 17.0633C22.8081 17.0576 23.4188 17.1814 23.9844 17.4266C24.55 17.6718 25.0579 18.033 25.4753 18.4868C25.5464 18.5611 25.6379 18.6125 25.7382 18.6346C25.8386 18.6568 25.9432 18.6486 26.0389 18.6111C26.4831 18.4595 26.9497 18.384 27.4191 18.3879C28.319 18.3863 29.1883 18.7147 29.8627 19.3109C30.5371 19.9072 30.9697 20.73 31.0788 21.6238C31.0897 21.7219 31.1278 21.8149 31.1887 21.8924C31.2497 21.9699 31.3312 22.0287 31.4239 22.0623C32.2817 22.4017 32.9957 23.0279 33.4444 23.8343C33.8931 24.6408 34.0489 25.5778 33.8854 26.4862C33.7218 27.3946 33.249 28.2183 32.5472 28.8174C31.8454 29.4164 30.958 29.7539 30.0356 29.7725L28.4254 29.9244V30.8323H30.0356C31.1775 30.817 32.2801 30.4135 33.1625 29.6882C34.0448 28.9629 34.6543 27.9588 34.8909 26.8411C35.1274 25.7233 34.9769 24.5582 34.4641 23.5373C33.9513 22.5164 33.1067 21.7004 32.0691 21.2234C31.872 20.1324 31.2992 19.145 30.4501 18.4328C29.601 17.7205 28.5294 17.3284 27.4214 17.3245C26.9345 17.3289 26.4505 17.4013 25.9837 17.5397C24.9664 16.5541 23.6065 16.0021 22.1905 16Z" fill="var(--icon-primary)"></path>
+                    </svg>
+                    <div role="heading" class="tab-title">ONTAP MCP Canvas</div>
+                </div>
+                <div class="tab-links">
+                    <a class="tab-link tab-link-active" href="#" aria-current="page">My ONTAP Clusters</a>
+                    <a class="tab-link" href="#">Cluster Health</a>
+                </div>
+                <button class="switch-mode-button">
+                    <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22.54 14.816" style="width: 22px; height: 14px;">
+                        <desc id="canvas-view">Canvas view</desc>
+                        <path class="primary-fill primary-stroke" d="M19.786,13.333a5.47,5.47,0,0,0-5.354,4.539,4.742,4.742,0,0,0,.417,9.461H25.676v-.857l-10.827-.143a3.75,3.75,0,0,1,0-7.5.5.5,0,0,0,.494-.453,4.485,4.485,0,0,1,4.444-4.047,4.162,4.162,0,0,1,3.1,1.344.489.489,0,0,0,.532.117,3.938,3.938,0,0,1,1.3-.211,3.479,3.479,0,0,1,3.456,3.055.5.5,0,0,0,.324.414,3.772,3.772,0,0,1-1.311,7.281l-1.516.143v.857h1.516a4.752,4.752,0,0,0,1.921-9.07,4.476,4.476,0,0,0-4.39-3.68,4.932,4.932,0,0,0-1.358.2A5.161,5.161,0,0,0,19.786,13.333Z" transform="translate(0.408 0.408) translate(-10.159 -13.333)" stroke-width="0.816"></path>
+                    </svg>
+                    Go to Canvas View
+                </button>
+            </header>
+
+            <div class="layout-page">
+                <button class="add-cluster-button" id="addClusterBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11.25 4.75C11.25 4.33578 11.5858 4 12 4C12.4142 4 12.75 4.33578 12.75 4.75V11.25H19.25C19.6642 11.25 20 11.5858 20 12C20 12.4142 19.6642 12.75 19.25 12.75H12.75V19.25C12.75 19.6642 12.4142 20 12 20C11.5858 20 11.25 19.6642 11.25 19.25V12.75H4.75C4.33582 12.75 4 12.4142 4 12C4 11.5858 4.33582 11.25 4.75 11.25H11.25V4.75Z" fill="var(--icon-primary)"/>
+                    </svg>
+                    Add Working Environment
+                </button>
+
+                <section class="layout-content">
+                    <div class="table-container">
+                        <div class="widgets-row">
+                            <div class="table-counter">
+                                <span>
+                                    <span>Working Environments&nbsp;</span>
+                                    <span id="clusterCount">(0)</span>
+                                </span>
+                            </div>
+                            <div class="table-widgets">
+                                <div class="search-widget">
+                                    <div class="search-widget-wrapper">
+                                        <button class="search-button" aria-label="Search">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path fill-rule="evenodd" clip-rule="evenodd" d="M15.5956 16.5403C14.1735 17.6046 12.4005 18.2361 10.4782 18.2361C5.79581 18.2361 2 14.4895 2 9.86803C2 5.24652 5.79581 1.5 10.4782 1.5C15.1606 1.5 18.9564 5.24652 18.9564 9.86803C18.9564 11.8796 18.2372 13.7254 17.0389 15.1686L21.7055 19.8168C22.0981 20.2024 22.0982 20.8268 21.7058 21.2117C21.3133 21.5966 20.677 21.596 20.2845 21.2105L15.5956 16.5403ZM17.4602 9.86803C17.4602 13.674 14.3343 16.7593 10.4782 16.7593C6.62211 16.7593 3.49615 13.674 3.49615 9.86803C3.49615 6.06208 6.62211 2.97671 10.4782 2.97671C14.3343 2.97671 17.4602 6.06208 17.4602 9.86803Z" fill="var(--icon-primary)"/>
+                                            </svg>
+                                        </button>
+                                        <input class="search-input" id="searchInput" placeholder="Search clusters" value="">
+                                        <button class="search-clear-button" id="clearSearch" aria-label="Close">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M16.7842 7.21583C16.4793 6.91098 15.9644 6.93155 15.6341 7.26183L12 10.896L8.36587 7.26184C8.03559 6.93156 7.52068 6.91099 7.21583 7.21584C6.91098 7.52069 6.93155 8.0356 7.26183 8.36588L10.896 12L7.26183 15.6341C6.93155 15.9644 6.91098 16.4793 7.21583 16.7842C7.52068 17.089 8.03559 17.0684 8.36587 16.7382L12 13.104L15.6341 16.7382C15.9644 17.0685 16.4793 17.089 16.7842 16.7842C17.089 16.4793 17.0685 15.9644 16.7382 15.6341L13.104 12L16.7382 8.36587C17.0684 8.03559 17.089 7.52068 16.7842 7.21583Z" fill="var(--icon-primary)"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Clusters Table -->
+                        <div class="data-table">
+                            <div class="table-header-row">
+                                <div class="table-header-cell" style="flex: 1 0 200px;">
+                                    <div class="header-label">
+                                        <span>Cluster Name</span>
+                                    </div>
+                                    <div class="header-widgets">
+                                        <button class="sort-icons">
+                                            <svg role="img" width="10" height="5" viewBox="0 0 10 5" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-header-cell" style="flex: 1 0 150px;">
+                                    <div class="header-label">
+                                        <span>Cluster IP</span>
+                                    </div>
+                                </div>
+                                <div class="table-header-cell" style="flex: 1 0 120px;">
+                                    <div class="header-label">
+                                        <span>Username</span>
+                                    </div>
+                                </div>
+                                <div class="table-header-cell" style="flex: 1 0 120px;">
+                                    <div class="header-label">
+                                        <span>Password</span>
+                                    </div>
+                                </div>
+                                <div class="table-header-cell" style="flex: 1 0 150px;">
+                                    <div class="header-label">
+                                        <span>Description</span>
+                                    </div>
+                                </div>
+                                <div class="table-header-cell" style="flex: 0 0 120px;">
+                                    <div class="header-label">
+                                        <span>Status</span>
+                                    </div>
+                                </div>
+                                <div class="table-header-cell" style="flex: 0 0 100px;">
+                                    <div class="header-label">
+                                        <span>Actions</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="table-body" id="clustersTableBody">
+                                <!-- Clusters will be loaded here dynamically -->
+                                <div class="loading-row">
+                                    <div class="loading-spinner"></div>
+                                    <span>Loading clusters...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Cluster Modal -->
+    <div class="modal-overlay" id="addClusterModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add ONTAP Cluster</h2>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <form id="addClusterForm">
+                <div class="form-group">
+                    <label for="clusterName">Cluster Name</label>
+                    <input type="text" id="clusterName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="clusterIp">Cluster IP Address</label>
+                    <input type="text" id="clusterIp" name="cluster_ip" required>
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description (Optional)</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancelAdd">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Cluster</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cluster Detail Flyout -->
+    <div class="flyout-overlay" id="clusterDetail" style="display: none;">
+        <div class="flyout-content">
+            <div class="flyout-header">
+                <h2 id="flyoutClusterName">Cluster Details</h2>
+                <button class="flyout-close" id="closeFlyout">&times;</button>
+            </div>
+            <div class="flyout-body">
+                <div class="cluster-info">
+                    <h3>Cluster Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>IP Address:</label>
+                            <span id="flyoutClusterIp">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Username:</label>
+                            <span id="flyoutUsername">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Description:</label>
+                            <span id="flyoutDescription">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cluster-services">
+                    <h3>Available Operations</h3>
+                    <div class="services-grid">
+                        <button class="service-button" onclick="showVolumeOperations()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="var(--icon-primary)" stroke-width="2" fill="none"/>
+                            </svg>
+                            Volume Management
+                        </button>
+                        <button class="service-button" onclick="showCifsOperations()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 6L9 17L4 12" stroke="var(--icon-primary)" stroke-width="2" fill="none"/>
+                            </svg>
+                            CIFS Shares
+                        </button>
+                        <button class="service-button" onclick="showNfsOperations()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 2L22 7L12 12L2 7L12 2Z" stroke="var(--icon-primary)" stroke-width="2" fill="none"/>
+                            </svg>
+                            NFS Exports
+                        </button>
+                        <button class="service-button" onclick="showSnapshotOperations()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M21 16V8C21 6.89543 20.1046 6 19 6H5C3.89543 6 3 6.89543 3 8V16C3 17.1046 3.89543 18 5 18H19C20.1046 18 21 17.1046 21 16Z" stroke="var(--icon-primary)" stroke-width="2" fill="none"/>
+                            </svg>
+                            Snapshot Policies
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
