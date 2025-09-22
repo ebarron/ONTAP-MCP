@@ -59,6 +59,7 @@ temp/
 # Exclude any files with real cluster credentials
 *.credentials
 cluster-configs/
+test/clusters.json
 
 # MCP server logs
 mcp-server.log

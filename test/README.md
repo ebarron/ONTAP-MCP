@@ -4,9 +4,26 @@ This directory contains cluster configuration management for ONTAP MCP tests.
 
 ## Files
 
-- **`clusters.json`** - External cluster configuration file used by test scripts
+- **`clusters.json`** - External cluster configuration file used by test scripts (git-ignored)
+- **`clusters.json.example`** - Template file showing the expected structure for clusters.json
 - **`sync-clusters.js`** - Utility to sync clusters from VS Code mcp.json to clusters.json
 - **`test-volume-lifecycle.js`** - Volume lifecycle test (now uses external clusters.json)
+
+## Setup
+
+### First Time Setup
+
+1. Copy the example template to create your cluster configuration:
+   ```bash
+   cp test/clusters.json.example test/clusters.json
+   ```
+
+2. Edit `test/clusters.json` with your actual cluster details:
+   - Replace IP addresses with your ONTAP cluster IPs
+   - Update usernames and passwords 
+   - Modify descriptions as needed
+
+**Note**: The `clusters.json` file is git-ignored to prevent committing sensitive credentials.
 
 ## Usage
 
