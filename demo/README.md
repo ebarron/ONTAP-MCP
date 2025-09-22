@@ -2,7 +2,26 @@
 
 ## Overview
 
-This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validation tool for REST API endpoints through an end-to-end storage provisioning workflow.
+This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validatio#### Quick Start Testing Guide
+
+#### 1. Basic Setup
+```bash
+# RECOMMENDED: Use automated startup script
+./start-demo.sh
+
+# This handles everything:
+# - Builds MCP server if needed
+# - Loads ALL clusters from test/clusters.json automatically
+# - Starts both servers with correct configurations
+# - Validates setup and provides status
+
+# Alternative: Manual setup (requires careful environment variable configuration)
+npm run build
+export ONTAP_CLUSTERS='[{"name":"your-cluster","cluster_ip":"10.x.x.x","username":"admin","password":"yourpass","description":"Test cluster"}]'
+node build/index.js --http=3000
+# In separate terminal:
+cd demo && python3 -m http.server 8080
+```T API endpoints through an end-to-end storage provisioning workflow.
 
 ## Purpose
 
@@ -23,7 +42,24 @@ The primary purpose of this demo is to:
 
 ### Server Setup
 
-The demo requires two servers running simultaneously:
+The demo requires two servers running simultaneously. Use the provided startup script for consistent, error-free setup:
+
+#### Quick Start (Recommended)
+```bash
+# From ONTAP-MCP root directory
+./start-demo.sh
+```
+
+This script automatically:
+- Builds the MCP server if needed
+- Loads ALL clusters from `test/clusters.json`
+- Starts MCP HTTP server on port 3000 with proper environment variables
+- Starts demo web server from `demo/` directory on port 8080
+- Validates both servers are responding correctly
+- Provides live monitoring and easy shutdown via Ctrl+C
+
+#### Manual Setup (Legacy)
+If you need to start servers manually:
 
 1. **Python HTTP Server** (port 8080): Serves the demo files
    ```bash
@@ -32,8 +68,16 @@ The demo requires two servers running simultaneously:
 
 2. **ONTAP MCP Server** (port 3000): Provides REST API endpoints with CORS support
    ```bash
-   ONTAP_CLUSTERS='[...]' node build/index.js --http=3000
+   # From ONTAP-MCP root directory
+   export ONTAP_CLUSTERS='[...]'  # Manual cluster configuration
+   node build/index.js --http=3000
    ```
+
+#### Stopping the Demo
+```bash
+# Clean shutdown of both servers
+./stop-demo.sh
+```
 
 ## Current Features
 
@@ -90,12 +134,27 @@ The provisioning workflow comprehensively tests these MCP REST endpoints in a re
 
 #### 1. Prerequisites Setup
 ```bash
+# Quick Start: Use the automated startup script (RECOMMENDED)
+cd /Users/ebarron/ONTAP-MCP
+./start-demo.sh
+
+# This automatically:
+# - Loads all clusters from test/clusters.json
+# - Starts MCP HTTP server on port 3000
+# - Starts demo web server from demo/ directory on port 8080
+# - Validates both servers are working correctly
+
+# Demo will be available at: http://localhost:8080 (no /demo suffix needed!)
+```
+
+#### Manual Setup (if needed)
+```bash
 # Terminal 1: Start MCP HTTP server with test clusters
 cd /Users/ebarron/ONTAP-MCP
 export ONTAP_CLUSTERS='[{"name":"karan-ontap-1","cluster_ip":"10.196.61.123","username":"admin","password":"netapp1!","description":"Karans hardware system"}]'
 node build/index.js --http=3000
 
-# Terminal 2: Start demo web server
+# Terminal 2: Start demo web server FROM DEMO DIRECTORY
 cd /Users/ebarron/ONTAP-MCP/demo  
 python3 -m http.server 8080
 ```
@@ -360,12 +419,26 @@ If NFS export policies don't populate:
 2. **Policy Creation**: Create policies via ONTAP CLI if none exist
 3. **Demo Fallback**: Demo provides fallback policies if none found
 
-### Demo Not Loading
-If the demo doesn't load properly:
-1. Check that the Python HTTP server is running on port 8080 from demo directory
-2. Verify all files (index.html, styles.css, app.js) are in the demo directory
-3. Check browser console for JavaScript errors
-4. Ensure MCP server is running and responding on port 3000
+### Demo Server Issues
+If the startup script fails:
+1. **Permission Issues**: Ensure scripts are executable: `chmod +x start-demo.sh stop-demo.sh`
+2. **Port Conflicts**: Check for existing processes: `lsof -i :3000` and `lsof -i :8080`
+3. **Wrong Directory**: Script must be run from ONTAP-MCP root directory
+4. **Missing Files**: Ensure `test/clusters.json` and `demo/` directory exist
+5. **Build Failures**: Check TypeScript compilation: `npm run build`
+
+### URL Path Issues  
+If you see a directory listing instead of the demo:
+1. **Wrong Server Directory**: Use `./start-demo.sh` (starts from demo/ directory automatically)
+2. **Manual Start**: If starting manually, ensure: `cd demo && python3 -m http.server 8080`
+3. **Correct URL**: Should be `http://localhost:8080` (no /demo suffix needed)
+
+### Cluster Configuration Issues
+If clusters don't appear in demo:
+1. **Missing Clusters**: Startup script loads from `test/clusters.json` automatically
+2. **Invalid JSON**: Validate `test/clusters.json` syntax with `node -e "JSON.parse(require('fs').readFileSync('test/clusters.json'))"`
+3. **Environment Variables**: Startup script handles this automatically
+4. **Manual Setup**: Must export ONTAP_CLUSTERS with proper JSON array format
 
 ### API Testing Failures
 If specific API calls fail:

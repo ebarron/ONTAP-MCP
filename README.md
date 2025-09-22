@@ -202,6 +202,37 @@ npm run start:http
 node build/index.js --http=3001
 ```
 
+### 🎯 Interactive Demo & API Testing
+
+For comprehensive API testing and demonstration, use the included web-based demo:
+
+```bash
+# Quick Start: Automated demo startup (RECOMMENDED)
+./start-demo.sh
+
+# This automatically:
+# - Builds MCP server if needed
+# - Loads ALL clusters from test/clusters.json
+# - Starts MCP HTTP server on port 3000
+# - Starts demo web server on port 8080 (from demo/ directory)
+# - Validates both servers are working
+
+# Access demo at: http://localhost:8080 (no /demo suffix needed)
+```
+
+The demo provides:
+- **Complete Provisioning Workflow**: Test volume creation with NFS/CIFS configuration
+- **20+ API Endpoint Testing**: Validates cluster discovery, policy management, volume operations
+- **NetApp BlueXP Styling**: Authentic interface for realistic testing scenarios
+- **Error Handling Validation**: Test various failure conditions and edge cases
+
+Stop the demo cleanly:
+```bash
+./stop-demo.sh
+```
+
+See `demo/README.md` for comprehensive testing documentation and API validation procedures.
+
 #### Available HTTP Endpoints
 
 - **Health Check**: `GET http://localhost:3000/health`
