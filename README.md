@@ -157,41 +157,6 @@ The enhanced MCP server now supports complete infrastructure provisioning workfl
 
 See [ENHANCED_PROVISIONING.md](ENHANCED_PROVISIONING.md) for detailed workflow examples and best practices.
 
-## 🖥️ Demo Interface
-
-The `demo/` directory contains a web-based demonstration interface that validates the MCP server's REST API functionality while providing an authentic NetApp BlueXP-style user experience.
-
-### Purpose
-- **REST API Validation**: Test and validate all MCP server endpoints
-- **Visual Demonstration**: Showcase MCP capabilities through familiar NetApp interface
-- **Testing Foundation**: Base for future automated and agentic testing frameworks
-
-### Features
-- **Authentic NetApp Styling**: Pixel-perfect BlueXP interface replication
-- **Live Cluster Data**: Real-time ONTAP cluster information via REST API
-- **Interactive Search**: Dynamic cluster filtering with expandable search widget
-- **CORS-Enabled**: Full browser compatibility for cross-origin API calls
-
-### Quick Start
-```bash
-# Terminal 1: Start MCP server in HTTP mode
-ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"...","username":"...","password":"..."}]' \
-node build/index.js --http=3000
-
-# Terminal 2: Start demo interface
-cd demo && python3 -m http.server 8080
-
-# Access demo at http://localhost:8080
-```
-
-### Future Enhancements
-The demo will evolve to include:
-- **Comprehensive API Coverage**: Volume, CIFS, NFS, and snapshot operations
-- **Agentic Testing**: LLM-driven test scenario generation and validation
-- **Automated Workflows**: AI-powered testing sequences and natural language test descriptions
-
-See [demo/README.md](demo/README.md) for complete documentation.
-
 ## Installation
 
 1. Clone or download this project
@@ -741,3 +706,38 @@ node test/test-volume-lifecycle.js stdio
 npm start  # Test STDIO
 npm run start:http  # Test HTTP
 ```
+
+## 🖥️ Demo Interface
+
+The `demo/` directory contains an optional web-based demonstration interface that validates the MCP server's REST API functionality while providing an authentic NetApp BlueXP-style user experience.
+
+### Purpose
+- **REST API Validation**: Test and validate all MCP server endpoints
+- **Visual Demonstration**: Showcase MCP capabilities through familiar NetApp interface
+- **Testing Foundation**: Base for future automated and agentic testing frameworks
+
+### Features
+- **Authentic NetApp Styling**: Pixel-perfect BlueXP interface replication
+- **Live Cluster Data**: Real-time ONTAP cluster information via REST API
+- **Interactive Search**: Dynamic cluster filtering with expandable search widget
+- **CORS-Enabled**: Full browser compatibility for cross-origin API calls
+
+### Quick Start
+```bash
+# Terminal 1: Start MCP server in HTTP mode
+ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"...","username":"...","password":"..."}]' \
+node build/index.js --http=3000
+
+# Terminal 2: Start demo interface
+cd demo && python3 -m http.server 8080
+
+# Access demo at http://localhost:8080
+```
+
+### Future Enhancements
+The demo will evolve to include:
+- **Comprehensive API Coverage**: Volume, CIFS, NFS, and snapshot operations
+- **Agentic Testing**: LLM-driven test scenario generation and validation
+- **Automated Workflows**: AI-powered testing sequences and natural language test descriptions
+
+See [demo/README.md](demo/README.md) for complete documentation.
