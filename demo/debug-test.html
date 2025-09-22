@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cluster Loading Debug</title>
+</head>
+<body>
+    <h1>Debug Cluster Loading</h1>
+    <div id="output"></div>
+    <div id="clustersTableBody"></div>
+
+    <script>
+        async function testClusterLoading() {
+            const output = document.getElementById('output');
+            
+            try {
+                // Test the API call
+                const response = await fetch('http://localhost:3000/api/tools/list_registered_clusters', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+                output.innerHTML += '<h3>Raw API Response:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+
+                // Test parsing
+                const textContent = data.content
+                    .filter(item => item.type === 'text')
+                    .map(item => item.text)
+                    .join('');
+
+                output.innerHTML += '<h3>Text Content:</h3><pre>' + textContent + '</pre>';
+
+                // Test cluster parsing
+                const clusters = parseClusterList(textContent);
+                output.innerHTML += '<h3>Parsed Clusters:</h3><pre>' + JSON.stringify(clusters, null, 2) + '</pre>';
+
+                // Test table rendering
+                const tbody = document.getElementById('clustersTableBody');
+                tbody.innerHTML = '';
+                
+                if (clusters.length === 0) {
+                    tbody.innerHTML = '<div>No clusters found</div>';
+                } else {
+                    clusters.forEach(cluster => {
+                        tbody.innerHTML += `<div style="border: 1px solid #ccc; margin: 5px; padding: 10px;">
+                            <strong>${cluster.name}</strong><br>
+                            IP: ${cluster.cluster_ip}<br>
+                            Description: ${cluster.description}
+                        </div>`;
+                    });
+                }
+
+            } catch (error) {
+                output.innerHTML += '<h3>Error:</h3><pre>' + error.message + '</pre>';
+            }
+        }
+
+        function parseClusterList(text) {
+            const clusters = [];
+            const lines = text.split('\n');
+            
+            for (const line of lines) {
+                // Look for lines like: "- cluster-name: ip (description)"
+                const match = line.match(/^-\s+([^:]+):\s+([^\s]+)\s+\(([^)]+)\)/);
+                if (match) {
+                    clusters.push({
+                        name: match[1].trim(),
+                        cluster_ip: match[2].trim(),
+                        description: match[3].trim(),
+                        username: 'admin',
+                        password: '***'
+                    });
+                }
+            }
+            
+            return clusters;
+        }
+
+        // Run test when page loads
+        window.onload = testClusterLoading;
+    </script>
+</body>
+</html>

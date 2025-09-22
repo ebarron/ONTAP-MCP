@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Test</title>
+</head>
+<body>
+    <h1>Debug Test</h1>
+    <button onclick="testDirectly()">Test API Directly</button>
+    <pre id="output"></pre>
+    
+    <script>
+        async function testDirectly() {
+            const output = document.getElementById('output');
+            try {
+                output.textContent = 'Testing API...\n';
+                
+                // Test the exact same API call as the main app
+                const response = await fetch('http://localhost:3000/api/tools/list_registered_clusters', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                output.textContent += `Raw data: ${JSON.stringify(data, null, 2)}\n\n`;
+                
+                // Test the parsing logic
+                const textContent = data.content
+                    .filter(item => item.type === 'text')
+                    .map(item => item.text)
+                    .join('');
+                
+                output.textContent += `Text content: ${textContent}\n\n`;
+                
+                // Test if it includes 'Registered clusters'
+                const includesRegistered = textContent.includes('Registered clusters');
+                output.textContent += `Includes 'Registered clusters': ${includesRegistered}\n\n`;
+                
+                // Test parsing function
+                const clusters = [];
+                const lines = textContent.split('\n');
+                
+                for (const line of lines) {
+                    const match = line.match(/^-\s+([^:]+):\s+([^\s]+)\s+\(([^)]+)\)/);
+                    if (match) {
+                        clusters.push({
+                            name: match[1].trim(),
+                            cluster_ip: match[2].trim(),
+                            description: match[3].trim(),
+                            username: 'admin',
+                            password: '***'
+                        });
+                    }
+                }
+                
+                output.textContent += `Parsed clusters: ${JSON.stringify(clusters, null, 2)}\n`;
+                output.textContent += `Number of clusters: ${clusters.length}`;
+                
+            } catch (error) {
+                output.textContent = `Error: ${error.message}\n${error.stack}`;
+            }
+        }
+    </script>
+</body>
+</html>

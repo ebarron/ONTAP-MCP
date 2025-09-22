@@ -447,9 +447,36 @@ input, textarea {
 }
 
 .table-counter {
+    display: flex;
+    align-items: center;
+    gap: 16px;
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.provision-storage-link {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--netapp-blue);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    background-color: transparent;
+    border: 1px solid transparent;
+}
+
+.provision-storage-link:hover:not(.disabled) {
+    background-color: var(--background-hover);
+    border-color: var(--border-light);
+    text-decoration: underline;
+}
+
+.provision-storage-link.disabled {
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 .table-widgets {
@@ -1041,4 +1068,279 @@ input, textarea {
     color: var(--notification-information);
     font-size: 12px;
     margin-top: 4px;
+}
+
+/* Page Buttons Layout */
+.page-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+/* Provision Storage Button */
+.provision-storage-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: var(--button-primary-bg);
+    color: var(--text-on-color);
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.provision-storage-button:hover:not(:disabled) {
+    background-color: var(--button-primary-bg-hover);
+}
+
+.provision-storage-button:disabled {
+    background-color: var(--button-primary-bg-disabled);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+}
+
+.provision-storage-button svg {
+    width: 20px;
+    height: 20px;
+}
+
+.provision-storage-button:disabled svg path {
+    fill: var(--icon-primary-disabled);
+}
+
+/* Right Panel Styles */
+.right-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 480px;
+    height: 100vh;
+    background: white;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.1);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.right-panel.visible {
+    transform: translateX(0);
+}
+
+.panel-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-main);
+    background: var(--background-content);
+}
+
+.panel-header h2 {
+    margin: 0;
+    color: var(--text-title);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.panel-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.panel-close:hover {
+    color: var(--text-primary);
+}
+
+.panel-body {
+    flex: 1;
+    padding: 24px;
+}
+
+.selected-cluster-info {
+    background: var(--background-table-header);
+    padding: 16px;
+    border-radius: 4px;
+    margin-bottom: 24px;
+}
+
+.selected-cluster-info h3 {
+    margin: 0 0 8px 0;
+    color: var(--text-title);
+    font-size: 16px;
+}
+
+.selected-cluster-info p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.form-section {
+    margin-bottom: 32px;
+}
+
+.form-section h3 {
+    margin: 0 0 16px 0;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-main);
+    padding-bottom: 8px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--field-border);
+    border-radius: 4px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.radio-group label {
+    display: flex;
+    align-items: center;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+.radio-group input[type="radio"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+.protocol-options {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--background-hover);
+    border-radius: 4px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-main);
+}
+
+.btn-primary {
+    padding: 10px 20px;
+    background-color: var(--button-primary-bg);
+    color: var(--text-on-color);
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+    background-color: var(--button-primary-bg-hover);
+}
+
+.btn-secondary {
+    padding: 10px 20px;
+    background-color: transparent;
+    color: var(--button-secondary);
+    border: 1px solid var(--button-secondary);
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background-color: var(--background-hover);
+    border-color: var(--button-secondary-hover);
+    color: var(--button-secondary-hover);
+}
+
+/* Body state when panel is open */
+body.panel-open {
+    overflow: hidden;
+}
+
+/* Radio button styling */
+input[type="radio"] {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--field-border);
+    border-radius: 50%;
+    margin: 0;
+    position: relative;
+    cursor: pointer;
+}
+
+input[type="radio"]:checked {
+    border-color: var(--primary);
+}
+
+input[type="radio"]:checked::after {
+    content: '';
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Table checkbox column alignment */
+.table-cell input[type="radio"] {
+    margin: 0 auto;
+    display: block;
 }

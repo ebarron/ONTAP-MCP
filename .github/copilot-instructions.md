@@ -138,6 +138,203 @@ node build/index.js --http=3000
 - **Share Properties**: Configurable encryption, oplocks, offline files, security settings
 - **Integration Pattern**: Follow same dual transport pattern as export policies
 
+## Demo Web Interface Development
+
+### Demo Architecture (demo/ directory)
+The project includes a complete NetApp BlueXP-style demo interface for MCP REST API validation:
+
+```
+demo/
+├── index.html          # Main demo interface (NetApp BlueXP styling)
+├── styles.css          # Authentic BlueXP design system
+├── app.js              # MCP API integration + UI interactions
+├── README.md           # Demo documentation and setup
+├── test-api.html       # Interactive API testing utility
+└── test.html           # CSS/styling verification page
+```
+
+### Demo Startup Pattern
+**Critical: Two-server architecture required**
+```bash
+# Terminal 1: Start MCP HTTP server with clusters
+cd /Users/ebarron/ONTAP-MCP
+export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"pass"}]'
+node build/index.js --http=3000
+
+# Terminal 2: Start demo web server (from demo directory!)
+cd /Users/ebarron/ONTAP-MCP/demo
+python3 -m http.server 8080
+
+# Access: http://localhost:8080
+```
+
+### CORS Configuration
+MCP HTTP mode includes CORS headers for browser compatibility:
+```javascript
+// Built into HTTP mode - no additional config needed
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization
+```
+
+### MCP API Integration Pattern
+```javascript
+// Standard MCP API call pattern used in demo
+async function callMcp(toolName, params = {}) {
+  const response = await fetch(`http://localhost:3000/api/tools/${toolName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params)
+  });
+  
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  
+  const data = await response.json();
+  
+  // Extract text content from MCP response structure
+  return data.content
+    .filter(item => item.type === 'text')
+    .map(item => item.text)
+    .join('');
+}
+```
+
+### NetApp BlueXP Design System
+**Authentic styling patterns used:**
+```css
+/* Core NetApp Colors */
+--netapp-blue: #0067C5;
+--netapp-purple: #7b2cbf;
+--netapp-text: #333333;
+
+/* BlueXP Header Pattern */
+.header {
+  height: 48px;           /* Compact header */
+  background: #ffffff;
+  border-bottom: 1px solid #e1e5e9;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Demo Tag Pattern */
+.demo-tag {
+  background-color: #7b2cbf;  /* NetApp purple */
+  color: #ffffff;
+  padding: 6px 16px;
+  border-radius: 16px;        /* Oval shape */
+  font-size: 12px;
+  font-weight: 600;
+}
+```
+
+### Data Parsing Patterns
+**Cluster list parsing from MCP responses:**
+```javascript
+function parseClusterList(textContent) {
+  const clusters = [];
+  const lines = textContent.split('\n');
+  
+  for (const line of lines) {
+    // Pattern: "- cluster-name: 10.1.1.1 (description)"
+    const match = line.match(/^-\s+([^:]+):\s+([^\s]+)\s+\(([^)]+)\)/);
+    if (match) {
+      clusters.push({
+        name: match[1].trim(),
+        cluster_ip: match[2].trim(),
+        description: match[3].trim()
+      });
+    }
+  }
+  return clusters;
+}
+```
+
+### Demo Testing Strategy
+1. **API Testing**: Use `demo/test-api.html` for direct MCP tool testing
+2. **Visual Testing**: Use `demo/test.html` for CSS/styling verification
+3. **Integration Testing**: Use main `demo/index.html` for full workflow testing
+4. **Dual Mode Testing**: Verify STDIO vs HTTP mode consistency
+
+### Common Demo Pitfalls
+1. **Wrong Server Directory**: Python server must start from `/demo` directory
+2. **Missing Clusters**: MCP server needs `ONTAP_CLUSTERS` environment variable
+3. **CORS Issues**: Use HTTP mode (not STDIO) for browser compatibility
+4. **Port Conflicts**: Check for existing processes on ports 3000/8080
+5. **Build State**: Always `npm run build` after TypeScript changes
+
+### Demo Enhancement Patterns
+- **Search Expansion**: Click-to-expand search functionality
+- **Error Handling**: Graceful API failure messaging
+- **Loading States**: Visual feedback during API calls
+- **Responsive Design**: Mobile-friendly NetApp styling
+- **Progressive Enhancement**: Core functionality without JavaScript
+
+### Demo Debugging Lessons Learned
+
+#### HTTP REST API Handler Issues
+**Critical Pattern**: MCP tools work in VS Code (STDIO mode) but fail via browser (HTTP mode) with 500 errors.
+
+**Root Cause**: HTTP REST API handler (`src/index.ts` line ~1172) uses a switch statement that must explicitly register each tool. Missing tools cause 500 Internal Server Error.
+
+**Example Issues Encountered**:
+```javascript
+// ❌ BROKEN: HTTP handler calling client directly
+case 'cluster_create_volume':
+  const createClient = clusterManager.getClient(args.cluster_name);
+  const createResult = await createClient.createVolume({...});
+
+// ✅ FIXED: HTTP handler using proper tool function  
+case 'cluster_create_volume':
+  result = await handleClusterCreateVolume(args, clusterManager);
+  break;
+```
+
+**Debugging Process**:
+1. **Symptom**: `POST http://localhost:3000/api/tools/list_export_policies 500 (Internal Server Error)`
+2. **Check**: Tool works via VS Code MCP → confirms tool logic is correct
+3. **Root Cause**: Missing case in HTTP REST API switch statement
+4. **Fix**: Add tool to switch statement: `case 'list_export_policies': result = await handleListExportPolicies(args, clusterManager); break;`
+5. **Verify**: `npm run build` → restart server → test in browser
+
+**Prevention Checklist**:
+- [ ] Tool imports exist in `src/index.ts` (around line 89)
+- [ ] Tool registered in MCP handler (around line 868)  
+- [ ] Tool registered in HTTP REST API handler (around line 1192)
+- [ ] Both handlers use same tool function (not client directly)
+- [ ] Build and restart server after changes
+- [ ] Test both VS Code MCP and browser HTTP modes
+
+#### Data Parsing Issues
+**Pattern**: MCP responses are text-based and require careful parsing for UI dropdowns.
+
+**SVM Parsing Example**:
+```javascript
+// ❌ BROKEN: Expected simple list format
+const svms = textContent.split('\n').filter(line => line.trim());
+
+// ✅ FIXED: Parse actual format "- vs123 (uuid) - State: running"
+const svm_match = line.match(/^-\s+([^\s(]+)\s*\(/);
+if (svm_match) svms.push(svm_match[1].trim());
+```
+
+**Export Policy Dependencies**:
+- Export policies are SVM-specific (not cluster-wide)
+- UI must load export policies AFTER user selects SVM
+- Use event listeners: `svmSelect.addEventListener('change', loadExportPoliciesForSvm)`
+
+#### State Management Debugging
+**Form Reset Issues**: When switching between NFS/CIFS radio buttons, ensure dependent dropdowns reset properly.
+
+**Loading State Management**: Show loading indicators during API calls to prevent user confusion.
+
+**Error Recovery**: Graceful handling when API calls fail (cluster offline, network issues).
+
+### Demo Enhancement Patterns
+- **Search Expansion**: Click-to-expand search functionality
+- **Error Handling**: Graceful API failure messaging
+- **Loading States**: Visual feedback during API calls
+- **Responsive Design**: Mobile-friendly NetApp styling
+- **Progressive Enhancement**: Core functionality without JavaScript
+
 ## Key Files to Reference
 - `src/index.ts`: Transport detection and tool registration
 - `src/ontap-client.ts`: ONTAP API communication and cluster management  
