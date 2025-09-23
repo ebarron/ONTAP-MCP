@@ -63,3 +63,6 @@ test/clusters.json
 
 # MCP server logs
 mcp-server.log
+# Reference files - not part of codebase
+demo/CIFSSettingsPage/
+demo/ExportPolicyPage/
