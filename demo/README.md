@@ -2,33 +2,14 @@
 
 ## Overview
 
-This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validatio#### Quick Start Testing Guide
-
-#### 1. Basic Setup
-```bash
-# RECOMMENDED: Use automated startup script
-./start-demo.sh
-
-# This handles everything:
-# - Builds MCP server if needed
-# - Loads ALL clusters from test/clusters.json automatically
-# - Starts both servers with correct configurations
-# - Validates setup and provides status
-
-# Alternative: Manual setup (requires careful environment variable configuration)
-npm run build
-export ONTAP_CLUSTERS='[{"name":"your-cluster","cluster_ip":"10.x.x.x","username":"admin","password":"yourpass","description":"Test cluster"}]'
-node build/index.js --http=3000
-# In separate terminal:
-cd demo && python3 -m http.server 8080
-```T API endpoints through an end-to-end storage provisioning workflow.
+This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validation of REST API endpoints through an end-to-end storage provisioning workflow.
 
 ## Purpose
 
 The primary purpose of this demo is to:
 
 1. **REST API Validation**: Comprehensive testing of ONTAP MCP server's REST API endpoints through real provisioning workflows
-2. **Visual Demonstration**: Provide an authentic NetApp BlueXP-style interface to showcase MCP capabilities
+2. **Visual Demonstration**: Provide an authentic NetApp BlueXP-style interface to showcase MCP capabilities  
 3. **Testing Framework**: Complete end-to-end testing of storage provisioning including volume creation, NFS/CIFS configuration
 4. **API Integration Validation**: Test all 46+ MCP tools through realistic user scenarios
 
@@ -86,8 +67,18 @@ If you need to start servers manually:
 - **SVM-Dependent Dropdowns**: Smart form controls that populate based on selected cluster and SVM
 - **Aggregate Selection**: Automatic aggregate discovery and selection for volume placement
 - **Export Policy Management**: NFS export policy assignment with SVM-specific policy discovery
+- **CIFS Share Configuration**: Complete CIFS/SMB share creation with access control lists
 - **Volume Validation**: Client-side validation ensuring ONTAP-compatible naming conventions
 - **Real-time Testing**: Each provisioning step validates multiple MCP REST API endpoints
+
+### CIFS/SMB Integration
+Enhanced CIFS provisioning support includes:
+- **Users/Groups Configuration**: Specify user and group access for CIFS shares
+- **Permission Levels**: Full control, change, read, or no access permissions  
+- **Access Control Lists**: Complete ACL configuration with user type support (Windows, Unix users/groups)
+- **Share Properties**: Optional share comments and advanced CIFS properties
+- **Protocol Switching**: Dynamic form fields that appear only when CIFS is selected
+- **API Compatibility**: Aligns with NetApp ONTAP MCP server schema and ONTAP REST API v1/v2
 
 ### Cluster Management
 - **List Registered Clusters**: Displays all configured ONTAP clusters
