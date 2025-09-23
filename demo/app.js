@@ -580,6 +580,19 @@ class OntapMcpDemo {
                                 <label for="shareComment">Share Comment (Optional)</label>
                                 <input type="text" id="shareComment" name="shareComment">
                             </div>
+                            <div class="form-group">
+                                <label for="cifsUsers">Users/Groups</label>
+                                <input type="text" id="cifsUsers" name="cifsUsers" value="Everyone" placeholder="e.g., Everyone, DOMAIN\\username">
+                            </div>
+                            <div class="form-group">
+                                <label for="cifsPermissions">Permissions</label>
+                                <select id="cifsPermissions" name="cifsPermissions">
+                                    <option value="full_control" selected>Full Control</option>
+                                    <option value="change">Change</option>
+                                    <option value="read">Read</option>
+                                    <option value="no_access">No Access</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     
@@ -1030,14 +1043,27 @@ class OntapMcpDemo {
     async createCifsVolume(volumeName, volumeSize, svmName, aggregateName) {
         const shareName = document.getElementById('shareName').value;
         const shareComment = document.getElementById('shareComment').value;
+        const cifsUsers = document.getElementById('cifsUsers').value;
+        const cifsPermissions = document.getElementById('cifsPermissions').value;
 
         if (!shareName) {
             throw new Error('CIFS share name is required');
         }
 
+        if (!cifsUsers) {
+            throw new Error('Users/Groups field is required');
+        }
+
         const cifsShare = {
             share_name: shareName,
-            comment: shareComment || undefined
+            comment: shareComment || undefined,
+            access_control: [
+                {
+                    permission: cifsPermissions,
+                    user_or_group: cifsUsers,
+                    type: 'windows'
+                }
+            ]
         };
 
         const response = await this.callMcp('cluster_create_volume', {
