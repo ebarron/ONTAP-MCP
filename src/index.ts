@@ -1432,6 +1432,90 @@ async function startHttpServer(port: number = 3000) {
             }]
           };
           break;
+        case 'list_export_policies':
+          const exportPoliciesResult = await handleListExportPolicies(args, clusterManager);
+          result = {
+            content: [{
+              type: "text",
+              text: exportPoliciesResult
+            }]
+          };
+          break;
+        case 'get_export_policy':
+          const getExportPolicyResult = await handleGetExportPolicy(args, clusterManager);
+          result = {
+            content: [{
+              type: "text",
+              text: getExportPolicyResult
+            }]
+          };
+          break;
+        case 'create_export_policy':
+          result = await handleCreateExportPolicy(args, clusterManager);
+          break;
+        case 'delete_export_policy':
+          result = await handleDeleteExportPolicy(args, clusterManager);
+          break;
+        case 'add_export_rule':
+          result = await handleAddExportRule(args, clusterManager);
+          break;
+        case 'update_export_rule':
+          result = await handleUpdateExportRule(args, clusterManager);
+          break;
+        case 'delete_export_rule':
+          result = await handleDeleteExportRule(args, clusterManager);
+          break;
+        case 'list_snapshot_policies':
+          const listSnapshotPoliciesResult = await handleListSnapshotPolicies(args, clusterManager);
+          result = {
+            content: [{
+              type: "text",
+              text: listSnapshotPoliciesResult
+            }]
+          };
+          break;
+        case 'get_snapshot_policy':
+          const getSnapshotPolicyResult = await handleGetSnapshotPolicy(args, clusterManager);
+          result = {
+            content: [{
+              type: "text",
+              text: getSnapshotPolicyResult
+            }]
+          };
+          break;
+        case 'create_snapshot_policy':
+          result = await handleCreateSnapshotPolicy(args, clusterManager);
+          break;
+        case 'delete_snapshot_policy':
+          result = await handleDeleteSnapshotPolicy(args, clusterManager);
+          break;
+        case 'list_snapshot_schedules':
+          const listSnapshotSchedulesResult = await handleListSnapshotSchedules(args, clusterManager);
+          result = {
+            content: [{
+              type: "text",
+              text: listSnapshotSchedulesResult
+            }]
+          };
+          break;
+        case 'get_snapshot_schedule':
+          const getSnapshotScheduleResult = await handleGetSnapshotSchedule(args, clusterManager);
+          result = {
+            content: [{
+              type: "text",
+              text: getSnapshotScheduleResult
+            }]
+          };
+          break;
+        case 'create_snapshot_schedule':
+          result = await handleCreateSnapshotSchedule(args, clusterManager);
+          break;
+        case 'update_snapshot_schedule':
+          result = await handleUpdateSnapshotSchedule(args, clusterManager);
+          break;
+        case 'delete_snapshot_schedule':
+          result = await handleDeleteSnapshotSchedule(args, clusterManager);
+          break;
         default:
           throw new Error(`Tool '${toolName}' not implemented in REST API`);
       }

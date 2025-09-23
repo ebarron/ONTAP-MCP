@@ -649,7 +649,7 @@ class OntapMcpDemo {
                     // Add event listener to load export policies and snapshot policies when SVM is selected
                     newSvmSelect.addEventListener('change', () => {
                         if (newSvmSelect.value) {
-                            this.loadExportPoliciesForSvm(newSvmSelect.value);
+                            this.loadExportPoliciesForProvisioning();
                             this.loadSnapshotPoliciesForSvm(newSvmSelect.value);
                             this.loadAggregatesForSvm(newSvmSelect.value);
                         } else {
@@ -833,21 +833,56 @@ class OntapMcpDemo {
         try {
             console.log('Loading export policies for cluster:', this.selectedCluster.name);
             
-            // TODO: Fix list_export_policies tool - temporarily using fallback
-            // const response = await this.callMcp('list_export_policies', {
-            //     cluster_name: this.selectedCluster.name
-            // });
+            const svmSelect = document.getElementById('svmSelect');
+            const selectedSvm = svmSelect ? svmSelect.value : null;
+            
+            if (!selectedSvm) {
+                const exportSelect = document.getElementById('exportPolicy');
+                exportSelect.innerHTML = '<option value="">Select SVM first</option>';
+                return;
+            }
+            
+            // Now that export policy APIs are working, use the actual API
+            const result = await this.callMcp('list_export_policies', {
+                cluster_name: this.selectedCluster.name,
+                svm_name: selectedSvm
+            });
 
             const exportSelect = document.getElementById('exportPolicy');
             
-            // Use fallback default policies for now
-            const defaultPolicies = [
-                { name: 'default' }
-            ];
-
-            exportSelect.innerHTML = defaultPolicies.map(policy => 
-                `<option value="${policy.name}">${policy.name}</option>`
-            ).join('');
+            if (result.success && result.data) {
+                // Parse export policies from response
+                const policies = [];
+                const responseText = typeof result.data === 'string' ? result.data : result.data.toString();
+                const lines = responseText.split('\n');
+                
+                for (const line of lines) {
+                    // Parse lines like "🔐 **policy-name** (ID: policy-id)"
+                    const policyMatch = line.match(/🔐\s+\*\*([^*]+)\*\*/);
+                    if (policyMatch) {
+                        const policyName = policyMatch[1].trim();
+                        if (policyName && !policies.find(p => p.name === policyName)) {
+                            policies.push({ name: policyName });
+                        }
+                    }
+                }
+                
+                if (policies.length > 0) {
+                    exportSelect.innerHTML = '<option value="">Select export policy...</option>' +
+                        '<option value="NEW_EXPORT_POLICY" style="font-weight: bold; color: #0067C5;">+ New Export Policy</option>' +
+                        policies.map(policy => 
+                            `<option value="${policy.name}">${policy.name}</option>`
+                        ).join('');
+                } else {
+                    exportSelect.innerHTML = '<option value="">No export policies found</option>' +
+                        '<option value="NEW_EXPORT_POLICY" style="font-weight: bold; color: #0067C5;">+ New Export Policy</option>';
+                }
+            } else {
+                // Fallback with default policies
+                exportSelect.innerHTML = '<option value="">Select export policy...</option>' +
+                    '<option value="NEW_EXPORT_POLICY" style="font-weight: bold; color: #0067C5;">+ New Export Policy</option>' +
+                    '<option value="default">default</option>';
+            }
             this.setDropdownReady('exportPolicy');
 
         } catch (error) {
@@ -863,45 +898,72 @@ class OntapMcpDemo {
             console.log('Loading export policies for SVM:', svmName);
             this.setDropdownLoading('exportPolicy', 'Loading policies...');
             
-            // NOTE: list_export_policies is not available in HTTP REST API
-            // Using fallback with known policies for svm143 based on cluster output
             const exportSelect = document.getElementById('exportPolicy');
             exportSelect.disabled = false;
             
-            let policies = [];
-            
-            // Fallback: Use known export policies based on SVM
-            if (svmName === 'svm143') {
-                policies = [
-                    { name: 'default' },
-                    { name: 'mcp-read-only' }
-                ];
-            } else if (svmName === 'vs123') {
-                policies = [
-                    { name: 'default' }
-                ];
-            } else {
-                // Default fallback for other SVMs
-                policies = [
-                    { name: 'default' }
-                ];
-            }
+            // Now that export policy APIs are working, use the actual API
+            const result = await this.callMcp('list_export_policies', {
+                cluster_name: this.selectedCluster.name,
+                svm_name: svmName
+            });
 
-            if (policies.length > 0) {
-                exportSelect.innerHTML = '<option value="">Select export policy...</option>' +
-                    policies.map(policy => 
-                        `<option value="${policy.name}">${policy.name}</option>`
-                    ).join('');
+            if (result.success && result.data) {
+                // Parse export policies from response
+                const policies = [];
+                const responseText = typeof result.data === 'string' ? result.data : result.data.toString();
+                const lines = responseText.split('\n');
+                
+                for (const line of lines) {
+                    // Parse lines like "🔐 **policy-name** (ID: policy-id)"
+                    const policyMatch = line.match(/🔐\s+\*\*([^*]+)\*\*/);
+                    if (policyMatch) {
+                        const policyName = policyMatch[1].trim();
+                        if (policyName && !policies.find(p => p.name === policyName)) {
+                            policies.push({ name: policyName });
+                        }
+                    }
+                }
+                
+                if (policies.length > 0) {
+                    exportSelect.innerHTML = '<option value="">Select export policy...</option>' +
+                        '<option value="NEW_EXPORT_POLICY" style="font-weight: bold; color: #0067C5;">+ New Export Policy</option>' +
+                        policies.map(policy => 
+                            `<option value="${policy.name}">${policy.name}</option>`
+                        ).join('');
+                } else {
+                    exportSelect.innerHTML = '<option value="">No export policies found</option>' +
+                        '<option value="NEW_EXPORT_POLICY" style="font-weight: bold; color: #0067C5;">+ New Export Policy</option>';
+                }
             } else {
-                exportSelect.innerHTML = '<option value="default">default</option>';
+                // Fallback with default policies
+                exportSelect.innerHTML = '<option value="">Select export policy...</option>' +
+                    '<option value="NEW_EXPORT_POLICY" style="font-weight: bold; color: #0067C5;">+ New Export Policy</option>' +
+                    '<option value="default">default</option>';
             }
             
             this.setDropdownReady('exportPolicy');
         } catch (error) {
             console.error('Error loading export policies for SVM:', error);
             const exportSelect = document.getElementById('exportPolicy');
-            exportSelect.innerHTML = '<option value="default">default</option>';
+            exportSelect.innerHTML = '<option value="">Select export policy...</option>' +
+                '<option value="__NEW_POLICY__" class="new-policy-option">+ New Export Policy...</option>' +
+                '<option value="default">default</option>';
             exportSelect.disabled = false;
+            
+            // Add event listener for new export policy creation even in error case
+            exportSelect.addEventListener('change', (e) => {
+                if (e.target.value === '__NEW_POLICY__') {
+                    // Reset dropdown to empty state to avoid confusion
+                    e.target.value = '';
+                    
+                    // Open the export policy creation modal
+                    if (!this.exportPolicyModal) {
+                        this.exportPolicyModal = new ExportPolicyModal();
+                    }
+                    this.exportPolicyModal.open();
+                }
+            });
+            
             this.setDropdownReady('exportPolicy');
         }
     }
@@ -1222,6 +1284,318 @@ document.head.appendChild(styleSheet);
 let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new OntapMcpDemo();
+});
+
+// Export Policy Modal Management
+class ExportPolicyModal {
+    constructor() {
+        this.modal = document.getElementById('exportPolicyModal');
+        this.form = document.getElementById('exportPolicyForm');
+        this.rulesContainer = document.getElementById('rulesContainer');
+        this.ruleCounter = 0;
+        
+        this.bindEvents();
+        this.addInitialRule();
+    }
+    
+    bindEvents() {
+        // Modal close events
+        document.getElementById('closeExportPolicyModal').addEventListener('click', () => this.close());
+        document.getElementById('cancelExportPolicy').addEventListener('click', () => this.close());
+        
+        // Form submission
+        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        
+        // Add rule button
+        document.getElementById('addExportRule').addEventListener('click', () => this.addRule());
+        
+        // Close modal when clicking outside
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) this.close();
+        });
+    }
+    
+    open() {
+        this.modal.style.display = 'flex';
+        this.reset();
+        this.addInitialRule();
+        
+        // Focus on policy name input
+        setTimeout(() => {
+            document.getElementById('exportPolicyNameHeader').select();
+        }, 100);
+    }
+    
+    close() {
+        this.modal.style.display = 'none';
+        this.reset();
+    }
+    
+    reset() {
+        this.form.reset();
+        document.getElementById('exportPolicyNameHeader').value = 'new_export_policy';
+        this.rulesContainer.innerHTML = '';
+        this.ruleCounter = 0;
+    }
+    
+    addInitialRule() {
+        this.addRule();
+    }
+    
+    addRule() {
+        this.ruleCounter++;
+        const ruleDiv = document.createElement('div');
+        ruleDiv.className = 'rule-item';
+        ruleDiv.innerHTML = `
+            <div class="rule-header">
+                <span class="rule-title">Rule ${this.ruleCounter}</span>
+                <button type="button" class="rule-remove" onclick="app.exportPolicyModal.removeRule(this)">Remove</button>
+            </div>
+            <div class="rule-fields">
+                <div class="rule-field full-width">
+                    <label>Client Specification (IP/Mask)</label>
+                    <input type="text" name="clientSpec" placeholder="e.g., 192.168.1.0/24 or 0.0.0.0/0" required>
+                    <div class="rule-validation-error" style="display: none;"></div>
+                </div>
+                <div class="rule-field">
+                    <label>Access Control</label>
+                    <select name="accessControl" required>
+                        <option value="rw">Read/Write</option>
+                        <option value="ro">Read Only</option>
+                    </select>
+                </div>
+                <div class="rule-field">
+                    <label>Super User Access</label>
+                    <select name="superUser" required>
+                        <option value="any">Yes</option>
+                        <option value="none">No</option>
+                    </select>
+                </div>
+                <div class="rule-field">
+                    <label>NFS Protocols</label>
+                    <select name="protocols" required>
+                        <option value="any">All</option>
+                        <option value="nfs3">NFSv3</option>
+                        <option value="nfs4">NFSv4</option>
+                        <option value="nfs41">NFSv4.1</option>
+                    </select>
+                </div>
+            </div>
+        `;
+        
+        this.rulesContainer.appendChild(ruleDiv);
+        
+        // Add validation to client spec input
+        const clientInput = ruleDiv.querySelector('input[name="clientSpec"]');
+        clientInput.addEventListener('input', () => this.validateClientSpec(clientInput));
+    }
+    
+    removeRule(button) {
+        const ruleItem = button.closest('.rule-item');
+        if (this.rulesContainer.children.length > 1) {
+            ruleItem.remove();
+            this.updateRuleNumbers();
+        } else {
+            app.showError('At least one rule is required');
+        }
+    }
+    
+    updateRuleNumbers() {
+        const rules = this.rulesContainer.querySelectorAll('.rule-item');
+        rules.forEach((rule, index) => {
+            rule.querySelector('.rule-title').textContent = `Rule ${index + 1}`;
+        });
+    }
+    
+    validateClientSpec(input) {
+        const value = input.value.trim();
+        const errorDiv = input.parentNode.querySelector('.rule-validation-error');
+        
+        if (!value) {
+            this.showFieldError(input, errorDiv, '');
+            return true;
+        }
+        
+        // IPv4 CIDR validation
+        const ipv4CidrPattern = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+        if (!ipv4CidrPattern.test(value)) {
+            this.showFieldError(input, errorDiv, 'Invalid format. Use IP/mask (e.g., 192.168.1.0/24)');
+            return false;
+        }
+        
+        // Validate IP parts and CIDR
+        const [ip, cidr] = value.split('/');
+        const ipParts = ip.split('.');
+        const cidrNum = parseInt(cidr);
+        
+        if (ipParts.some(part => parseInt(part) > 255) || cidrNum > 32) {
+            this.showFieldError(input, errorDiv, 'Invalid IP address or CIDR value');
+            return false;
+        }
+        
+        this.showFieldError(input, errorDiv, '');
+        return true;
+    }
+    
+    showFieldError(input, errorDiv, message) {
+        if (message) {
+            input.style.borderColor = 'var(--text-destructive)';
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        } else {
+            input.style.borderColor = 'var(--field-border)';
+            errorDiv.style.display = 'none';
+        }
+    }
+    
+    collectRules() {
+        const rules = [];
+        const ruleItems = this.rulesContainer.querySelectorAll('.rule-item');
+        
+        for (const ruleItem of ruleItems) {
+            const clientSpec = ruleItem.querySelector('input[name="clientSpec"]').value.trim();
+            const accessControl = ruleItem.querySelector('select[name="accessControl"]').value;
+            const superUser = ruleItem.querySelector('select[name="superUser"]').value;
+            const protocols = ruleItem.querySelector('select[name="protocols"]').value;
+            
+            if (!this.validateClientSpec(ruleItem.querySelector('input[name="clientSpec"]'))) {
+                return null; // Validation failed
+            }
+            
+            rules.push({
+                clients: [{ match: clientSpec }],
+                ro_rule: ['sys'],
+                rw_rule: [accessControl === 'rw' ? 'sys' : 'none'],
+                superuser: [superUser],
+                protocols: [protocols]
+            });
+        }
+        
+        return rules;
+    }
+    
+    async handleSubmit(e) {
+        e.preventDefault();
+        
+        const policyName = document.getElementById('exportPolicyNameHeader').value.trim();
+        const description = document.getElementById('exportPolicyDescription').value.trim();
+        const rules = this.collectRules();
+        
+        if (!rules) {
+            app.showError('Please fix validation errors');
+            return;
+        }
+        
+        if (!policyName) {
+            app.showError('Policy name is required');
+            return;
+        }
+        
+        try {
+            const createBtn = document.getElementById('createExportPolicy');
+            createBtn.disabled = true;
+            createBtn.textContent = 'Creating...';
+            
+            await this.createPolicyWithRules(policyName, description, rules);
+            
+            app.showInfo('Export policy created successfully');
+            this.close();
+            
+            // Refresh the export policy dropdown and select the new policy
+            const svmSelect = document.getElementById('svmSelect');
+            if (svmSelect && svmSelect.value) {
+                await app.loadExportPoliciesForProvisioning();
+                const exportPolicySelect = document.getElementById('exportPolicy');
+                if (exportPolicySelect) {
+                    exportPolicySelect.value = policyName;
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error creating export policy:', error);
+            app.showError(`Failed to create export policy: ${error.message}`);
+        } finally {
+            const createBtn = document.getElementById('createExportPolicy');
+            createBtn.disabled = false;
+            createBtn.textContent = 'Create Policy';
+        }
+    }
+    
+    async createPolicyWithRules(policyName, description, rules) {
+        const selectedCluster = app.selectedCluster?.name;
+        const svmSelect = document.getElementById('svmSelect');
+        const selectedSvm = svmSelect ? svmSelect.value : null;
+        
+        if (!selectedCluster || !selectedSvm) {
+            throw new Error('Please select a cluster and SVM first');
+        }
+        
+        let policyCreated = false;
+        
+        try {
+            // Create the export policy
+            const policyParams = {
+                cluster_name: selectedCluster,
+                policy_name: policyName,
+                svm_name: selectedSvm
+            };
+            
+            console.log('Creating export policy:', policyParams);
+            await app.callMcp('create_export_policy', policyParams);
+            policyCreated = true;
+            
+            // Add each rule
+            for (let i = 0; i < rules.length; i++) {
+                const rule = rules[i];
+                const ruleParams = {
+                    cluster_name: selectedCluster,
+                    policy_name: policyName,
+                    svm_name: selectedSvm,
+                    clients: rule.clients,
+                    ro_rule: rule.ro_rule,
+                    rw_rule: rule.rw_rule,
+                    superuser: rule.superuser,
+                    protocols: rule.protocols
+                };
+                
+                await app.callMcp('add_export_rule', ruleParams);
+            }
+            
+        } catch (error) {
+            // If policy was created but rules failed, try to clean up
+            if (policyCreated) {
+                try {
+                    console.log('Cleaning up failed policy:', policyName);
+                    await app.callMcp('delete_export_policy', {
+                        cluster_name: selectedCluster,
+                        policy_name: policyName,
+                        svm_name: selectedSvm
+                    });
+                } catch (cleanupError) {
+                    console.error('Failed to cleanup policy:', cleanupError);
+                }
+            }
+            throw error;
+        }
+    }
+}
+
+// Initialize export policy modal
+let exportPolicyModal;
+document.addEventListener('DOMContentLoaded', () => {
+    exportPolicyModal = new ExportPolicyModal();
+    
+    // Set up export policy dropdown listener using event delegation
+    // This works for dynamically created elements
+    document.addEventListener('change', (e) => {
+        if (e.target && e.target.id === 'exportPolicy') {
+            if (e.target.value === 'NEW_EXPORT_POLICY') {
+                exportPolicyModal.open();
+                // Reset to previous value while modal is open
+                e.target.value = '';
+            }
+        }
+    });
 });
 
 // Global service button handlers (called from HTML)
