@@ -860,10 +860,62 @@ input, textarea {
 }
 
 /* Export Policy Modal Styles */
-.export-policy-modal .modal-content {
-    width: 800px;
-    max-width: 95vw;
+.modal-content.export-policy-modal {
+    width: 900px !important;
+    max-width: 98vw;
     max-height: 85vh;
+    min-height: 500px;
+}
+
+/* Add more padding to export policy modal form */
+.export-policy-modal form {
+    padding: 24px 32px;
+}
+
+.export-policy-modal .modal-header {
+    padding: 24px 32px 16px;
+}
+
+/* Add extra spacing to form actions in export policy modal */
+.export-policy-modal .form-actions {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+/* Add more breathing room to export rules section */
+.export-policy-modal .export-rules-section {
+    margin-top: 32px;
+    margin-bottom: 32px;
+    padding: 0 8px;
+}
+
+/* Add more padding to rule items in export policy modal */
+.export-policy-modal .rule-item {
+    padding: 20px 24px;
+    margin-bottom: 16px;
+}
+
+/* Ensure rule fields fit properly within the container */
+.export-policy-modal .rule-fields {
+    grid-template-columns: 2.2fr 1.5fr 1fr 1.3fr;
+    gap: 16px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Constrain input fields to prevent overflow */
+.export-policy-modal .rule-field input,
+.export-policy-modal .rule-field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Ensure rule field containers don't overflow */
+.export-policy-modal .rule-field {
+    min-width: 0;
+    overflow: hidden;
 }
 
 .modal-title-input {
@@ -952,8 +1004,9 @@ input, textarea {
 
 .rule-fields {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    gap: 12px;
+    align-items: end;
 }
 
 .rule-field {
@@ -981,10 +1034,6 @@ input, textarea {
 .rule-field select:focus {
     outline: none;
     border-color: var(--primary);
-}
-
-.rule-field.full-width {
-    grid-column: span 2;
 }
 
 .add-rule-btn {
@@ -1153,6 +1202,27 @@ input, textarea {
         width: 100%;
         max-width: 400px;
     }
+    
+    /* Export Policy Modal on tablets */
+    .modal-content.export-policy-modal {
+        width: 1200px;
+        max-width: 98vw;
+    }
+    
+    .rule-fields {
+        grid-template-columns: 2fr 1.5fr 1fr 1.3fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .modal-content.export-policy-modal {
+        width: 95vw;
+    }
+    
+    .rule-fields {
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -1169,6 +1239,18 @@ input, textarea {
     .modal-content {
         width: 100%;
         margin: 20px;
+    }
+    
+    /* Export Policy Modal responsive adjustments */
+    .modal-content.export-policy-modal {
+        width: 100%;
+        margin: 10px;
+        max-height: 90vh;
+    }
+    
+    .rule-fields {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
     
     .table-header-row,

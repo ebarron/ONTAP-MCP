@@ -169,8 +169,6 @@ class OntapMcpDemo {
             .map(item => item.text)
             .join('');
 
-        console.log('Text content:', textContent); // DEBUG
-
         // Special handling for list_registered_clusters
         if (textContent.includes('Registered clusters')) {
             const clusters = this.parseClusterList(textContent);
@@ -687,8 +685,6 @@ class OntapMcpDemo {
 
     async loadSnapshotPoliciesForSvm(svmName) {
         try {
-            console.log('Loading snapshot policies for SVM:', svmName);
-            
             // TODO: When HTTP API is fixed, use this:
             // const response = await this.callMcp('list_snapshot_policies', {
             //     cluster_name: this.selectedCluster.name,
@@ -733,7 +729,6 @@ class OntapMcpDemo {
                 ).join('');
             policySelect.disabled = false;
             
-            console.log(`Loaded ${policyOptions.length} snapshot policies for SVM ${svmName}:`, svmSpecificPolicies);
             this.setDropdownReady('snapshotPolicy');
 
         } catch (error) {
@@ -779,7 +774,6 @@ class OntapMcpDemo {
 
     async loadAggregatesForSvm(svmName) {
         try {
-            console.log('Loading aggregates for SVM:', svmName);
             this.setDropdownLoading('aggregateSelect', 'Loading aggregates...');
             
             const response = await this.callMcp('cluster_list_aggregates', {
@@ -831,8 +825,6 @@ class OntapMcpDemo {
 
     async loadExportPoliciesForProvisioning() {
         try {
-            console.log('Loading export policies for cluster:', this.selectedCluster.name);
-            
             const svmSelect = document.getElementById('svmSelect');
             const selectedSvm = svmSelect ? svmSelect.value : null;
             
@@ -1352,7 +1344,7 @@ class ExportPolicyModal {
                 <button type="button" class="rule-remove" onclick="app.exportPolicyModal.removeRule(this)">Remove</button>
             </div>
             <div class="rule-fields">
-                <div class="rule-field full-width">
+                <div class="rule-field">
                     <label>Client Specification (IP/Mask)</label>
                     <input type="text" name="clientSpec" placeholder="e.g., 192.168.1.0/24 or 0.0.0.0/0" required>
                     <div class="rule-validation-error" style="display: none;"></div>
