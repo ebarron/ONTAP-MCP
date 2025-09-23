@@ -1,5 +1,45 @@
 # NetApp ONTAP MCP Demo Interface
 
+## 🚀 Quick Start
+
+### Prerequisites
+- NetApp ONTAP MCP server built and configured (see main README.md)
+- Test clusters configured in `test/clusters.json`
+- Python 3 for web server
+
+### Start Demo
+```bash
+# From ONTAP-MCP root directory (automated startup)
+./start-demo.sh
+
+# Access demo at: http://localhost:8080
+# MCP API available at: http://localhost:3000
+```
+
+The startup script automatically:
+- Builds the MCP server if needed
+- Loads ALL clusters from `test/clusters.json`
+- Starts MCP HTTP server on port 3000 with proper environment variables
+- Starts demo web server from `demo/` directory on port 8080
+- Validates both servers are responding correctly
+
+### Manual Setup (if needed)
+```bash
+# Terminal 1: Start MCP HTTP server with test clusters
+cd /Users/ebarron/ONTAP-MCP
+export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"pass"}]'
+node build/index.js --http=3000
+
+# Terminal 2: Start demo web server FROM DEMO DIRECTORY
+cd /Users/ebarron/ONTAP-MCP/demo  
+python3 -m http.server 8080
+```
+
+### Stop Demo
+```bash
+./stop-demo.sh
+```
+
 ## Overview
 
 This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validation of REST API endpoints through an end-to-end storage provisioning workflow.
@@ -20,45 +60,6 @@ The primary purpose of this demo is to:
 - **`index.html`**: Main interface structure with NetApp BlueXP-authentic styling
 - **`styles.css`**: Complete NetApp design system implementation with proper colors, typography, and layout
 - **`app.js`**: JavaScript application handling MCP API calls and UI interactions
-
-### Server Setup
-
-The demo requires two servers running simultaneously. Use the provided startup script for consistent, error-free setup:
-
-#### Quick Start (Recommended)
-```bash
-# From ONTAP-MCP root directory
-./start-demo.sh
-```
-
-This script automatically:
-- Builds the MCP server if needed
-- Loads ALL clusters from `test/clusters.json`
-- Starts MCP HTTP server on port 3000 with proper environment variables
-- Starts demo web server from `demo/` directory on port 8080
-- Validates both servers are responding correctly
-- Provides live monitoring and easy shutdown via Ctrl+C
-
-#### Manual Setup (Legacy)
-If you need to start servers manually:
-
-1. **Python HTTP Server** (port 8080): Serves the demo files
-   ```bash
-   cd demo && python3 -m http.server 8080
-   ```
-
-2. **ONTAP MCP Server** (port 3000): Provides REST API endpoints with CORS support
-   ```bash
-   # From ONTAP-MCP root directory
-   export ONTAP_CLUSTERS='[...]'  # Manual cluster configuration
-   node build/index.js --http=3000
-   ```
-
-#### Stopping the Demo
-```bash
-# Clean shutdown of both servers
-./stop-demo.sh
-```
 
 ## Current Features
 

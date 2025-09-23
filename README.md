@@ -24,16 +24,7 @@ cp test/clusters.json.example test/clusters.json
 
 ### 3. Quick Start Options
 
-#### Option A: Demo Interface (Recommended)
-```bash
-# Automated startup - loads test clusters and starts both servers
-./start-demo.sh
-
-# Access demo at: http://localhost:8080
-# MCP API available at: http://localhost:3000
-```
-
-#### Option B: VS Code MCP Integration
+#### Option A: VS Code MCP Integration
 ```bash
 # Add to your MCP configuration:
 {
@@ -50,7 +41,7 @@ cp test/clusters.json.example test/clusters.json
 }
 ```
 
-#### Option C: HTTP REST API
+#### Option B: HTTP REST API
 ```bash
 # Set cluster configuration
 export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"password"}]'
@@ -107,7 +98,6 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 - **Complete volume provisioning** with NFS and CIFS support
 - **Data protection policies** with automated snapshots
 - **Safe deletion workflows** with offline-first requirements
-- **Real-time validation** through authentic NetApp BlueXP demo interface
 
 ## 🔧 Development
 
@@ -118,6 +108,12 @@ npm start                  # Test STDIO mode
 npm run start:http         # Test HTTP mode
 ./test/run-all-tests.sh    # Run comprehensive test suite
 ```
+
+## 🖥️ Demo Interface
+
+A complete web-based demonstration interface is available that showcases all MCP capabilities through an authentic NetApp BlueXP-style interface. The demo provides end-to-end volume provisioning workflows including NFS/CIFS configuration, data protection policies, and real-time API validation.
+
+See `demo/README.md` for setup instructions and detailed features.
 
 ### Project Structure
 ```
