@@ -447,6 +447,11 @@ class OntapMcpDemo {
         this.loadProvisioningData();
     }
 
+    // Alias for chatbot compatibility
+    openProvisionStorage() {
+        this.showProvisioningPanel();
+    }
+
     async loadProvisioningData() {
         // Show loading states
         this.setDropdownLoading('svmSelect', 'Loading SVMs...');
@@ -1300,8 +1305,14 @@ document.head.appendChild(styleSheet);
 
 // Initialize app when DOM is loaded
 let app;
+let chatbot;
 document.addEventListener('DOMContentLoaded', () => {
     app = new OntapMcpDemo();
+    
+    // Initialize chatbot after app is ready
+    setTimeout(() => {
+        chatbot = new ChatbotAssistant(app);
+    }, 1000);
 });
 
 // Export Policy Modal Management
@@ -1594,6 +1605,801 @@ class ExportPolicyModal {
                 }
             }
             throw error;
+        }
+    }
+}
+
+// =====================================================
+// NetApp ONTAP Provisioning Assistant (Chatbot)
+// =====================================================
+
+class ChatbotAssistant {
+    constructor(demo) {
+        this.demo = demo;
+        this.isInitialized = false;
+        this.config = null;
+        this.messages = [];
+        this.availableTools = [];
+        this.mockMode = false;
+        this.isThinking = false;
+        
+        this.init();
+    }
+
+    async init() {
+        // Load ChatGPT configuration
+        await this.loadConfig();
+        
+        // Initialize UI elements
+        this.initializeUI();
+        
+        // Discover available MCP tools
+        await this.discoverTools();
+        
+        // Show welcome message
+        this.showWelcomeMessage();
+        
+        this.isInitialized = true;
+        this.updateStatus('Ready to help with ONTAP provisioning');
+        this.enableInput();
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('./chatgpt-config.json');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            this.config = await response.json();
+            
+            // Validate API key
+            if (!this.config.api_key || this.config.api_key === 'YOUR_CHATGPT_API_KEY_HERE') {
+                throw new Error('No valid ChatGPT API key configured');
+            }
+            
+            console.log('ChatGPT config loaded successfully');
+        } catch (error) {
+            console.warn('ChatGPT config load failed, enabling mock mode:', error.message);
+            this.mockMode = true;
+            this.config = {
+                model: 'mock-gpt-5',
+                max_completion_tokens: 2000
+            };
+        }
+    }
+
+    initializeUI() {
+        // Toggle button
+        const toggleBtn = document.getElementById('chatbotToggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => this.toggleChatbot());
+        }
+
+        // Input and send button
+        const input = document.getElementById('chatbotInput');
+        const sendBtn = document.getElementById('chatbotSend');
+
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+
+            input.addEventListener('input', (e) => {
+                this.toggleSendButton(e.target.value.trim().length > 0);
+            });
+        }
+
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => this.sendMessage());
+        }
+
+        // Start collapsed
+        document.querySelector('.chatbot-container').classList.add('collapsed');
+    }
+
+    async discoverTools() {
+        try {
+            this.updateStatus('Discovering available ONTAP tools...');
+            
+            // Call the MCP server's tools endpoint to get the real list
+            const response = await fetch(`${this.demo.mcpUrl}/api/tools`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            if (data.tools && Array.isArray(data.tools)) {
+                // Cache full tool definitions for OpenAI function calling
+                this.toolDefinitions = data.tools;
+                // Extract tool names from the full MCP tool definitions
+                this.availableTools = data.tools.map(tool => tool.name);
+                console.log(`Discovered ${this.availableTools.length} ONTAP tools:`, this.availableTools);
+            } else {
+                throw new Error('Invalid response format from tools endpoint');
+            }
+        } catch (error) {
+            console.error('Tool discovery failed, using fallback list:', error);
+            // Fallback to a minimal set of core tools
+            this.availableTools = [
+                'list_registered_clusters',
+                'cluster_list_volumes',
+                'cluster_list_aggregates', 
+                'cluster_list_svms',
+                'cluster_create_volume',
+                'create_export_policy',
+                'add_export_rule',
+                'create_cifs_share',
+                'list_snapshot_policies',
+                'get_volume_stats'
+            ];
+            this.toolDefinitions = []; // Empty cache for fallback
+        }
+    }
+
+    toggleChatbot() {
+        const container = document.querySelector('.chatbot-container');
+        container.classList.toggle('collapsed');
+    }
+
+    showWelcomeMessage() {
+        const welcomeMsg = this.mockMode 
+            ? "👋 Hello! I'm your NetApp ONTAP provisioning assistant (running in demo mode). I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100GB NFS volume for a database workload\""
+            : "👋 Hello! I'm your NetApp ONTAP provisioning assistant. I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100GB NFS volume for a database workload\"";
+
+        this.addMessage('assistant', welcomeMsg);
+    }
+
+    async sendMessage() {
+        const input = document.getElementById('chatbotInput');
+        const message = input.value.trim();
+        
+        if (!message || this.isThinking) return;
+
+        // Add user message
+        this.addMessage('user', message);
+        input.value = '';
+        this.toggleSendButton(false);
+
+        // Show thinking state
+        this.showThinking();
+
+        try {
+            let response;
+            if (this.mockMode) {
+                response = await this.getMockResponse(message);
+            } else {
+                response = await this.getChatGPTResponse(message);
+            }
+            
+            this.hideThinking();
+            this.addMessage('assistant', response.text, response.actions);
+
+        } catch (error) {
+            this.hideThinking();
+            this.addMessage('assistant', `❌ Sorry, I encountered an error: ${error.message}`);
+            console.error('Chat error:', error);
+        }
+    }
+
+    async getMockResponse(message) {
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+        const lowerMsg = message.toLowerCase();
+        
+        if (lowerMsg.includes('provision') && lowerMsg.includes('volume')) {
+            return {
+                text: "Based on your request for volume provisioning, I recommend creating a 100GB volume on **cluster-prod** in SVM **vs1** using aggregate **aggr1** which has the most available capacity.\n\nWould you like me to populate the provisioning form with these settings?",
+                actions: [{
+                    label: "Apply to Form",
+                    action: "apply_volume_form",
+                    data: {
+                        cluster: "cluster-prod",
+                        svm: "vs1", 
+                        volume_name: "db_vol_001",
+                        size: "100GB",
+                        security_style: "unix",
+                        export_policy: "default"
+                    }
+                }]
+            };
+        } else if (lowerMsg.includes('cifs') || lowerMsg.includes('smb')) {
+            return {
+                text: "For CIFS/SMB shares, I recommend **cluster-dev** with SVM **vs2** which has good capacity and is configured for Windows environments.\n\nShall I prepare a CIFS share configuration?",
+                actions: [{
+                    label: "Apply to Form",
+                    action: "apply_cifs_form", 
+                    data: {
+                        cluster: "cluster-dev",
+                        svm: "vs2",
+                        volume_name: "shared_docs",
+                        size: "500GB",
+                        share_name: "Documents"
+                    }
+                }]
+            };
+        } else if (lowerMsg.includes('capacity') || lowerMsg.includes('space')) {
+            return {
+                text: "Here's the current capacity overview across your clusters:\n\n**cluster-prod**: 2.5TB available (65% utilized)\n**cluster-dev**: 1.8TB available (45% utilized)\n**cluster-test**: 800GB available (80% utilized)\n\ncluster-dev has the most available space for new workloads."
+            };
+        } else {
+            return {
+                text: "I'm here to help with ONTAP storage provisioning! I can:\n\n• Recommend optimal placement for new volumes\n• Suggest CIFS share configurations\n• Analyze cluster capacity\n• Apply settings to the provisioning form\n\nWhat storage task can I help you with?"
+            };
+        }
+    }
+
+    async getChatGPTResponse(message) {
+        const systemPrompt = this.buildSystemPrompt();
+        const conversationHistory = this.buildConversationHistory();
+
+        // Build tools for ChatGPT function calling (newer format)
+        const tools = this.buildMCPTools();
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.config.api_key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: this.config.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...conversationHistory,
+                    { role: 'user', content: message }
+                ],
+                max_completion_tokens: this.config.max_completion_tokens,
+                tools: tools,
+                tool_choice: 'auto' // Let ChatGPT decide when to use tools
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`ChatGPT API error: ${response.status} ${errorData.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('ChatGPT API response:', data);
+        
+        const choice = data.choices?.[0];
+        if (!choice) {
+            throw new Error('No choices in ChatGPT response');
+        }
+
+        // Handle tool calls (newer format)
+        if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
+            console.log('Tool calls detected:', choice.message.tool_calls);
+            return await this.handleToolCalls(message, choice.message.tool_calls);
+        }
+
+        const aiResponse = choice.message?.content;
+        if (!aiResponse || aiResponse.trim() === '') {
+            console.error('No content in ChatGPT response:', data);
+            
+            const finishReason = choice.finish_reason;
+            console.log('Finish reason:', finishReason);
+            
+            if (finishReason === 'content_filter') {
+                throw new Error('Response was filtered by content policy. Please try rephrasing your request.');
+            }
+            
+            throw new Error(`ChatGPT returned empty response (finish_reason: ${finishReason || 'unknown'})`);
+        }
+
+        console.log('ChatGPT response content:', aiResponse);
+        return this.parseResponseActions(aiResponse);
+    }
+
+    buildSystemPrompt() {
+        const selectedCluster = this.demo.selectedCluster;
+        const clusterInfo = selectedCluster ? 
+            `The user has selected cluster "${selectedCluster.name}" (${selectedCluster.cluster_ip})` : 
+            'No specific cluster is currently selected';
+
+        return `You are a NetApp ONTAP provisioning assistant. Your job is to help users provision storage across their ONTAP clusters by finding optimal locations based on available capacity and best practices.
+
+CONTEXT:
+- User has access to multiple ONTAP clusters through the NetApp ONTAP MCP
+- ${clusterInfo}
+- You have access to ALL ${this.availableTools.length} MCP functions covering:
+  * Cluster management (list_registered_clusters, get_all_clusters_info)
+  * Volume operations (cluster_create_volume, cluster_list_volumes, resize_volume, etc.)
+  * CIFS/SMB shares (create_cifs_share, cluster_list_cifs_shares, update_cifs_share)
+  * NFS exports (create_export_policy, add_export_rule, configure_volume_nfs_access)
+  * Snapshot policies (create_snapshot_policy, list_snapshot_policies)
+  * Aggregates and SVMs (cluster_list_aggregates, cluster_list_svms)
+  * Performance monitoring (get_volume_stats, cluster_get_volume_stats)
+- You can perform multi-step analysis and complete provisioning workflows
+
+CAPABILITIES:
+- Query cluster capacity and aggregates using cluster functions
+- Check SVM availability and volume placement
+- Create volumes with CIFS shares or NFS exports in one operation
+- Set up snapshot policies and schedules
+- Perform comprehensive capacity analysis across all clusters
+- Execute complete provisioning workflows from analysis to creation
+
+GUIDELINES:
+- Always start by gathering current cluster information when making recommendations
+- Use multiple function calls in sequence to build complete analysis
+- Suggest specific cluster, SVM, and aggregate combinations based on actual data
+- Provide reasoning based on real capacity and utilization data
+- When user requests provisioning, execute the actual creation (don't just recommend)
+- Ask for confirmation before making changes to production systems
+- Be conversational but technically accurate
+
+RESPONSE FORMAT:
+- Perform analysis steps automatically using available functions
+- Explain your reasoning based on the data you gather
+- Execute provisioning requests when user confirms
+- Provide specific recommendations with supporting evidence
+- Continue multi-step analysis until you have complete recommendations or have executed the request`;
+    }
+
+    buildMCPTools() {
+        // Convert ALL available MCP tools to OpenAI tools format using cached definitions
+        const mcpTools = [];
+        
+        // Use cached tool definitions if available
+        if (this.toolDefinitions && this.toolDefinitions.length > 0) {
+            this.toolDefinitions.forEach(toolDef => {
+                const openAITool = {
+                    type: 'function',
+                    function: {
+                        name: toolDef.name,
+                        description: toolDef.description,
+                        parameters: toolDef.inputSchema || {
+                            type: 'object',
+                            properties: {},
+                            required: []
+                        }
+                    }
+                };
+                mcpTools.push(openAITool);
+            });
+        } else {
+            // Fallback: create basic definitions for available tool names
+            this.availableTools.forEach(toolName => {
+                mcpTools.push({
+                    type: 'function',
+                    function: {
+                        name: toolName,
+                        description: `NetApp ONTAP ${toolName} operation`,
+                        parameters: {
+                            type: 'object',
+                            properties: {},
+                            required: []
+                        }
+                    }
+                });
+            });
+        }
+
+        return mcpTools;
+    }
+
+    async handleToolCalls(originalMessage, toolCalls) {
+        // Execute all tool calls
+        const toolResults = [];
+        for (const toolCall of toolCalls) {
+            const result = await this.executeMCPTool(toolCall);
+            toolResults.push({
+                tool_call_id: toolCall.id,
+                role: 'tool',
+                name: toolCall.function.name,
+                content: result
+            });
+        }
+
+        // Send results back to ChatGPT
+        return await this.getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults);
+    }
+
+    async executeMCPTool(toolCall) {
+        const { function: func } = toolCall;
+        const { name, arguments: args } = func;
+
+        try {
+            const parsedArgs = JSON.parse(args);
+            const response = await fetch(`${this.demo.mcpUrl}/api/tools/${name}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(parsedArgs)
+            });
+
+            if (!response.ok) {
+                throw new Error(`MCP API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Extract text content from MCP response
+            const textContent = data.content
+                .filter(item => item.type === 'text')
+                .map(item => item.text)
+                .join('');
+
+            return textContent;
+        } catch (error) {
+            console.error(`Error executing MCP tool ${name}:`, error);
+            return `Error: Failed to execute ${name} - ${error.message}`;
+        }
+    }
+
+    async getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults) {
+        const systemPrompt = this.buildSystemPrompt();
+        const conversationHistory = this.buildConversationHistory();
+        const tools = this.buildMCPTools();
+
+        // Build the messages including the tool calls and results
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            ...conversationHistory,
+            { role: 'user', content: originalMessage },
+            { 
+                role: 'assistant', 
+                content: null,
+                tool_calls: toolCalls
+            },
+            ...toolResults
+        ];
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.config.api_key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: this.config.model,
+                messages: messages,
+                max_completion_tokens: this.config.max_completion_tokens,
+                tools: tools,
+                tool_choice: 'auto'
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`ChatGPT API error: ${response.status} ${errorData.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        const choice = data.choices?.[0];
+        
+        // Handle potential additional tool calls (multi-step workflows)
+        if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
+            console.log('Additional tool calls detected, continuing workflow...');
+            return await this.handleToolCalls(originalMessage, choice.message.tool_calls);
+        }
+
+        const aiResponse = choice.message?.content;
+        if (!aiResponse || aiResponse.trim() === '') {
+            throw new Error('ChatGPT returned empty response after tool execution');
+        }
+
+        console.log('Final ChatGPT response:', aiResponse);
+        return this.parseResponseActions(aiResponse);
+    }
+
+    buildConversationHistory() {
+        return this.messages
+            .filter(msg => msg.role !== 'system')
+            .map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }))
+            .slice(-10); // Keep last 10 messages for context
+    }
+
+    parseResponseActions(response) {
+        const actions = [];
+        let text = response;
+
+        // Look for "Apply to Form" patterns
+        const actionPattern = /Apply to Form:\s*(\w+)/gi;
+        let match;
+
+        while ((match = actionPattern.exec(response)) !== null) {
+            actions.push({
+                label: "Apply to Form",
+                action: match[1].toLowerCase(),
+                data: {} // Would be populated based on context
+            });
+        }
+
+        // Auto-detect provisioning recommendations and populate form
+        const recommendations = this.extractProvisioningRecommendations(response);
+        if (recommendations) {
+            // Automatically populate the form with the recommendations
+            setTimeout(() => {
+                this.autoPopulateForm(recommendations);
+            }, 1000);
+        }
+
+        return { text, actions };
+    }
+
+    extractProvisioningRecommendations(response) {
+        // Look for cluster/SVM/aggregate recommendations in various formats
+        const clusterMatch = response.match(/(?:cluster|Cluster):\s*([^\s,\n]+)/i);
+        const svmMatch = response.match(/(?:svm|SVM):\s*([^\s,\n]+)/i);
+        const aggregateMatch = response.match(/(?:aggregate|Aggregate):\s*([^\s,\n]+)/i);
+        const sizeMatch = response.match(/(?:size|Size):\s*(\d+(?:\.\d+)?)(?:\s*)(GB|TB|MB)/i);
+        const volumeMatch = response.match(/(?:volume|Volume)(?:\s+name)?:\s*([^\s,\n]+)/i);
+
+        // Check if we have enough info for a recommendation
+        if (clusterMatch || svmMatch || aggregateMatch) {
+            const recommendations = {};
+            
+            if (clusterMatch) recommendations.cluster = clusterMatch[1];
+            if (svmMatch) recommendations.svm = svmMatch[1];
+            if (aggregateMatch) recommendations.aggregate = aggregateMatch[1];
+            if (sizeMatch) {
+                recommendations.size = sizeMatch[1];
+                recommendations.unit = sizeMatch[2] || 'GB';
+            }
+            if (volumeMatch) recommendations.volume_name = volumeMatch[1];
+
+            console.log('Extracted recommendations:', recommendations);
+            return recommendations;
+        }
+
+        return null;
+    }
+
+    autoPopulateForm(recommendations) {
+        console.log('Auto-populating form with:', recommendations);
+        
+        // Show provisioning pane if not visible
+        this.demo.openProvisionStorage();
+        
+        // Give the pane time to open and load dropdowns
+        setTimeout(() => {
+            let populated = false;
+
+            // The cluster is already selected when the provisioning panel opens
+            // So we need to focus on populating SVM, aggregate, volume name, and size
+
+            // Populate SVM (wait for SVMs to load)
+            if (recommendations.svm) {
+                setTimeout(() => {
+                    const svmSelect = document.getElementById('svmSelect');
+                    if (svmSelect) {
+                        for (let option of svmSelect.options) {
+                            if (option.value.toLowerCase() === recommendations.svm.toLowerCase()) {
+                                svmSelect.value = option.value;
+                                // Trigger change event to load aggregates, export policies, etc.
+                                svmSelect.dispatchEvent(new Event('change'));
+                                populated = true;
+                                break;
+                            }
+                        }
+                    }
+                }, 1000);
+            }
+
+            // Populate aggregate (after SVM loads)
+            if (recommendations.aggregate) {
+                setTimeout(() => {
+                    const aggregateSelect = document.getElementById('aggregateSelect');
+                    if (aggregateSelect) {
+                        for (let option of aggregateSelect.options) {
+                            if (option.value.toLowerCase().includes(recommendations.aggregate.toLowerCase()) ||
+                                recommendations.aggregate.toLowerCase().includes(option.value.toLowerCase())) {
+                                aggregateSelect.value = option.value;
+                                populated = true;
+                                break;
+                            }
+                        }
+                    }
+                }, 2500);
+            }
+
+            // Populate volume name (or generate a default one)
+            setTimeout(() => {
+                const nameInput = document.getElementById('volumeName');
+                if (nameInput) {
+                    if (recommendations.volume_name) {
+                        nameInput.value = recommendations.volume_name;
+                    } else {
+                        // Generate a default volume name based on SVM and size
+                        const svm = recommendations.svm || 'vol';
+                        const size = recommendations.size || '100';
+                        const timestamp = new Date().toISOString().slice(5, 16).replace(/[-:]/g, '');
+                        nameInput.value = `${svm}_vol_${size}gb_${timestamp}`;
+                    }
+                    populated = true;
+                }
+            }, 500);
+
+            // Populate size
+            if (recommendations.size) {
+                setTimeout(() => {
+                    const sizeInput = document.getElementById('volumeSize');
+                    if (sizeInput) {
+                        // Format the size properly (e.g., "100GB")
+                        const sizeValue = recommendations.size + (recommendations.unit || 'GB');
+                        sizeInput.value = sizeValue;
+                        populated = true;
+                    }
+                }, 500);
+            }
+
+            // Show confirmation message if we populated anything
+            if (populated) {
+                setTimeout(() => {
+                    this.addMessage('assistant', '✅ I\'ve automatically populated the provisioning form with my recommendations. Please review the settings and click "Create Volume" when ready!');
+                }, 3000);
+            }
+
+        }, 500);
+    }
+
+    addMessage(role, content, actions = []) {
+        this.messages.push({ role, content, timestamp: new Date() });
+
+        const messagesContainer = document.getElementById('chatbotMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chatbot-message ${role}`;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'chatbot-message-avatar';
+        avatar.textContent = role === 'user' ? 'U' : 'AI';
+
+        const messageContent = document.createElement('div');
+        messageContent.className = 'chatbot-message-content';
+        messageContent.innerHTML = this.formatMessage(content);
+
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(messageContent);
+
+        // Add action buttons
+        if (actions && actions.length > 0) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'chatbot-message-actions';
+
+            actions.forEach(action => {
+                const button = document.createElement('button');
+                button.className = 'chatbot-action-button';
+                button.textContent = action.label;
+                button.onclick = () => this.handleAction(action);
+                actionsDiv.appendChild(button);
+            });
+
+            messageContent.appendChild(actionsDiv);
+        }
+
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    formatMessage(content) {
+        // Convert markdown-style formatting to HTML
+        return content
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n/g, '<br>');
+    }
+
+    handleAction(action) {
+        switch (action.action) {
+            case 'apply_volume_form':
+                this.applyVolumeFormData(action.data);
+                break;
+            case 'apply_cifs_form':
+                this.applyCifsFormData(action.data);
+                break;
+            default:
+                console.warn('Unknown action:', action);
+        }
+    }
+
+    applyVolumeFormData(data) {
+        // Show provisioning pane if not visible
+        this.demo.openProvisionStorage();
+        
+        // Populate form fields
+        setTimeout(() => {
+            if (data.cluster) {
+                const clusterSelect = document.getElementById('targetCluster');
+                if (clusterSelect) clusterSelect.value = data.cluster;
+            }
+            if (data.svm) {
+                const svmSelect = document.getElementById('svm');
+                if (svmSelect) svmSelect.value = data.svm;
+            }
+            if (data.volume_name) {
+                const nameInput = document.getElementById('volumeName');
+                if (nameInput) nameInput.value = data.volume_name;
+            }
+            if (data.size) {
+                const sizeInput = document.getElementById('volumeSize');
+                if (sizeInput) sizeInput.value = data.size.replace('GB', '');
+                const unitSelect = document.getElementById('volumeUnit');
+                if (unitSelect) unitSelect.value = 'GB';
+            }
+            
+            this.addMessage('assistant', '✅ Form populated with recommended settings. Please review and submit when ready.');
+        }, 500);
+    }
+
+    applyCifsFormData(data) {
+        // Similar to volume form but for CIFS
+        this.demo.openProvisionStorage();
+        
+        setTimeout(() => {
+            // Switch to CIFS mode
+            const cifsRadio = document.querySelector('input[value="cifs"]');
+            if (cifsRadio) cifsRadio.click();
+            
+            // Populate CIFS-specific fields
+            if (data.share_name) {
+                const shareInput = document.getElementById('cifsShareName');
+                if (shareInput) shareInput.value = data.share_name;
+            }
+            
+            this.addMessage('assistant', '✅ CIFS share form populated with recommended settings. Please review and submit when ready.');
+        }, 500);
+    }
+
+    showThinking() {
+        this.isThinking = true;
+        const thinkingMsg = document.createElement('div');
+        thinkingMsg.className = 'chatbot-message assistant thinking';
+        thinkingMsg.id = 'thinking-message';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'chatbot-message-avatar';
+        avatar.textContent = 'AI';
+
+        const content = document.createElement('div');
+        content.className = 'chatbot-message-content';
+        content.innerHTML = `Thinking<span class="chatbot-thinking-dots"><span></span><span></span><span></span></span>`;
+
+        thinkingMsg.appendChild(avatar);
+        thinkingMsg.appendChild(content);
+
+        const messagesContainer = document.getElementById('chatbotMessages');
+        messagesContainer.appendChild(thinkingMsg);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    hideThinking() {
+        this.isThinking = false;
+        const thinkingMsg = document.getElementById('thinking-message');
+        if (thinkingMsg) {
+            thinkingMsg.remove();
+        }
+    }
+
+    toggleSendButton(enabled) {
+        const sendBtn = document.getElementById('chatbotSend');
+        if (sendBtn) {
+            sendBtn.disabled = !enabled || this.isThinking;
+        }
+    }
+
+    enableInput() {
+        const input = document.getElementById('chatbotInput');
+        const sendBtn = document.getElementById('chatbotSend');
+        
+        if (input) input.disabled = false;
+        if (sendBtn) sendBtn.disabled = false;
+    }
+
+    updateStatus(message, isError = false) {
+        const status = document.getElementById('chatbotStatus');
+        if (status) {
+            status.textContent = message;
+            status.className = `chatbot-status ${isError ? 'error' : ''}`;
         }
     }
 }

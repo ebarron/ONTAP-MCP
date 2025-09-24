@@ -2,6 +2,11 @@
 
 <!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
 
+## 🚨 CRITICAL GIT RULES 🚨
+- **NEVER use `git commit` without explicit user permission**
+- **NEVER use `git push` without explicit user permission**  
+- **User controls ALL commits and pushes - wait for explicit instructions**
+
 This is an MCP (Model Context Protocol) server providing 46 tools for NetApp ONTAP storage management across multiple clusters.
 
 ## Architecture Overview
@@ -119,10 +124,13 @@ node build/index.js --http=3000
 ```
 
 ## Git/Version Control Guidelines
-- **NEVER commit without explicit user permission**
+- **🚨 CRITICAL: NEVER commit OR push without explicit user permission 🚨**
+- **NEVER use git push unless user explicitly requests it**
+- **NEVER use git commit unless user explicitly requests it**
 - Always build and test both transport modes before changes
 - Use test scripts to verify all 46 tools still register correctly
-- Wait for explicit git instructions - user controls all commits
+- Wait for explicit git instructions - user controls all commits and pushes
+- Only stage changes (git add) and show status when making file changes
 
 ## NetApp ONTAP Specifics
 - Uses ONTAP REST API v1/v2 with HTTPS

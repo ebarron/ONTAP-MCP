@@ -63,6 +63,9 @@ test/clusters.json
 
 # MCP server logs
 mcp-server.log
+
+# ChatGPT API configuration (contains sensitive API keys)
+demo/chatgpt-config.json
+
 # Reference files - not part of codebase
-demo/CIFSSettingsPage/
-demo/ExportPolicyPage/
+

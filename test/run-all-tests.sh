@@ -74,17 +74,19 @@ run_test "Export Policy Lifecycle (STDIO Mode)" "node test/test-export-policy-li
 # Test 4: Export Policy Lifecycle (REST Mode)
 run_test "Export Policy Lifecycle (REST Mode)" "node test/test-export-policy-lifecycle.js rest"
 
-# Test 5: Tool Count Verification  
-# Test 5: Tool Count Verification  
-run_test "Tool Count Verification" "bash test/verify-tool-count.sh"
+# Test 5: Tool Discovery (STDIO vs REST)
+run_test "Tool Discovery (STDIO vs REST)" "bash test/test-tool-discovery.sh"
 
-# Test 6: API Fields Test
+# Test 6: Tool Count Verification (Legacy)  
+run_test "Tool Count Verification (Legacy)" "bash test/verify-tool-count.sh"
+
+# Test 7: API Fields Test
 run_test "API Fields Test" "node test/test-api-fields.js"
 
-# Test 7: API Fixes Test
+# Test 8: API Fixes Test
 run_test "API Fixes Test" "node test/test-api-fixes.js"
 
-# Test 8: Parameter Filtering Test
+# Test 9: Parameter Filtering Test
 run_test "Parameter Filtering Test" "node test/test-param-filtering.js"
 
 # Test 9: Snapshot Policy Formats
@@ -113,6 +115,12 @@ run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
 
 # Test 17: CIFS Lifecycle Test (REST Mode) - Now fully working with dual transport support!
 run_test "CIFS Lifecycle (REST Mode)" "node test/test-cifs-lifecycle.js rest"
+
+# Test 18: Cluster Info Test (STDIO Mode)
+run_test "Cluster Info Test (STDIO Mode)" "node test/test-cluster-info.js stdio"
+
+# Test 19: Cluster Info Test (REST Mode)
+run_test "Cluster Info Test (REST Mode)" "node test/test-cluster-info.js rest"
 
 echo ""
 log "=== Test Summary ==="

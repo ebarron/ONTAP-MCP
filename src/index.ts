@@ -1167,6 +1167,175 @@ async function startHttpServer(port: number = 3000) {
     const transport = new SSEServerTransport('/sse', res);
     server.connect(transport);
   });
+
+  // List available tools endpoint (REST API equivalent of ListToolsRequest)
+  app.get('/api/tools', async (req, res) => {
+    try {
+      // Return the same format as the STDIO ListToolsRequest handler
+      // This ensures REST and STDIO modes are completely consistent
+      const response = {
+        tools: [
+          // Legacy single-cluster tools (backward compatibility)
+          {
+            name: "get_cluster_info",
+            description: "Get information about a NetApp ONTAP cluster",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+                username: { type: "string", description: "Username for authentication" },
+                password: { type: "string", description: "Password for authentication" },
+              },
+              required: ["cluster_ip", "username", "password"],
+            },
+          },
+          {
+            name: "list_svms",
+            description: "List all Storage Virtual Machines (SVMs) in the cluster",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+                username: { type: "string", description: "Username for authentication" },
+                password: { type: "string", description: "Password for authentication" },
+              },
+              required: ["cluster_ip", "username", "password"],
+            },
+          },
+          {
+            name: "list_aggregates",
+            description: "List all aggregates in the cluster",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+                username: { type: "string", description: "Username for authentication" },
+                password: { type: "string", description: "Password for authentication" },
+              },
+              required: ["cluster_ip", "username", "password"],
+            },
+          },
+          
+          // Multi-cluster management tools
+          {
+            name: "add_cluster",
+            description: "Add a cluster to the registry for multi-cluster management",
+            inputSchema: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Unique name for the cluster" },
+                cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+                username: { type: "string", description: "Username for authentication" },
+                password: { type: "string", description: "Password for authentication" },
+                description: { type: "string", description: "Optional description of the cluster" },
+              },
+              required: ["name", "cluster_ip", "username", "password"],
+            },
+          },
+          {
+            name: "list_registered_clusters",
+            description: "List all registered clusters in the cluster manager",
+            inputSchema: { type: "object", properties: {} },
+          },
+          {
+            name: "get_all_clusters_info",
+            description: "Get cluster information for all registered clusters",
+            inputSchema: { type: "object", properties: {} },
+          },
+          {
+            name: "cluster_list_svms",
+            description: "List SVMs from a registered cluster by cluster name",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cluster_name: { type: "string", description: "Name of the registered cluster" },
+              },
+              required: ["cluster_name"],
+            },
+          },
+          {
+            name: "cluster_list_aggregates",
+            description: "List aggregates from a registered cluster by cluster name",
+            inputSchema: {
+              type: "object",
+              properties: {
+                cluster_name: { type: "string", description: "Name of the registered cluster" },
+              },
+              required: ["cluster_name"],
+            },
+          },
+          
+          // Snapshot Policy Management Tools
+          createListSnapshotPoliciesToolDefinition(),
+          createGetSnapshotPolicyToolDefinition(),
+          createCreateSnapshotPolicyToolDefinition(),
+          createDeleteSnapshotPolicyToolDefinition(),
+
+          // Export Policy Management Tools
+          createListExportPoliciesToolDefinition(),
+          createGetExportPolicyToolDefinition(),
+          createCreateExportPolicyToolDefinition(),
+          createDeleteExportPolicyToolDefinition(),
+          createAddExportRuleToolDefinition(),
+          createUpdateExportRuleToolDefinition(),
+          createDeleteExportRuleToolDefinition(),
+
+          // Volume Management Tools (all volume-related functionality)
+          // Legacy single-cluster volume tools
+          createListVolumesToolDefinition(),
+          createCreateVolumeToolDefinition(),
+          createGetVolumeStatsToolDefinition(),
+          createOfflineVolumeToolDefinition(),
+          createDeleteVolumeToolDefinition(),
+          
+          // Multi-cluster volume tools  
+          createClusterListVolumesToolDefinition(),
+          createClusterCreateVolumeToolDefinition(),
+          createClusterOfflineVolumeToolDefinition(),
+          createClusterDeleteVolumeToolDefinition(),
+          createClusterGetVolumeStatsToolDefinition(),
+          
+          // Volume configuration and update tools
+          createGetVolumeConfigurationToolDefinition(),
+          createUpdateVolumeSecurityStyleToolDefinition(),
+          createResizeVolumeToolDefinition(),
+          createUpdateVolumeCommentToolDefinition(),
+          
+          // Volume NFS access tools
+          createConfigureVolumeNfsAccessToolDefinition(),
+          createDisableVolumeNfsAccessToolDefinition(),
+
+          // CIFS Share Management Tools
+          // Legacy single-cluster CIFS tools
+          createListCifsSharesToolDefinition(),
+          createGetCifsShareToolDefinition(),
+          createCreateCifsShareToolDefinition(),
+          createUpdateCifsShareToolDefinition(),
+          createDeleteCifsShareToolDefinition(),
+          
+          // Multi-cluster CIFS tools
+          createClusterListCifsSharesToolDefinition(),
+          createClusterCreateCifsShareToolDefinition(),
+          createClusterDeleteCifsShareToolDefinition(),
+
+          // Snapshot Schedule Management Tools
+          createListSnapshotSchedulesToolDefinition(),
+          createGetSnapshotScheduleToolDefinition(),
+          createCreateSnapshotScheduleToolDefinition(),
+          createUpdateSnapshotScheduleToolDefinition(),
+          createDeleteSnapshotScheduleToolDefinition(),
+        ]
+      };
+      
+      res.json(response);
+    } catch (error) {
+      console.error('Failed to list tools:', error);
+      res.status(500).json({
+        error: 'Failed to retrieve tool list',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
   
   // RESTful API endpoints for direct tool access
   app.post('/api/tools/:toolName', async (req, res) => {
@@ -1515,6 +1684,43 @@ async function startHttpServer(port: number = 3000) {
           break;
         case 'delete_snapshot_schedule':
           result = await handleDeleteSnapshotSchedule(args, clusterManager);
+          break;
+        case 'get_all_clusters_info':
+          try {
+            const clusterInfos = await clusterManager.getAllClustersInfo();
+            console.log('DEBUG: getAllClustersInfo returned:', JSON.stringify(clusterInfos, null, 2));
+            
+            if (clusterInfos.length === 0) {
+              result = {
+                content: [{
+                  type: "text",
+                  text: "No clusters registered.",
+                }],
+              };
+            } else {
+              const infoText = clusterInfos.map(({ name, info, error }) => {
+                if (error) {
+                  return `- ${name}: ERROR - ${error}`;
+                }
+                return `- ${name}: ${info?.name || 'Unknown'} (${info?.version?.full || 'Unknown version'}) - ${info?.state || 'Unknown state'}`;
+              }).join('\n');
+
+              result = {
+                content: [{
+                  type: "text",
+                  text: `Cluster Information:\n\n${infoText}`,
+                }],
+              };
+            }
+          } catch (error) {
+            console.error('ERROR in get_all_clusters_info:', error);
+            result = {
+              content: [{
+                type: "text",
+                text: `Error getting cluster information: ${error instanceof Error ? error.message : String(error)}`,
+              }],
+            };
+          }
           break;
         default:
           throw new Error(`Tool '${toolName}' not implemented in REST API`);
