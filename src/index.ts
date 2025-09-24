@@ -1441,10 +1441,15 @@ async function startHttpServer(port: number = 3000) {
           }
           const aggrClient = clusterManager.getClient(args.cluster_name);
           const aggregates = await aggrClient.listAggregates();
+          
+          const aggrList = aggregates.map((aggr: any) => 
+            `- ${aggr.name} (${aggr.uuid}) - State: ${aggr.state}, Available: ${aggr.space?.block_storage?.available || 'N/A'}, Used: ${aggr.space?.block_storage?.used || 'N/A'}`
+          ).join('\n');
+          
           result = {
             content: [{
               type: "text",
-              text: `Aggregates on cluster '${args.cluster_name}': ${aggregates.length}\n\n${aggregates.map((aggr: any) => `- ${aggr.name} (${aggr.uuid}) - State: ${aggr.state}, Available: ${aggr.space?.block_storage?.available || 'N/A'}, Used: ${aggr.space?.block_storage?.used || 'N/A'}`).join('\n')}`
+              text: `Aggregates on cluster '${args.cluster_name}': ${aggregates.length}\n\n${aggrList}`
             }]
           };
           break;

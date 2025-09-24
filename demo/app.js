@@ -427,23 +427,34 @@ class OntapMcpDemo {
     }
 
     showProvisioningPanel() {
+        console.log('showProvisioningPanel called, selectedCluster:', this.selectedCluster);
         if (!this.selectedCluster) {
+            console.log('No cluster selected, showing error');
             this.showError('Please select a cluster first');
             return;
         }
 
+        console.log('Creating/showing provisioning panel...');
         // Create or show the right-side expansion panel
         let panel = document.getElementById('provisioningPanel');
         if (!panel) {
+            console.log('Creating new provisioning panel');
             panel = this.createProvisioningPanel();
+            console.log('Panel created, appending to body...');
             document.body.appendChild(panel);
+            console.log('Panel appended. svmSelect exists?', !!document.getElementById('svmSelect'));
+        } else {
+            console.log('Using existing provisioning panel');
+            console.log('Existing panel svmSelect exists?', !!document.getElementById('svmSelect'));
         }
         
         // Trigger the expansion animation
+        console.log('Making panel visible');
         panel.classList.add('visible');
         document.body.classList.add('panel-open');
         
         // Load data for the selected cluster
+        console.log('Loading provisioning data for cluster:', this.selectedCluster);
         this.loadProvisioningData();
     }
 
@@ -495,6 +506,7 @@ class OntapMcpDemo {
     }
 
     createProvisioningPanel() {
+        console.log('createProvisioningPanel called with selectedCluster:', this.selectedCluster);
         const panel = document.createElement('div');
         panel.id = 'provisioningPanel';
         panel.className = 'right-panel';
@@ -1746,8 +1758,8 @@ class ChatbotAssistant {
 
     showWelcomeMessage() {
         const welcomeMsg = this.mockMode 
-            ? "👋 Hello! I'm your NetApp ONTAP provisioning assistant (running in demo mode). I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100GB NFS volume for a database workload\""
-            : "👋 Hello! I'm your NetApp ONTAP provisioning assistant. I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100GB NFS volume for a database workload\"";
+            ? "👋 Hello! I'm your NetApp ONTAP provisioning assistant (running in demo mode). I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100mb NFS volume for a database workload\""
+            : "👋 Hello! I'm your NetApp ONTAP provisioning assistant. I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100mb NFS volume for a database workload\"";
 
         this.addMessage('assistant', welcomeMsg);
     }
@@ -1874,7 +1886,7 @@ class ChatbotAssistant {
         // Handle tool calls (newer format)
         if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
             console.log('Tool calls detected:', choice.message.tool_calls);
-            return await this.handleToolCalls(message, choice.message.tool_calls);
+            return await this.handleToolCalls(message, choice.message.tool_calls, 0);
         }
 
         const aiResponse = choice.message?.content;
@@ -1916,6 +1928,21 @@ CONTEXT:
   * Performance monitoring (get_volume_stats, cluster_get_volume_stats)
 - You can perform multi-step analysis and complete provisioning workflows
 
+MANDATORY WORKFLOW FOR PROVISIONING REQUESTS:
+1. ALWAYS call list_registered_clusters first to get all available clusters
+2. For EACH cluster, call BOTH cluster_list_aggregates AND cluster_list_svms (not just one)
+3. Analyze capacity and SVM availability across ALL clusters
+4. Recommend specific: Cluster name, SVM name, Aggregate name, Size, Protocol
+5. NEVER say "Please provide an SVM" - you must specify the exact SVM name from step 2
+
+CRITICAL PROVISIONING REQUIREMENTS:
+- ALWAYS use BOTH cluster_list_aggregates AND cluster_list_svms for EACH cluster before making recommendations
+- For multi-cluster analysis, call cluster_list_aggregates AND cluster_list_svms for ALL clusters
+- NEVER make recommendations without checking BOTH aggregates and SVMs for each cluster
+- ALWAYS specify exact cluster name, SVM name, and aggregate name in recommendations
+- Choose aggregates with sufficient available space and good utilization ratios
+- Provide complete provisioning details: Cluster, SVM, Aggregate, Size, Protocol
+
 CAPABILITIES:
 - Query cluster capacity and aggregates using cluster functions
 - Check SVM availability and volume placement
@@ -1925,20 +1952,26 @@ CAPABILITIES:
 - Execute complete provisioning workflows from analysis to creation
 
 GUIDELINES:
-- Always start by gathering current cluster information when making recommendations
-- Use multiple function calls in sequence to build complete analysis
-- Suggest specific cluster, SVM, and aggregate combinations based on actual data
-- Provide reasoning based on real capacity and utilization data
+- When making recommendations, gather essential cluster information efficiently
+- Use 1-3 targeted tool calls to get the information needed
+- Provide specific cluster, SVM, and aggregate combinations based on actual data
+- Focus on giving actionable recommendations rather than exhaustive analysis
 - When user requests provisioning, execute the actual creation (don't just recommend)
 - Ask for confirmation before making changes to production systems
 - Be conversational but technically accurate
 
-RESPONSE FORMAT:
-- Perform analysis steps automatically using available functions
-- Explain your reasoning based on the data you gather
-- Execute provisioning requests when user confirms
-- Provide specific recommendations with supporting evidence
-- Continue multi-step analysis until you have complete recommendations or have executed the request`;
+RESPONSE FORMAT FOR PROVISIONING:
+When providing storage provisioning recommendations, always include:
+- **Cluster:** [exact cluster name]
+- **SVM:** [exact SVM name] 
+- **Aggregate:** [exact aggregate name]
+- **Size:** [requested size with units]
+- **Protocol:** [NFS or CIFS as appropriate]
+
+RESPONSE STRATEGY:
+- Make focused tool calls to gather specific information needed
+- After 1-2 tool calls, provide recommendations based on the data collected
+- Avoid excessive analysis - aim for actionable recommendations quickly`;
     }
 
     buildMCPTools() {
@@ -1983,21 +2016,43 @@ RESPONSE FORMAT:
         return mcpTools;
     }
 
-    async handleToolCalls(originalMessage, toolCalls) {
+    async handleToolCalls(originalMessage, toolCalls, recursionDepth = 0) {
+        const MAX_RECURSION_DEPTH = 3; // Allow 3 rounds of tool calls for complete analysis
+        
+        if (recursionDepth >= MAX_RECURSION_DEPTH) {
+            console.warn('Maximum tool call recursion depth reached. Stopping tool execution.');
+            return {
+                text: '⚠️ I\'ve completed the initial analysis but reached the maximum number of tool executions. Based on the information gathered, I can see the available clusters. Please ask me for a specific recommendation like "recommend the best aggregate on greg-vsim-2 for a 100GB volume".',
+                actions: []
+            };
+        }
+
+        console.log(`Handling tool calls (depth: ${recursionDepth + 1}/${MAX_RECURSION_DEPTH}):`, toolCalls.map(t => t.function.name));
+
         // Execute all tool calls
         const toolResults = [];
         for (const toolCall of toolCalls) {
-            const result = await this.executeMCPTool(toolCall);
-            toolResults.push({
-                tool_call_id: toolCall.id,
-                role: 'tool',
-                name: toolCall.function.name,
-                content: result
-            });
+            try {
+                const result = await this.executeMCPTool(toolCall);
+                toolResults.push({
+                    tool_call_id: toolCall.id,
+                    role: 'tool',
+                    name: toolCall.function.name,
+                    content: result
+                });
+            } catch (error) {
+                console.error(`Failed to execute tool ${toolCall.function.name}:`, error);
+                toolResults.push({
+                    tool_call_id: toolCall.id,
+                    role: 'tool',
+                    name: toolCall.function.name,
+                    content: `Error executing tool: ${error.message}`
+                });
+            }
         }
 
         // Send results back to ChatGPT
-        return await this.getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults);
+        return await this.getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth + 1);
     }
 
     async executeMCPTool(toolCall) {
@@ -2033,7 +2088,7 @@ RESPONSE FORMAT:
         }
     }
 
-    async getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults) {
+    async getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth = 0) {
         const systemPrompt = this.buildSystemPrompt();
         const conversationHistory = this.buildConversationHistory();
         const tools = this.buildMCPTools();
@@ -2062,7 +2117,7 @@ RESPONSE FORMAT:
                 messages: messages,
                 max_completion_tokens: this.config.max_completion_tokens,
                 tools: tools,
-                tool_choice: 'auto'
+                tool_choice: recursionDepth >= 2 ? 'none' : 'auto' // Force ChatGPT to respond without tools after 2 recursions
             })
         });
 
@@ -2074,15 +2129,17 @@ RESPONSE FORMAT:
         const data = await response.json();
         const choice = data.choices?.[0];
         
-        // Handle potential additional tool calls (multi-step workflows)
-        if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
-            console.log('Additional tool calls detected, continuing workflow...');
-            return await this.handleToolCalls(originalMessage, choice.message.tool_calls);
+        // Handle potential additional tool calls (multi-step workflows) only if not at max depth
+        if (choice.message?.tool_calls && choice.message.tool_calls.length > 0 && recursionDepth < 2) {
+            console.log(`Additional tool calls detected at depth ${recursionDepth}, continuing workflow...`);
+            return await this.handleToolCalls(originalMessage, choice.message.tool_calls, recursionDepth);
         }
 
         const aiResponse = choice.message?.content;
         if (!aiResponse || aiResponse.trim() === '') {
-            throw new Error('ChatGPT returned empty response after tool execution');
+            // If ChatGPT doesn't provide content, create a summary response
+            const toolNames = toolCalls.map(tc => tc.function.name).join(', ');
+            return this.parseResponseActions(`I've executed the following tools: ${toolNames}. Please let me know if you need specific information from these results or try a more specific question.`);
         }
 
         console.log('Final ChatGPT response:', aiResponse);
@@ -2129,118 +2186,395 @@ RESPONSE FORMAT:
 
     extractProvisioningRecommendations(response) {
         // Look for cluster/SVM/aggregate recommendations in various formats
-        const clusterMatch = response.match(/(?:cluster|Cluster):\s*([^\s,\n]+)/i);
-        const svmMatch = response.match(/(?:svm|SVM):\s*([^\s,\n]+)/i);
-        const aggregateMatch = response.match(/(?:aggregate|Aggregate):\s*([^\s,\n]+)/i);
-        const sizeMatch = response.match(/(?:size|Size):\s*(\d+(?:\.\d+)?)(?:\s*)(GB|TB|MB)/i);
+        // Pattern: "- **Cluster**: `greg-vsim-2`" or "**Cluster**: `greg-vsim-2`"
+        const clusterMatch = response.match(/-\s*\*\*Cluster\*\*[:\s]*`([^`]+)`/i) ||
+                            response.match(/\*\*Cluster\*\*[:\s]*`([^`]+)`/i) ||
+                            response.match(/\*\*Cluster[:\s]*\*\*[:\s]*`?([^`\s,\n"]+)`?/i) ||
+                            response.match(/Cluster[:\s]+`([^`]+)`/i) ||
+                            response.match(/(?:greg-vsim-[12]|julia-vsim-1|karan-ontap-1)/i);
+                            
+        // Pattern: "- **SVM**: `svm1`" or "**SVM**: `svm1`"  
+        const svmMatch = response.match(/-\s*\*\*SVM\*\*[:\s]*`([^`]+)`/i) ||
+                        response.match(/\*\*SVM\*\*[:\s]*`([^`]+)`/i) ||
+                        response.match(/\*\*SVM[:\s]*\*\*[:\s]*`([^`]+)`/i) ||
+                        response.match(/SVM[:\s]*`([^`]+)`/i) ||
+                        // Added: SVM without backticks
+                        response.match(/-\s*\*\*SVM\*\*[:\s]*([a-zA-Z0-9_][^\s,\n]*)/i) ||
+                        response.match(/\*\*SVM\*\*[:\s]*([a-zA-Z0-9_][^\s,\n]*)/i) ||
+                        response.match(/using\s+SVM\s+`([^`]+)`/i) ||
+                        response.match(/SVMs?\s*Available[^:]*:\s*`?([^`\s,\n]+)`?/i);
+                        
+        // Pattern: "- **Aggregate**: `storage_availability_zone_0`" or "**Aggregate**: `storage_availability_zone_0`"
+        const aggregateMatch = response.match(/-\s*\*\*Aggregate\*\*[:\s]*`([^`]+)`/i) ||
+                              response.match(/\*\*Aggregate\*\*[:\s]*`([^`]+)`/i) ||
+                              response.match(/\*\*Aggregate[:\s]*\*\*[:\s]*`?([^`\s,\n*]+)`?/i) ||
+                              response.match(/Aggregate[:\s]*`([^`]+)`/i) ||
+                              response.match(/aggregate[^:]*:\s*`([^`]+)`/i) ||
+                              response.match(/aggregate[^:]*:\s*([a-zA-Z0-9_][^\s,\n]*)/i);
+        
+        // Enhanced size matching for "100 MB" or "100MB"
+        const sizeMatch = response.match(/(\d+(?:\.\d+)?)\s*(MB|GB|TB)/i);
+        
+        // If we found a size match, let's see if we can find the original request size
+        const requestSizeMatch = response.match(/provision\s+(?:a\s+)?(\d+(?:\.\d+)?)\s*(MB|GB|TB)/i);
+        
         const volumeMatch = response.match(/(?:volume|Volume)(?:\s+name)?:\s*([^\s,\n]+)/i);
 
-        // Check if we have enough info for a recommendation
-        if (clusterMatch || svmMatch || aggregateMatch) {
-            const recommendations = {};
-            
-            if (clusterMatch) recommendations.cluster = clusterMatch[1];
-            if (svmMatch) recommendations.svm = svmMatch[1];
-            if (aggregateMatch) recommendations.aggregate = aggregateMatch[1];
-            if (sizeMatch) {
-                recommendations.size = sizeMatch[1];
-                recommendations.unit = sizeMatch[2] || 'GB';
+        // Fallback extraction for known values from the response structure
+        let cluster, svm, aggregate;
+        
+        // Extract cluster names from the response text
+        if (response.includes('greg-vsim-1')) cluster = 'greg-vsim-1';
+        else if (response.includes('greg-vsim-2')) cluster = 'greg-vsim-2';
+        else if (response.includes('karan-ontap-1')) cluster = 'karan-ontap-1';
+        else if (response.includes('julia-vsim-1')) cluster = 'julia-vsim-1';
+        
+        // Extract SVM names - look for common patterns
+        if (response.includes('vs0')) svm = 'vs0';
+        else if (response.includes('svm1')) svm = 'svm1';  // Added this line
+        else if (response.includes('vs123')) svm = 'vs123';
+        else if (response.includes('svm143')) svm = 'svm143';
+        
+        // Extract aggregate names - look for specific aggregate patterns
+        if (response.includes('sti245_vsim_ocvs026a_aggr1')) aggregate = 'sti245_vsim_ocvs026a_aggr1';
+        else if (response.includes('sti245_vsim_ocvs026b_aggr1')) aggregate = 'sti245_vsim_ocvs026b_aggr1';
+        else if (response.includes('sti248_vsim_ocvs076k_aggr1')) aggregate = 'sti248_vsim_ocvs076k_aggr1';
+        else if (response.includes('sti248_vsim_ocvs076l_aggr1')) aggregate = 'sti248_vsim_ocvs076l_aggr1';
+        else if (response.includes('storage_availability_zone_0')) aggregate = 'storage_availability_zone_0';
+        
+        // Generic aggregate matching - look for common aggregate naming patterns
+        const genericAggregateMatch = response.match(/\b([a-zA-Z0-9_]+(?:aggr|aggregate|storage)[a-zA-Z0-9_]*)\b/i);
+        if (!aggregate && genericAggregateMatch) {
+            const foundAggregate = genericAggregateMatch[1];
+            // Validate it's not just 'aggregate' or 'storage' by itself
+            if (foundAggregate.length > 8 && !foundAggregate.match(/^(aggregate|storage)$/i)) {
+                aggregate = foundAggregate;
             }
-            if (volumeMatch) recommendations.volume_name = volumeMatch[1];
+        }
 
-            console.log('Extracted recommendations:', recommendations);
+        // Use regex matches if available, otherwise use fallback values
+        const recommendations = {};
+        
+        // For cluster, prioritize specific known cluster names over generic regex matches
+        if (cluster) {
+            recommendations.cluster = cluster;
+        } else if (clusterMatch && clusterMatch[1]) {
+            // Clean up cluster name by removing quotes and validate it's a known cluster
+            const cleanCluster = clusterMatch[1].replace(/['"]/g, '');
+            if (['greg-vsim-1', 'greg-vsim-2', 'julia-vsim-1', 'karan-ontap-1'].includes(cleanCluster)) {
+                recommendations.cluster = cleanCluster;
+            }
+        }
+        
+        if (svmMatch && svmMatch[1]) {
+            recommendations.svm = svmMatch[1].replace(/['"]/g, '');
+        } else if (svm) {
+            recommendations.svm = svm;
+        }
+        
+        if (aggregateMatch && aggregateMatch[1]) {
+            const extractedAggregate = aggregateMatch[1].replace(/['"*]/g, '').trim();
+            if (extractedAggregate && extractedAggregate.length > 2) { // Ignore very short matches like "**"
+                recommendations.aggregate = extractedAggregate;
+            }
+        } else if (aggregate) {
+            recommendations.aggregate = aggregate;
+        }
+        
+        if (sizeMatch || requestSizeMatch) {
+            // Prefer the request size over other size values in the response
+            const preferredMatch = requestSizeMatch || sizeMatch;
+            recommendations.size = preferredMatch[1];
+            recommendations.unit = preferredMatch[2] || 'GB';
+        }
+        
+        if (volumeMatch) recommendations.volume_name = volumeMatch[1];
+
+        // Check if we have enough info for a recommendation
+        if (recommendations.cluster || recommendations.svm || recommendations.aggregate) {
             return recommendations;
         }
 
         return null;
     }
 
-    autoPopulateForm(recommendations) {
-        console.log('Auto-populating form with:', recommendations);
+    // Helper function to wait for an element to exist
+    waitForElement(elementId, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            const checkElement = () => {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    console.log(`Element ${elementId} found after ${Date.now() - startTime}ms`);
+                    resolve(element);
+                } else if (Date.now() - startTime > timeout) {
+                    console.error(`Element ${elementId} not found within ${timeout}ms. Available elements:`, Array.from(document.querySelectorAll('[id]')).map(el => el.id));
+                    reject(new Error(`Element ${elementId} not found within ${timeout}ms`));
+                } else {
+                    if ((Date.now() - startTime) % 1000 < 100) {
+                        console.log(`Still waiting for element ${elementId}... (${Math.round((Date.now() - startTime)/1000)}s elapsed)`);
+                    }
+                    setTimeout(checkElement, 100);
+                }
+            };
+            checkElement();
+        });
+    }
+
+    // Helper function to wait for dropdown to have options
+    waitForDropdownOptions(elementId, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            const checkOptions = () => {
+                const element = document.getElementById(elementId);
+                if (element && element.options && element.options.length > 1) {
+                    // Check that we have actual data options, not just loading/placeholder text
+                    const hasRealOptions = Array.from(element.options).some(option => 
+                        option.value && 
+                        option.value !== '' && 
+                        !option.text.includes('Loading') && 
+                        !option.text.includes('Select SVM') &&
+                        !option.text.includes('Error')
+                    );
+                    
+                    if (hasRealOptions) {
+                        console.log(`Dropdown ${elementId} populated with real options after ${Date.now() - startTime}ms`);
+                        resolve(element);
+                    } else if (Date.now() - startTime > timeout) {
+                        console.log(`Dropdown ${elementId} options not loaded within ${timeout}ms`);
+                        resolve(null); // Don't reject, just resolve with null
+                    } else {
+                        if ((Date.now() - startTime) % 2000 < 200) {
+                            console.log(`Waiting for ${elementId} real options... Current options:`, Array.from(element.options).map(o => o.text));
+                        }
+                        setTimeout(checkOptions, 200);
+                    }
+                } else if (Date.now() - startTime > timeout) {
+                    console.log(`Dropdown ${elementId} options not loaded within ${timeout}ms`);
+                    resolve(null); // Don't reject, just resolve with null
+                } else {
+                    setTimeout(checkOptions, 200);
+                }
+            };
+            checkOptions();
+        });
+    }
+
+    async autoPopulateForm(recommendations) {
+        // Ensure correct cluster is selected (update even if one is already selected)
+        if (recommendations.cluster) {
+            // Find the cluster object, not just set the name
+            const clusterObj = this.demo.clusters.find(c => c.name === recommendations.cluster);
+            if (clusterObj) {
+                const previousCluster = this.demo.selectedCluster?.name;
+                this.demo.selectedCluster = clusterObj;
+                console.log('Cluster object found and set:', clusterObj);
+                
+                // Also update the radio button selection
+                const radio = document.querySelector(`input[name="selectedCluster"][value="${recommendations.cluster}"]`);
+                if (radio) {
+                    radio.checked = true;
+                    console.log('Radio button selected for cluster:', recommendations.cluster);
+                } else {
+                    console.warn('Radio button not found for cluster:', recommendations.cluster);
+                }
+                
+                // If we switched clusters, we need to let the UI update before proceeding
+                if (previousCluster !== recommendations.cluster) {
+                    console.log('Cluster switched from', previousCluster, 'to', recommendations.cluster, '- waiting for UI update');
+                    // Give the UI time to process the cluster change
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } else {
+                console.warn('Cluster object not found for:', recommendations.cluster);
+            }
+        }
         
         // Show provisioning pane if not visible
+        console.log('Attempting to open provisioning storage...');
+        
+        // Ensure we have proper cluster selection before opening panel
+        if (!this.demo.selectedCluster) {
+            console.error('No cluster selected, cannot open provisioning panel');
+            this.addMessage('assistant', '⚠️ Cannot open provisioning form - no cluster is selected. Please select a cluster first.');
+            return;
+        }
+        
+        // Open the provisioning panel
         this.demo.openProvisionStorage();
         
-        // Give the pane time to open and load dropdowns
-        setTimeout(() => {
+        try {
+            // Wait longer for provisioning pane to open and DOM to be ready
+            console.log('Waiting for provisioning panel DOM elements...');
+            await this.waitForElement('provisioningPanel', 3000);
+            
+            // Wait a bit more for the panel to fully render
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Now wait for the SVM select dropdown to be created
+            await this.waitForElement('svmSelect', 5000);
+            
+            // If we switched clusters, force reload the provisioning data
+            if (recommendations.cluster) {
+                console.log('Forcing reload of provisioning data for cluster:', recommendations.cluster);
+                await this.demo.loadProvisioningData();
+                // Wait a bit longer for the fresh data to load
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+            
+            // Wait for SVM dropdown to be populated (not just loading state)  
+            console.log('Waiting for SVM dropdown to be populated...');
+            await this.waitForDropdownOptions('svmSelect', 15000); // Increased timeout for cluster switches
+            
             let populated = false;
-
-            // The cluster is already selected when the provisioning panel opens
-            // So we need to focus on populating SVM, aggregate, volume name, and size
-
-            // Populate SVM (wait for SVMs to load)
+            
+            // Step 1: Populate SVM first (this triggers loading of aggregates and export policies)
             if (recommendations.svm) {
-                setTimeout(() => {
-                    const svmSelect = document.getElementById('svmSelect');
-                    if (svmSelect) {
-                        for (let option of svmSelect.options) {
-                            if (option.value.toLowerCase() === recommendations.svm.toLowerCase()) {
-                                svmSelect.value = option.value;
-                                // Trigger change event to load aggregates, export policies, etc.
-                                svmSelect.dispatchEvent(new Event('change'));
-                                populated = true;
-                                break;
-                            }
+                console.log('Populating SVM:', recommendations.svm);
+                const svmSelect = document.getElementById('svmSelect');
+                if (svmSelect && svmSelect.options.length > 0) {
+                    console.log('Available SVM options:', Array.from(svmSelect.options).map(o => `"${o.value}"`));
+                    for (let option of svmSelect.options) {
+                        console.log('Checking SVM option:', `"${option.value}"`, 'against recommendation:', `"${recommendations.svm}"`);
+                        if (option.value.toLowerCase() === recommendations.svm.toLowerCase()) {
+                            svmSelect.value = option.value;
+                            // Trigger change event to load aggregates, export policies, etc.
+                            svmSelect.dispatchEvent(new Event('change'));
+                            populated = true;
+                            console.log('SVM matched and populated:', option.value);
+                            break;
                         }
                     }
-                }, 1000);
+                } else {
+                    console.log('SVM select not ready or has no options');
+                }
+                
+                // Wait for aggregate dropdown to be populated after SVM change
+                await this.waitForDropdownOptions('aggregateSelect', 3000);
             }
-
-            // Populate aggregate (after SVM loads)
+            
+            // Step 2: Populate aggregate (must be specified by ChatGPT)
             if (recommendations.aggregate) {
-                setTimeout(() => {
-                    const aggregateSelect = document.getElementById('aggregateSelect');
-                    if (aggregateSelect) {
-                        for (let option of aggregateSelect.options) {
-                            if (option.value.toLowerCase().includes(recommendations.aggregate.toLowerCase()) ||
-                                recommendations.aggregate.toLowerCase().includes(option.value.toLowerCase())) {
-                                aggregateSelect.value = option.value;
-                                populated = true;
-                                break;
+                const aggregateSelect = document.getElementById('aggregateSelect');
+                if (aggregateSelect && aggregateSelect.options.length > 0) {
+                    let aggregateSet = false;
+                    for (let option of aggregateSelect.options) {
+                        // Skip empty option values (like "Select aggregate...")
+                        if (!option.value || option.value.trim() === '') {
+                            continue;
+                        }
+                        if (option.value.toLowerCase().includes(recommendations.aggregate.toLowerCase()) ||
+                            recommendations.aggregate.toLowerCase().includes(option.value.toLowerCase())) {
+                            aggregateSelect.value = option.value;
+                            populated = true;
+                            aggregateSet = true;
+                            break;
+                        }
+                    }
+                    if (!aggregateSet) {
+                        // If ChatGPT provided a valid aggregate but it's not in the dropdown,
+                        // add it to the dropdown and select it
+                        if (recommendations.aggregate && recommendations.aggregate.length > 0) {
+                            const newOption = document.createElement('option');
+                            newOption.value = recommendations.aggregate;
+                            newOption.text = recommendations.aggregate; // No extra text
+                            aggregateSelect.appendChild(newOption);
+                            aggregateSelect.value = recommendations.aggregate;
+                            populated = true;
+                        }
+                    }
+                }
+            } else {
+                // No aggregate specified in recommendations - user must select manually or ask ChatGPT for specific aggregate recommendation
+            }
+            
+            // Step 3: Handle protocol-specific settings
+            if (recommendations.protocol) {
+                console.log('Setting protocol:', recommendations.protocol);
+                const nfsRadio = document.getElementById('protocolNfs');
+                const cifsRadio = document.getElementById('protocolCifs');
+                
+                if (recommendations.protocol.toLowerCase() === 'nfs' && nfsRadio) {
+                    nfsRadio.checked = true;
+                    nfsRadio.dispatchEvent(new Event('change'));
+                    
+                    // Wait for export policy dropdown to load after protocol change
+                    await this.waitForDropdownOptions('exportPolicySelect', 2000);
+                    
+                    // Populate export policy if specified
+                    if (recommendations.export_policy) {
+                        const exportPolicySelect = document.getElementById('exportPolicySelect');
+                        if (exportPolicySelect) {
+                            for (let option of exportPolicySelect.options) {
+                                if (option.value.toLowerCase().includes(recommendations.export_policy.toLowerCase())) {
+                                    exportPolicySelect.value = option.value;
+                                    populated = true;
+                                    break;
+                                }
                             }
                         }
                     }
-                }, 2500);
-            }
-
-            // Populate volume name (or generate a default one)
-            setTimeout(() => {
-                const nameInput = document.getElementById('volumeName');
-                if (nameInput) {
-                    if (recommendations.volume_name) {
-                        nameInput.value = recommendations.volume_name;
-                    } else {
-                        // Generate a default volume name based on SVM and size
-                        const svm = recommendations.svm || 'vol';
-                        const size = recommendations.size || '100';
-                        const timestamp = new Date().toISOString().slice(5, 16).replace(/[-:]/g, '');
-                        nameInput.value = `${svm}_vol_${size}gb_${timestamp}`;
-                    }
+                } else if (recommendations.protocol.toLowerCase() === 'cifs' && cifsRadio) {
+                    cifsRadio.checked = true;
+                    cifsRadio.dispatchEvent(new Event('change'));
                     populated = true;
                 }
-            }, 500);
-
-            // Populate size
-            if (recommendations.size) {
-                setTimeout(() => {
-                    const sizeInput = document.getElementById('volumeSize');
-                    if (sizeInput) {
-                        // Format the size properly (e.g., "100GB")
-                        const sizeValue = recommendations.size + (recommendations.unit || 'GB');
-                        sizeInput.value = sizeValue;
-                        populated = true;
-                    }
-                }, 500);
             }
-
+            
+            // Step 4: Populate volume name (or generate a default one)
+            const nameInput = document.getElementById('volumeName');
+            console.log('Volume name input element found:', !!nameInput);
+            if (nameInput) {
+                if (recommendations.volume_name) {
+                    nameInput.value = recommendations.volume_name;
+                    console.log('Volume name populated from recommendations:', recommendations.volume_name);
+                } else {
+                    // Generate a default volume name based on SVM and size
+                    const svm = recommendations.svm || 'vol';
+                    const size = recommendations.size || '100';
+                    const unit = (recommendations.unit || 'GB').toLowerCase();
+                    const timestamp = new Date().toISOString().slice(5, 16).replace(/[-:]/g, '');
+                    const generatedName = `${svm}_vol_${size}${unit}_${timestamp}`;
+                    nameInput.value = generatedName;
+                    console.log('Generated volume name:', generatedName, 'with values:', {svm, size, unit, timestamp});
+                }
+                populated = true;
+            } else {
+                console.warn('Volume name input element not found - cannot populate volume name');
+            }
+            
+            // Step 5: Populate size
+            if (recommendations.size) {
+                const sizeInput = document.getElementById('volumeSize');
+                if (sizeInput) {
+                    // Format the size properly (e.g., "100GB")
+                    const sizeValue = recommendations.size + (recommendations.unit || 'GB');
+                    sizeInput.value = sizeValue;
+                    populated = true;
+                }
+            }
+            
             // Show confirmation message if we populated anything
             if (populated) {
-                setTimeout(() => {
-                    this.addMessage('assistant', '✅ I\'ve automatically populated the provisioning form with my recommendations. Please review the settings and click "Create Volume" when ready!');
-                }, 3000);
+                this.addMessage('assistant', '✅ I\'ve automatically populated the provisioning form with my recommendations. Please review the settings and click "Create Volume" when ready!');
+            } else {
+                this.addMessage('assistant', '⚠️ I opened the provisioning form but couldn\'t auto-populate all fields. Please fill in the form manually based on my recommendations above.');
             }
-
-        }, 500);
+            
+        } catch (error) {
+            console.error('Error auto-populating form:', error);
+            
+            // Check if the provisioning panel exists but elements are missing
+            const panel = document.getElementById('provisioningPanel');
+            if (panel) {
+                console.log('Provisioning panel exists, but elements may not be ready');
+                console.log('Available form elements:', Array.from(panel.querySelectorAll('[id]')).map(el => el.id));
+                this.addMessage('assistant', '⚠️ I opened the provisioning form but the form elements weren\'t ready yet. Please fill in the form manually based on my recommendations above, or try asking again.');
+            } else {
+                console.log('Provisioning panel does not exist');
+                this.addMessage('assistant', '⚠️ I couldn\'t open the provisioning form. Please ensure a cluster is selected and try again.');
+            }
+        }
     }
 
     addMessage(role, content, actions = []) {
