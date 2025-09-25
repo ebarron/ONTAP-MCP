@@ -297,17 +297,33 @@ export class OntapApiClient {
       volumeUuid = response.uuid;
     } else {
       // If no UUID is returned, we need to get it by listing volumes and finding the one we just created
-      // Wait a short moment for the volume to be created
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait and retry with backoff for the volume to appear
+      let foundVolumeUuid: string | undefined;
+      let attempts = 0;
+      const maxAttempts = 5;
       
-      const volumes = await this.listVolumes(params.svm_name);
-      const newVolume = volumes.find(v => v.name === params.volume_name);
-      
-      if (newVolume) {
-        volumeUuid = newVolume.uuid;
-      } else {
-        throw new Error(`Volume '${params.volume_name}' was not found after creation`);
+      while (!foundVolumeUuid && attempts < maxAttempts) {
+        attempts++;
+        // Progressive delay: 1s, 2s, 3s, 4s, 5s
+        const delay = attempts * 1000;
+        console.log(`Waiting ${delay}ms for volume '${params.volume_name}' to appear (attempt ${attempts}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        const volumes = await this.listVolumes(params.svm_name);
+        const newVolume = volumes.find(v => v.name === params.volume_name);
+        
+        if (newVolume) {
+          foundVolumeUuid = newVolume.uuid;
+          console.log(`Volume '${params.volume_name}' found after ${attempts} attempts`);
+          break;
+        }
       }
+      
+      if (!foundVolumeUuid) {
+        throw new Error(`Volume '${params.volume_name}' was not found after creation (tried ${maxAttempts} times over ${maxAttempts * (maxAttempts + 1) / 2} seconds)`);
+      }
+      
+      volumeUuid = foundVolumeUuid;
     }
 
     // Create CIFS share if specified

@@ -2210,7 +2210,10 @@ RESPONSE STRATEGY:
                               response.match(/\*\*Aggregate[:\s]*\*\*[:\s]*`?([^`\s,\n*]+)`?/i) ||
                               response.match(/Aggregate[:\s]*`([^`]+)`/i) ||
                               response.match(/aggregate[^:]*:\s*`([^`]+)`/i) ||
-                              response.match(/aggregate[^:]*:\s*([a-zA-Z0-9_][^\s,\n]*)/i);
+                              response.match(/aggregate[^:]*:\s*([a-zA-Z0-9_][^\s,\n]*)/i) ||
+                              // Enhanced: Match aggregate names in narrative text like "using sti245_vsim_ocvs026b_aggr1"
+                              response.match(/(?:use|using|recommend|recommended?)\s+(?:aggregate\s+)?`?([a-z0-9_]+_aggr[a-z0-9_]*)`?/i) ||
+                              response.match(/`([a-z0-9_]+_aggr[a-z0-9_]*)`/i);
         
         // Enhanced size matching for "100 MB" or "100MB"
         const sizeMatch = response.match(/(\d+(?:\.\d+)?)\s*(MB|GB|TB)/i);
@@ -2241,6 +2244,15 @@ RESPONSE STRATEGY:
         else if (response.includes('sti248_vsim_ocvs076k_aggr1')) aggregate = 'sti248_vsim_ocvs076k_aggr1';
         else if (response.includes('sti248_vsim_ocvs076l_aggr1')) aggregate = 'sti248_vsim_ocvs076l_aggr1';
         else if (response.includes('storage_availability_zone_0')) aggregate = 'storage_availability_zone_0';
+        
+        // Enhanced aggregate detection - look for any aggregate-like names in backticks
+        if (!aggregate) {
+            const backtickedAggrMatch = response.match(/`([a-z0-9_]+(?:aggr|storage|zone)[a-z0-9_]*)`/gi);
+            if (backtickedAggrMatch && backtickedAggrMatch.length > 0) {
+                // Take the first found aggregate name
+                aggregate = backtickedAggrMatch[0].replace(/`/g, '');
+            }
+        }
         
         // Generic aggregate matching - look for common aggregate naming patterns
         const genericAggregateMatch = response.match(/\b([a-zA-Z0-9_]+(?:aggr|aggregate|storage)[a-zA-Z0-9_]*)\b/i);
