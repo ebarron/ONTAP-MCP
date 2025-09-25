@@ -80,46 +80,49 @@ run_test "Tool Discovery (STDIO vs REST)" "bash test/test-tool-discovery.sh"
 # Test 6: Tool Count Verification (Legacy)  
 run_test "Tool Count Verification (Legacy)" "bash test/verify-tool-count.sh"
 
-# Test 7: API Fields Test
+# Test 7: Tool Count Verification (Dynamic)
+run_test "Tool Count Verification (Dynamic)" "node test/dynamic-tool-count.js"
+
+# Test 8: API Fields Test
 run_test "API Fields Test" "node test/test-api-fields.js"
 
-# Test 8: API Fixes Test
+# Test 9: API Fixes Test
 run_test "API Fixes Test" "node test/test-api-fixes.js"
 
-# Test 9: Parameter Filtering Test
+# Test 10: Parameter Filtering Test
 run_test "Parameter Filtering Test" "node test/test-param-filtering.js"
 
-# Test 9: Snapshot Policy Formats
+# Test 11: Snapshot Policy Formats
 run_test "Snapshot Policy Formats" "node test/test-snapshot-policy-formats.js"
 
-# Test 10: Comprehensive Test Suite
+# Test 12: Comprehensive Test Suite
 run_test "Comprehensive Test Suite" "node test/test-comprehensive.js"
 
-# Test 11: Policy Management (Shell)
+# Test 13: Policy Management (Shell)
 run_test "Policy Management (Shell)" "bash test/test-policy-management.sh"
 
-# Test 12: Volume Lifecycle (Shell)
+# Test 14: Volume Lifecycle (Shell)
 run_test "Volume Lifecycle (Shell)" "bash test/test-volume-lifecycle.sh"
 
-# Test 13: CIFS Tools Registration Verification
+# Test 15: CIFS Tools Registration Verification
 run_test "CIFS Tools Registration" "node test/test-cifs-simple.js"
 
-# Test 14: CIFS ACL Creation Test
+# Test 16: CIFS ACL Creation Test
 run_test "CIFS ACL Creation Test" "node test/test-cifs-creation-acl.js"
 
-# Test 15: User Scenario Test (Original CIFS Workflow)
+# Test 17: User Scenario Test (Original CIFS Workflow)
 run_test "User Scenario Test" "node test/test-user-scenario.js"
 
-# Test 16: CIFS Lifecycle Test (STDIO Mode)
+# Test 18: CIFS Lifecycle Test (STDIO Mode)
 run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
 
-# Test 17: CIFS Lifecycle Test (REST Mode) - Now fully working with dual transport support!
+# Test 19: CIFS Lifecycle Test (REST Mode) - Now fully working with dual transport support!
 run_test "CIFS Lifecycle (REST Mode)" "node test/test-cifs-lifecycle.js rest"
 
-# Test 18: Cluster Info Test (STDIO Mode)
+# Test 20: Cluster Info Test (STDIO Mode)
 run_test "Cluster Info Test (STDIO Mode)" "node test/test-cluster-info.js stdio"
 
-# Test 19: Cluster Info Test (REST Mode)
+# Test 21: Cluster Info Test (REST Mode)
 run_test "Cluster Info Test (REST Mode)" "node test/test-cluster-info.js rest"
 
 echo ""
