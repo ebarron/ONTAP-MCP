@@ -6,6 +6,13 @@
 import { z } from "zod";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { OntapApiClient, OntapClusterManager } from "../ontap-client.js";
+import {
+  ClusterInfo,
+  SvmInfo,
+  AggregateInfo,
+  RegisteredCluster,
+  ClusterApiResponse
+} from "../types/cluster-types.js";
 
 // ===== SCHEMAS =====
 
