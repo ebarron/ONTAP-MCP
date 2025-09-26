@@ -5,6 +5,11 @@ class OntapMcpDemo {
         this.clusters = [];
         this.currentCluster = null;
         this.selectedCluster = null;
+        
+        // Initialize core services
+        this.apiClient = new McpApiClient(this.mcpUrl);
+        this.notifications = new ToastNotifications();
+        
         this.init();
     }
 
@@ -103,7 +108,7 @@ class OntapMcpDemo {
     async loadClusters() {
         try {
             this.showLoading(true);
-            const response = await this.callMcp('list_registered_clusters');
+            const response = await this.apiClient.callMcp('list_registered_clusters');
             
             console.log('MCP Response:', response); // DEBUG
             
@@ -115,12 +120,12 @@ class OntapMcpDemo {
                     this.clusters = [];
                 }
             } else {
-                this.showError('Failed to load clusters: ' + (response.error || 'Unknown error'));
+                this.notifications.showError('Failed to load clusters: ' + (response.error || 'Unknown error'));
                 this.clusters = [];
             }
         } catch (error) {
             console.error('Error loading clusters:', error);
-            this.showError('Failed to load clusters. Make sure MCP server is running on ' + this.mcpUrl);
+            this.notifications.showError('Failed to load clusters. Make sure MCP server is running on ' + this.mcpUrl);
             this.clusters = [];
         } finally {
             this.showLoading(false);
@@ -128,128 +133,27 @@ class OntapMcpDemo {
         }
     }
 
-    async callMcp(toolName, params = {}) {
-        try {
-            const response = await fetch(`${this.mcpUrl}/api/tools/${toolName}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(params)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            
-            if (data.error) {
-                throw new Error(data.error.message || 'MCP call failed');
-            }
-
-            return {
-                success: true,
-                data: this.parseMcpResponse(data.content)
-            };
-        } catch (error) {
-            console.error('MCP call failed:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    }
-
-    parseMcpResponse(content) {
-        if (!content || !Array.isArray(content)) return null;
-        
-        const textContent = content
-            .filter(item => item.type === 'text')
-            .map(item => item.text)
-            .join('');
-
-        // Special handling for list_registered_clusters
-        if (textContent.includes('Registered clusters')) {
-            const clusters = this.parseClusterList(textContent);
-            console.log('parseClusterList result:', clusters); // DEBUG
-            return clusters;
-        }
-
-        // Try to parse as JSON for structured data
-        try {
-            if (textContent.includes('{') || textContent.includes('[')) {
-                return JSON.parse(textContent);
-            }
-        } catch (e) {
-            // Not JSON, return as text
-        }
-
-        return textContent;
-    }
-
-    parseClusterList(text) {
-        const clusters = [];
-        const lines = text.split('\n');
-        
-        for (const line of lines) {
-            // Look for lines like: "- cluster-name: ip (description)"
-            const match = line.match(/^-\s+([^:]+):\s+([^\s]+)\s+\(([^)]+)\)/);
-            if (match) {
-                clusters.push({
-                    name: match[1].trim(),
-                    cluster_ip: match[2].trim(),
-                    description: match[3].trim(),
-                    username: 'admin', // Default from test clusters
-                    password: '***' // Hidden for security
-                });
-            }
-        }
-        
-        return clusters;
-    }
-
     async addCluster(clusterData) {
         try {
-            const response = await this.callMcp('add_cluster', {
-                name: clusterData.name,
-                cluster_ip: clusterData.cluster_ip,
-                username: clusterData.username,
-                password: clusterData.password,
-                description: clusterData.description
-            });
+            const success = await this.apiClient.addCluster(clusterData);
 
-            if (response.success) {
+            if (success) {
                 await this.loadClusters();
-                this.showSuccess('Cluster added successfully');
+                this.notifications.showSuccess('Cluster added successfully');
                 return true;
             } else {
-                this.showError(response.error || 'Failed to add cluster');
+                this.notifications.showError('Failed to add cluster');
                 return false;
             }
         } catch (error) {
             console.error('Error adding cluster:', error);
-            this.showError('Failed to add cluster: ' + error.message);
+            this.notifications.showError('Failed to add cluster: ' + error.message);
             return false;
         }
     }
 
     async getClusterInfo(clusterName) {
-        try {
-            const response = await this.callMcp('cluster_list_svms', {
-                cluster_name: clusterName
-            });
-
-            if (response.success) {
-                return response.data;
-            } else {
-                console.error('Failed to get cluster info:', response.error);
-                return null;
-            }
-        } catch (error) {
-            console.error('Error getting cluster info:', error);
-            return null;
-        }
+        return await this.apiClient.getClusterInfo(clusterName);
     }
 
     openAddClusterModal() {
@@ -291,13 +195,13 @@ class OntapMcpDemo {
 
         // Validation
         if (!clusterData.name || !clusterData.cluster_ip || !clusterData.username || !clusterData.password) {
-            this.showError('Please fill in all required fields');
+            this.notifications.showError('Please fill in all required fields');
             return;
         }
 
         // Check if cluster name already exists
         if (this.clusters.some(c => c.name === clusterData.name)) {
-            this.showError('A cluster with this name already exists');
+            this.notifications.showError('A cluster with this name already exists');
             return;
         }
 
@@ -354,25 +258,25 @@ class OntapMcpDemo {
         tbody.innerHTML = this.clusters.map(cluster => `
             <div class="table-row">
                 <div class="table-cell" style="flex: 0 0 60px;">
-                    <input type="radio" name="selectedCluster" value="${this.escapeHtml(cluster.name)}" 
-                           onchange="app.handleClusterSelection('${this.escapeHtml(cluster.name)}')">
+                    <input type="radio" name="selectedCluster" value="${DemoUtils.escapeHtml(cluster.name)}" 
+                           onchange="app.handleClusterSelection('${DemoUtils.escapeHtml(cluster.name)}')">
                 </div>
                 <div class="table-cell" style="flex: 1 0 200px;">
                     <span class="cluster-name" onclick="app.openClusterDetails(${JSON.stringify(cluster).replace(/"/g, '&quot;')})">
-                        ${this.escapeHtml(cluster.name || 'Unnamed')}
+                        ${DemoUtils.escapeHtml(cluster.name || 'Unnamed')}
                     </span>
                 </div>
                 <div class="table-cell" style="flex: 1 0 150px;">
-                    ${this.escapeHtml(cluster.cluster_ip || 'N/A')}
+                    ${DemoUtils.escapeHtml(cluster.cluster_ip || 'N/A')}
                 </div>
                 <div class="table-cell" style="flex: 1 0 120px;">
-                    ${this.escapeHtml(cluster.username || 'N/A')}
+                    ${DemoUtils.escapeHtml(cluster.username || 'N/A')}
                 </div>
                 <div class="table-cell" style="flex: 1 0 120px;">
                     <span class="password-masked">••••••••</span>
                 </div>
                 <div class="table-cell" style="flex: 1 0 150px;">
-                    ${this.escapeHtml(cluster.description || 'N/A')}
+                    ${DemoUtils.escapeHtml(cluster.description || 'N/A')}
                 </div>
                 <div class="table-cell" style="flex: 0 0 120px;">
                     <div class="status-indicator">
@@ -391,19 +295,17 @@ class OntapMcpDemo {
 
     async testClusterConnection(clusterName) {
         try {
-            this.showInfo(`Testing connection to ${clusterName}...`);
+            this.notifications.showInfo(`Testing connection to ${clusterName}...`);
             
-            const response = await this.callMcp('cluster_list_svms', {
-                cluster_name: clusterName
-            });
+            const response = await this.apiClient.testClusterConnection(clusterName);
 
             if (response.success) {
-                this.showSuccess(`Connection to ${clusterName} successful`);
+                this.notifications.showSuccess(`Connection to ${clusterName} successful`);
             } else {
-                this.showError(`Connection to ${clusterName} failed: ${response.error}`);
+                this.notifications.showError(`Connection to ${clusterName} failed: ${response.error}`);
             }
         } catch (error) {
-            this.showError(`Connection test failed: ${error.message}`);
+            this.notifications.showError(`Connection test failed: ${error.message}`);
         }
     }
 
@@ -430,7 +332,7 @@ class OntapMcpDemo {
         console.log('showProvisioningPanel called, selectedCluster:', this.selectedCluster);
         if (!this.selectedCluster) {
             console.log('No cluster selected, showing error');
-            this.showError('Please select a cluster first');
+            this.notifications.showError('Please select a cluster first');
             return;
         }
 
@@ -638,7 +540,7 @@ class OntapMcpDemo {
 
     async loadSvmsForProvisioning() {
         try {
-            const response = await this.callMcp('cluster_list_svms', {
+            const response = await this.apiClient.callMcp('cluster_list_svms', {
                 cluster_name: this.selectedCluster.name
             });
 
@@ -806,7 +708,7 @@ class OntapMcpDemo {
         try {
             this.setDropdownLoading('aggregateSelect', 'Loading aggregates...');
             
-            const response = await this.callMcp('cluster_list_aggregates', {
+            const response = await this.apiClient.callMcp('cluster_list_aggregates', {
                 cluster_name: this.selectedCluster.name
             });
 
@@ -865,7 +767,7 @@ class OntapMcpDemo {
             }
             
             // Now that export policy APIs are working, use the actual API
-            const result = await this.callMcp('list_export_policies', {
+            const result = await this.apiClient.callMcp('list_export_policies', {
                 cluster_name: this.selectedCluster.name,
                 svm_name: selectedSvm
             });
@@ -924,7 +826,7 @@ class OntapMcpDemo {
             exportSelect.disabled = false;
             
             // Now that export policy APIs are working, use the actual API
-            const result = await this.callMcp('list_export_policies', {
+            const result = await this.apiClient.callMcp('list_export_policies', {
                 cluster_name: this.selectedCluster.name,
                 svm_name: svmName
             });
@@ -1041,7 +943,7 @@ class OntapMcpDemo {
     }
 
     async createNfsVolume(volumeName, volumeSize, svmName, aggregateName) {
-        const response = await this.callMcp('cluster_create_volume', {
+        const response = await this.apiClient.callMcp('cluster_create_volume', {
             cluster_name: this.selectedCluster.name,
             svm_name: svmName,
             volume_name: volumeName,
@@ -1083,7 +985,7 @@ class OntapMcpDemo {
             ]
         };
 
-        const response = await this.callMcp('cluster_create_volume', {
+        const response = await this.apiClient.callMcp('cluster_create_volume', {
             cluster_name: this.selectedCluster.name,
             svm_name: svmName,
             volume_name: volumeName,
@@ -1105,7 +1007,7 @@ class OntapMcpDemo {
         if (!this.currentCluster) return;
         
         try {
-            const response = await this.callMcp('cluster_list_volumes', {
+            const response = await this.apiClient.callMcp('cluster_list_volumes', {
                 cluster_name: this.currentCluster.name
             });
 
@@ -1124,7 +1026,7 @@ class OntapMcpDemo {
         if (!this.currentCluster) return;
         
         try {
-            const response = await this.callMcp('list_snapshot_policies', {
+            const response = await this.apiClient.callMcp('list_snapshot_policies', {
                 cluster_name: this.currentCluster.name
             });
 
@@ -1143,7 +1045,7 @@ class OntapMcpDemo {
         if (!this.currentCluster) return;
         
         try {
-            const response = await this.callMcp('list_export_policies', {
+            const response = await this.apiClient.callMcp('list_export_policies', {
                 cluster_name: this.currentCluster.name
             });
 
@@ -1162,7 +1064,7 @@ class OntapMcpDemo {
         if (!this.currentCluster) return;
         
         try {
-            const response = await this.callMcp('cluster_list_cifs_shares', {
+            const response = await this.apiClient.callMcp('cluster_list_cifs_shares', {
                 cluster_name: this.currentCluster.name
             });
 
@@ -1204,7 +1106,7 @@ class OntapMcpDemo {
         toast.className = `toast-message toast-${type}`;
         toast.innerHTML = `
             <div class="toast-content">
-                <span>${this.escapeHtml(message)}</span>
+                <span>${DemoUtils.escapeHtml(message)}</span>
                 <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
             </div>
         `;
@@ -1235,85 +1137,7 @@ class OntapMcpDemo {
     showInfo(message) {
         this.showMessage(message, 'info');
     }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 }
-
-// Toast notification styles (injected dynamically)
-const toastStyles = `
-    .toast-message {
-        position: fixed;
-        top: 80px;
-        right: 24px;
-        z-index: 3000;
-        min-width: 300px;
-        max-width: 500px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        animation: slideInFromRight 0.3s ease-out;
-    }
-
-    .toast-content {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        gap: 12px;
-    }
-
-    .toast-close {
-        font-size: 18px;
-        color: inherit;
-        opacity: 0.7;
-        padding: 2px 6px;
-        border-radius: 3px;
-        transition: opacity 0.2s;
-    }
-
-    .toast-close:hover {
-        opacity: 1;
-    }
-
-    .toast-error {
-        background-color: var(--notification-error);
-        color: white;
-    }
-
-    .toast-success {
-        background-color: var(--notification-success);
-        color: white;
-    }
-
-    .toast-warning {
-        background-color: var(--notification-warning);
-        color: white;
-    }
-
-    .toast-info {
-        background-color: var(--notification-information);
-        color: white;
-    }
-
-    @keyframes slideInFromRight {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-`;
-
-// Inject toast styles
-const styleSheet = document.createElement('style');
-styleSheet.textContent = toastStyles;
-document.head.appendChild(styleSheet);
 
 // Initialize app when DOM is loaded
 let app;
