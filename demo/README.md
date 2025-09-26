@@ -242,13 +242,13 @@ Test various error scenarios through the UI:
 ### Built-in API Testing Tools
 The demo includes additional testing utilities:
 
-#### `test-api.html`
+#### `test/test-api.html`
 Direct MCP API testing interface:
 - Raw JSON input/output for any MCP tool
 - Useful for debugging specific API calls
 - Validates tool registration and parameter handling
 
-#### `debug.html` 
+#### `test/debug.html` 
 Development debugging interface:
 - Real-time API call logging
 - Network request inspection
@@ -468,9 +468,22 @@ curl -s -X POST http://localhost:3000/api/tools/cluster_list_volumes \
 - **`README.md`** - This comprehensive documentation
 
 ### Testing Utilities
-- **`test-api.html`** - Direct MCP API testing interface for individual tool validation
-- **`debug.html`** - Development debugging interface with real-time API logging  
-- **`debug-test.html`** - Enhanced debugging with network inspection tools
+- **`test/test-api.html`** - Direct MCP API testing interface for individual tool validation
+- **`test/debug.html`** - Development debugging interface with real-time API logging  
+- **`test/debug-test.html`** - Enhanced debugging with network inspection tools
+
+### Demo Testing Directory (`test/`)
+- **`test-intent-detection.js`** - Chatbot intent detection and structured recommendation parsing tests
+- **`README.md`** - Demo testing documentation and usage instructions
+- **`run-demo-tests.sh`** - Automated test runner for all demo functionality tests
+
+**Run Demo Tests:**
+```bash
+# From project root
+./demo/test/run-demo-tests.sh
+# or individually
+node demo/test/test-intent-detection.js
+```
 
 ### Reference Materials
 - **`existingPage/`** - Original NetApp BlueXP design reference files

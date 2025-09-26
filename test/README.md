@@ -2,7 +2,12 @@
 
 ## Overview
 
-This directory contains comprehensive testing for the NetApp ONTAP MCP (Model Context Protocol) server, including cluster configuration management, API validation, and end-to-end workflow testing.
+This directory contains comprehensive testing for the NetApp ONTAP MCP (Model Context Protocol) **server functionality**. For demo UI and chatbot testing, see `/demo/test/`.
+
+## Test Organization
+
+- **`/test`**: MCP server, tools, API, cluster management
+- **`/demo/test`**: Demo interface, chatbot logic, UI behavior
 
 ## Test Objectives
 

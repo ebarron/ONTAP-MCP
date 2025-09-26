@@ -1961,12 +1961,30 @@ GUIDELINES:
 - Be conversational but technically accurate
 
 RESPONSE FORMAT FOR PROVISIONING:
-When providing storage provisioning recommendations, always include:
-- **Cluster:** [exact cluster name]
-- **SVM:** [exact SVM name] 
-- **Aggregate:** [exact aggregate name]
-- **Size:** [requested size with units]
-- **Protocol:** [NFS or CIFS as appropriate]
+When providing storage provisioning recommendations, ALWAYS use this exact structured format:
+
+## PROVISIONING_RECOMMENDATION
+- **Cluster**: [exact cluster name]
+- **SVM**: [exact SVM name]
+- **Aggregate**: [exact aggregate name]
+- **Size**: [requested size with units like 100MB, 1GB, etc.]
+- **Protocol**: [NFS or CIFS]
+- **Snapshot_Policy**: [policy name - optional]
+- **Export_Policy**: [policy name - optional for NFS]
+## END_PROVISIONING_RECOMMENDATION
+
+CRITICAL: This structured format is required for ALL provisioning recommendations. It enables automatic form population for the user.
+
+EXAMPLE CORRECT FORMAT:
+## PROVISIONING_RECOMMENDATION
+- **Cluster**: greg-vsim-2
+- **SVM**: svm1
+- **Aggregate**: storage_availability_zone_0
+- **Size**: 100MB
+- **Protocol**: NFS
+## END_PROVISIONING_RECOMMENDATION
+
+After the structured recommendation block, you can add explanatory text about why you chose these settings.
 
 RESPONSE STRATEGY:
 - Make focused tool calls to gather specific information needed
@@ -2173,18 +2191,101 @@ RESPONSE STRATEGY:
         }
 
         // Auto-detect provisioning recommendations and populate form
-        const recommendations = this.extractProvisioningRecommendations(response);
-        if (recommendations) {
-            // Automatically populate the form with the recommendations
-            setTimeout(() => {
-                this.autoPopulateForm(recommendations);
-            }, 1000);
+        if (this.isProvisioningIntent(response)) {
+            const recommendations = this.extractProvisioningRecommendations(response);
+            if (recommendations) {
+                // Automatically populate the form with the recommendations
+                setTimeout(() => {
+                    this.autoPopulateForm(recommendations);
+                }, 1000);
+            }
         }
 
         return { text, actions };
     }
 
+    isProvisioningIntent(response) {
+        // Check for structured provisioning recommendation format
+        if (/## PROVISIONING_RECOMMENDATION/i.test(response)) {
+            return true;
+        }
+
+        // Fallback: Check for strong provisioning indicators for backward compatibility
+        const provisioningIndicators = [
+            /## Recommendation:/i,
+            /Would you like me to proceed with creating/i,
+            /Would you like me to apply.*to.*form/i,
+            /Next Steps:/i,
+            /best option for provisioning/i,
+            /recommend.*creating.*volume/i,
+            /Given.*capacities.*best option/i
+        ];
+
+        // Check for error/informational indicators that should NOT trigger provisioning
+        const nonProvisioningIndicators = [
+            /unable to resolve/i,
+            /failed to access/i,
+            /error accessing/i,
+            /issue.*cluster/i,
+            /cannot connect/i,
+            /connection.*failed/i
+        ];
+
+        // If we find error indicators, this is NOT a provisioning intent
+        if (nonProvisioningIndicators.some(pattern => pattern.test(response))) {
+            return false;
+        }
+
+        // Count positive indicators - need at least 2 for backward compatibility
+        const positiveCount = provisioningIndicators.filter(pattern => pattern.test(response)).length;
+        return positiveCount >= 2;
+    }
+
     extractProvisioningRecommendations(response) {
+        // First, check for structured recommendation format (preferred)
+        const structuredMatch = response.match(/## PROVISIONING_RECOMMENDATION(.*?)## END_PROVISIONING_RECOMMENDATION/is);
+        
+        if (structuredMatch) {
+            return this.parseStructuredRecommendation(structuredMatch[1]);
+        }
+
+        // Fallback to legacy pattern matching for backward compatibility
+        return this.parseLegacyRecommendation(response);
+    }
+
+    parseStructuredRecommendation(content) {
+        const recommendations = {};
+        
+        // Extract structured fields
+        const patterns = {
+            cluster: /-\s*\*\*Cluster\*\*[:\s]*([^\n\r]+)/i,
+            svm: /-\s*\*\*SVM\*\*[:\s]*([^\n\r]+)/i,
+            aggregate: /-\s*\*\*Aggregate\*\*[:\s]*([^\n\r]+)/i,
+            size: /-\s*\*\*Size\*\*[:\s]*(\d+(?:\.\d+)?)\s*(MB|GB|TB)/i,
+            protocol: /-\s*\*\*Protocol\*\*[:\s]*([^\n\r]+)/i,
+            snapshot_policy: /-\s*\*\*Snapshot_Policy\*\*[:\s]*([^\n\r]+)/i,
+            export_policy: /-\s*\*\*Export_Policy\*\*[:\s]*([^\n\r]+)/i
+        };
+
+        // Extract each field
+        for (const [field, pattern] of Object.entries(patterns)) {
+            const match = content.match(pattern);
+            if (match) {
+                if (field === 'size') {
+                    recommendations.size = match[1];
+                    recommendations.unit = match[2] || 'GB';
+                } else {
+                    // Clean up the value by removing backticks and trimming
+                    recommendations[field] = match[1].replace(/[`'"]/g, '').trim();
+                }
+            }
+        }
+
+        console.log('Parsed structured recommendation:', recommendations);
+        return Object.keys(recommendations).length > 0 ? recommendations : null;
+    }
+
+    parseLegacyRecommendation(response) {
         // Look for cluster/SVM/aggregate recommendations in various formats
         // Pattern: "- **Cluster**: `greg-vsim-2`" or "**Cluster**: `greg-vsim-2`"
         const clusterMatch = response.match(/-\s*\*\*Cluster\*\*[:\s]*`([^`]+)`/i) ||
@@ -2533,7 +2634,26 @@ RESPONSE STRATEGY:
                 }
             }
             
-            // Step 4: Populate volume name (or generate a default one)
+            // Step 4: Handle snapshot policy if specified
+            if (recommendations.snapshot_policy) {
+                console.log('Setting snapshot policy:', recommendations.snapshot_policy);
+                const snapshotPolicySelect = document.getElementById('snapshotPolicySelect');
+                if (snapshotPolicySelect) {
+                    // Wait for snapshot policy dropdown to be available
+                    await this.waitForDropdownOptions('snapshotPolicySelect', 2000);
+                    
+                    for (let option of snapshotPolicySelect.options) {
+                        if (option.value.toLowerCase().includes(recommendations.snapshot_policy.toLowerCase())) {
+                            snapshotPolicySelect.value = option.value;
+                            populated = true;
+                            console.log('Snapshot policy populated:', option.value);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Step 5: Populate volume name (or generate a default one)
             const nameInput = document.getElementById('volumeName');
             console.log('Volume name input element found:', !!nameInput);
             if (nameInput) {
@@ -2555,7 +2675,7 @@ RESPONSE STRATEGY:
                 console.warn('Volume name input element not found - cannot populate volume name');
             }
             
-            // Step 5: Populate size
+            // Step 6: Populate size
             if (recommendations.size) {
                 const sizeInput = document.getElementById('volumeSize');
                 if (sizeInput) {
