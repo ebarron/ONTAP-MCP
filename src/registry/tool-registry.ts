@@ -29,12 +29,13 @@ export enum ToolCategory {
   SNAPSHOT_SCHEDULES = "snapshot-schedules",
   EXPORT_POLICIES = "export-policies",
   CIFS_SHARES = "cifs-shares",
+  QOS_POLICIES = "qos-policies",
   LEGACY_SINGLE_CLUSTER = "legacy-single-cluster"
 }
 
 /**
  * Master Tool Registry
- * All 48 tools are registered here with their definitions and handlers
+ * All 53 tools are registered here with their definitions and handlers
  */
 export const TOOL_REGISTRY: ToolRegistration[] = [];
 

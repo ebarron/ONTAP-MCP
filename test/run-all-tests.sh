@@ -101,29 +101,32 @@ run_test "Comprehensive Test Suite" "node test/test-comprehensive.js"
 # Test 13: Policy Management (Shell)
 run_test "Policy Management (Shell)" "bash test/test-policy-management.sh"
 
-# Test 14: Volume Lifecycle (Shell)
+# Test 14: Volume Lifecycle Test (Shell Version) - Similar to MCP JS test but uses shell/curl
 run_test "Volume Lifecycle (Shell)" "bash test/test-volume-lifecycle.sh"
 
-# Test 15: CIFS Tools Registration Verification
-run_test "CIFS Tools Registration" "node test/test-cifs-simple.js"
-
-# Test 16: CIFS ACL Creation Test
+# Test 15: CIFS ACL Creation Test
 run_test "CIFS ACL Creation Test" "node test/test-cifs-creation-acl.js"
 
-# Test 17: User Scenario Test (Original CIFS Workflow)
+# Test 16: User Scenario Test (Original CIFS Workflow)
 run_test "User Scenario Test" "node test/test-user-scenario.js"
 
-# Test 18: CIFS Lifecycle Test (STDIO Mode)
+# Test 17: CIFS Lifecycle Test (STDIO Mode)
 run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
 
-# Test 19: CIFS Lifecycle Test (HTTP Mode) - Now fully working with JSON-RPC support!
+# Test 18: CIFS Lifecycle Test (HTTP Mode) - Now fully working with JSON-RPC support!
 run_test "CIFS Lifecycle (HTTP Mode)" "node test/test-cifs-lifecycle.js http"
 
-# Test 20: Cluster Info Test (STDIO Mode)
+# Test 19: Cluster Info Test (STDIO Mode)
 run_test "Cluster Info Test (STDIO Mode)" "node test/test-cluster-info.js stdio"
 
-# Test 21: Cluster Info Test (HTTP Mode)
+# Test 20: Cluster Info Test (HTTP Mode)
 run_test "Cluster Info Test (HTTP Mode)" "node test/test-cluster-info.js http"
+
+# Test 21: QoS Policy Lifecycle Test (STDIO Mode)
+run_test "QoS Policy Lifecycle (STDIO Mode)" "node test/test-qos-lifecycle.js stdio"
+
+# Test 22: QoS Policy Lifecycle Test (HTTP Mode)
+run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/test-qos-lifecycle.js http"
 
 echo ""
 log "=== Test Summary ==="

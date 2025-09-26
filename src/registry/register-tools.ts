@@ -129,6 +129,19 @@ import {
   handleDeleteSnapshotSchedule
 } from "../tools/snapshot-schedule-tools.js";
 
+import {
+  createClusterListQosPoliciesToolDefinition,
+  handleClusterListQosPolicies,
+  createClusterCreateQosPolicyToolDefinition,
+  handleClusterCreateQosPolicy,
+  createClusterGetQosPolicyToolDefinition,
+  handleClusterGetQosPolicy,
+  createClusterUpdateQosPolicyToolDefinition,
+  handleClusterUpdateQosPolicy,
+  createClusterDeleteQosPolicyToolDefinition,
+  handleClusterDeleteQosPolicy
+} from "../tools/qos-policy-tools.js";
+
 /**
  * Register all tools in the central registry
  * This function is called once at startup to populate the registry
@@ -476,5 +489,41 @@ export function registerAllTools(): void {
     category: ToolCategory.SNAPSHOT_SCHEDULES,
     definition: createDeleteSnapshotScheduleToolDefinition,
     handler: handleDeleteSnapshotSchedule
+  });
+
+  // QoS policy tools
+  registerTool({
+    name: "cluster_list_qos_policies",
+    category: ToolCategory.QOS_POLICIES,
+    definition: createClusterListQosPoliciesToolDefinition,
+    handler: handleClusterListQosPolicies
+  });
+
+  registerTool({
+    name: "cluster_create_qos_policy",
+    category: ToolCategory.QOS_POLICIES,
+    definition: createClusterCreateQosPolicyToolDefinition,
+    handler: handleClusterCreateQosPolicy
+  });
+
+  registerTool({
+    name: "cluster_get_qos_policy",
+    category: ToolCategory.QOS_POLICIES,
+    definition: createClusterGetQosPolicyToolDefinition,
+    handler: handleClusterGetQosPolicy
+  });
+
+  registerTool({
+    name: "cluster_update_qos_policy",
+    category: ToolCategory.QOS_POLICIES,
+    definition: createClusterUpdateQosPolicyToolDefinition,
+    handler: handleClusterUpdateQosPolicy
+  });
+
+  registerTool({
+    name: "cluster_delete_qos_policy",
+    category: ToolCategory.QOS_POLICIES,
+    definition: createClusterDeleteQosPolicyToolDefinition,
+    handler: handleClusterDeleteQosPolicy
   });
 }

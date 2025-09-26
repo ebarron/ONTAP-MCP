@@ -2,7 +2,10 @@
 
 /**
  * Dynamic tool count verification for NetApp ONTAP MCP Server
- * This script actually queries the MCP server to count tools rather than using hardcoded values
+ * This s        if (tools.length === 53) {
+        console.log('✅ PASS: Found expected 53 tools');
+      } else {
+        console.log(`❌ FAIL: Expected 53 tools, found ${tools.length}`);t actually queries the MCP server to count tools rather than using hardcoded values
  */
 
 import { spawn } from 'child_process';
@@ -76,7 +79,8 @@ setTimeout(() => {
         'Volume Configuration': tools.filter(t => t.name.includes('volume_configuration') || t.name.includes('volume_security') || t.name.includes('resize_volume') || t.name.includes('volume_comment')).map(t => t.name),
         'CIFS Legacy': tools.filter(t => t.name.includes('cifs') && !t.name.startsWith('cluster_')).map(t => t.name),
         'CIFS Multi-cluster': tools.filter(t => t.name.includes('cifs') && t.name.startsWith('cluster_')).map(t => t.name),
-        'Snapshot Schedule': tools.filter(t => t.name.includes('snapshot_schedule')).map(t => t.name)
+        'Snapshot Schedule': tools.filter(t => t.name.includes('snapshot_schedule')).map(t => t.name),
+        'QoS Policies': tools.filter(t => t.name.includes('qos_polic')).map(t => t.name)
       };
       
       console.log('📊 Tool Categories:');
@@ -95,10 +99,10 @@ setTimeout(() => {
       });
       
       console.log('');
-      if (tools.length === 48) {
-        console.log('✅ PASS: Found expected 48 tools');
+      if (tools.length === 53) {
+        console.log('✅ PASS: Found expected 53 tools');
       } else {
-        console.log(`❌ FAIL: Expected 48 tools, found ${tools.length}`);
+        console.log(`❌ FAIL: Expected 53 tools, found ${tools.length}`);
       }
       
       if (totalCounted !== tools.length) {

@@ -55,7 +55,7 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 
 ## 🛠️ MCP Capabilities
 
-### 48 Storage Management Tools
+### 53 Storage Management Tools
 
 #### Core Volume Operations (18 tools)
 - Complete volume lifecycle: create, read, update, delete, resize
@@ -75,6 +75,12 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 - Share properties and security configuration
 - Integration with volume provisioning
 
+#### Performance Management (5 tools)
+- QoS policy-group management (create, list, get, update, delete)
+- Fixed QoS policies with IOPS/bandwidth limits
+- Adaptive QoS policies with dynamic scaling
+- Performance allocation per workload/volume
+
 #### Multi-Cluster Management (11 tools)
 - Cluster registration and discovery
 - Cross-cluster volume operations
@@ -83,7 +89,7 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 ### Transport Modes
 - **STDIO**: Direct integration with VS Code MCP and AI assistants
 - **HTTP Transport**: Web applications, testing, and external integrations
-- **Dual Mode**: All 48 tools available in both transports
+- **Dual Mode**: All 53 tools available in both transports
 
 ## 📚 Documentation
 
@@ -129,13 +135,14 @@ src/
 │   ├── base-transport.ts  # Common transport interface
 │   ├── stdio-transport.ts # MCP STDIO implementation
 │   └── http-transport.ts  # HTTP transport implementation
-├── tools/                 # MCP tool implementations (48 tools)
+├── tools/                 # MCP tool implementations (53 tools)
 │   ├── cluster-management-tools.ts  # Basic cluster operations
 │   ├── volume-tools.ts              # Volume lifecycle management
 │   ├── snapshot-policy-tools.ts     # Snapshot policy management
 │   ├── snapshot-schedule-tools.ts   # Snapshot schedule management
 │   ├── export-policy-tools.ts       # NFS export policy management
-│   └── cifs-share-tools.ts          # CIFS/SMB share management
+│   ├── cifs-share-tools.ts          # CIFS/SMB share management
+│   └── qos-policy-tools.ts          # QoS performance management
 └── types/                 # TypeScript type definitions
 demo/                      # Web-based demo interface
 test/                      # Comprehensive testing framework

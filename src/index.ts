@@ -143,6 +143,20 @@ import {
   handleDeleteSnapshotSchedule
 } from "./tools/snapshot-schedule-tools.js";
 
+// Import QoS policy tools
+import {
+  createClusterListQosPoliciesToolDefinition,
+  handleClusterListQosPolicies,
+  createClusterCreateQosPolicyToolDefinition,
+  handleClusterCreateQosPolicy,
+  createClusterGetQosPolicyToolDefinition,
+  handleClusterGetQosPolicy,
+  createClusterUpdateQosPolicyToolDefinition,
+  handleClusterUpdateQosPolicy,
+  createClusterDeleteQosPolicyToolDefinition,
+  handleClusterDeleteQosPolicy
+} from "./tools/qos-policy-tools.js";
+
 // Import configuration management
 import { parseClusterConfig, loadClusters } from "./config/cluster-config.js";
 

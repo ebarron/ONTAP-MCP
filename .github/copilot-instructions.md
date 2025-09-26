@@ -7,7 +7,7 @@
 - **NEVER use `git push` without explicit user permission**  
 - **User controls ALL commits and pushes - wait for explicit instructions**
 
-This is an MCP (Model Context Protocol) server providing 46 tools for NetApp ONTAP storage management across multiple clusters.
+This is an MCP (Model Context Protocol) server providing 53 tools for NetApp ONTAP storage management across multiple clusters.
 
 ## Architecture Overview
 
@@ -15,7 +15,7 @@ This is an MCP (Model Context Protocol) server providing 46 tools for NetApp ONT
 - **STDIO Mode**: Default for VS Code MCP integration (`npm start`)
 - **HTTP Mode**: RESTful API server for web apps (`npm run start:http`)
 - Transport detected by CLI args: `--http=3000` or `http 3000` activates HTTP mode
-- All 46 tools available in both transports with identical functionality
+- All 53 tools available in both transports with identical functionality
 
 ### Multi-Cluster Management
 - **OntapClusterManager**: Central registry for multiple ONTAP clusters
@@ -26,10 +26,12 @@ This is an MCP (Model Context Protocol) server providing 46 tools for NetApp ONT
 ### Tool Organization (src/tools/)
 ```
 volume-tools.ts           # Volume lifecycle + NFS access (18 tools)
-snapshot-policy-tools.ts  # Backup policies (7 tools)  
+snapshot-policy-tools.ts  # Backup policies (4 tools)  
 export-policy-tools.ts    # NFS security (9 tools)
-snapshot-schedule-tools.ts # Cron schedules (4 tools)
+snapshot-schedule-tools.ts # Cron schedules (5 tools)
 cifs-share-tools.ts       # CIFS/SMB share management (8 tools)
+cluster-management-tools.ts # Basic cluster operations (4 tools)
+qos-policy-tools.ts       # QoS performance policies (5 tools)
 ```
 
 ## Development Patterns
@@ -128,7 +130,7 @@ node build/index.js --http=3000
 - **NEVER use git push unless user explicitly requests it**
 - **NEVER use git commit unless user explicitly requests it**
 - Always build and test both transport modes before changes
-- Use test scripts to verify all 46 tools still register correctly
+- Use test scripts to verify all 53 tools still register correctly
 - Wait for explicit git instructions - user controls all commits and pushes
 - Only stage changes (git add) and show status when making file changes
 
@@ -164,6 +166,11 @@ demo/
 ### Demo Startup Pattern
 **Critical: Two-server architecture required**
 ```bash
+# Method 1: Using convenience scripts (recommended)
+./start-demo.sh    # Starts both MCP server and demo server
+./stop-demo.sh     # Stops both servers cleanly
+
+# Method 2: Manual startup
 # Terminal 1: Start MCP HTTP server with clusters
 cd /Users/ebarron/ONTAP-MCP
 export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"pass"}]'
@@ -336,6 +343,46 @@ if (svm_match) svms.push(svm_match[1].trim());
 
 **Error Recovery**: Graceful handling when API calls fail (cluster offline, network issues).
 
+#### AI Assistant Integration (ChatbotAssistant)
+**Component Architecture**: The demo includes a sophisticated AI chatbot component for intelligent storage provisioning:
+
+```javascript
+// Initialization pattern
+let chatbot;
+document.addEventListener('DOMContentLoaded', () => {
+    const app = new OntapMcpDemo();
+    app.ready.then(() => {
+        chatbot = new ChatbotAssistant(app);
+    });
+});
+```
+
+**Configuration Requirements**:
+- `CHATGPT_API_KEY` environment variable for ChatGPT integration
+- Graceful degradation to mock mode when API unavailable
+- See `demo/CHATBOT_README.md` for complete setup guide
+
+**Structured Response Format**: The chatbot uses structured JSON responses for form population:
+- `demo/CHATBOT_STRUCTURED_FORMAT.md` documents the recommendation format
+- Prevents false positives from triggering automatic form population
+- Enables seamless integration between chat recommendations and provisioning forms
+
+#### Component Files Architecture
+```
+demo/js/
+├── components/
+│   ├── ChatbotAssistant.js      # AI provisioning assistant (1040+ lines)
+│   ├── ProvisioningPanel.js     # Storage provisioning workflow
+│   ├── ToastNotifications.js    # User feedback system
+│   └── modals/
+│       ├── VolumeModal.js       # Volume creation modal
+│       └── ExportPolicyModal.js # NFS export policy management
+├── core/
+│   └── McpApiClient.js          # HTTP transport layer
+└── ui/
+    └── SearchWidget.js          # Expandable search functionality
+```
+
 ### Demo Enhancement Patterns
 - **Search Expansion**: Click-to-expand search functionality
 - **Error Handling**: Graceful API failure messaging
@@ -351,3 +398,5 @@ if (svm_match) svms.push(svm_match[1].trim());
 - `test/test-volume-lifecycle.js`: Example of dual-transport testing
 - `test/test-cifs-simple.js`: CIFS tools registration verification
 - `HTTP_CONFIG.md`: HTTP mode configuration examples
+- `demo/CHATBOT_README.md`: AI assistant setup and configuration
+- `demo/CHATBOT_STRUCTURED_FORMAT.md`: Chatbot integration specifications

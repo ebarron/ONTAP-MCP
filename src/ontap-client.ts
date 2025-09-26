@@ -1063,6 +1063,204 @@ export class OntapApiClient {
     return response.records || [];
   }
 
+  // ================================
+  // QoS Policy Management Methods
+  // ================================
+
+  /**
+   * List QoS policies
+   */
+  async listQosPolicies(params?: { 
+    svmName?: string; 
+    policyNamePattern?: string; 
+    policyType?: 'fixed' | 'adaptive' 
+  }): Promise<any[]> {
+    let endpoint = '/storage/qos/policies';
+    const queryParams: string[] = [];
+
+    if (params?.svmName) {
+      queryParams.push(`svm.name=${encodeURIComponent(params.svmName)}`);
+    }
+
+    if (params?.policyNamePattern) {
+      queryParams.push(`name=${encodeURIComponent(params.policyNamePattern)}`);
+    }
+
+    if (params?.policyType) {
+      queryParams.push(`type=${params.policyType}`);
+    }
+
+    if (queryParams.length > 0) {
+      endpoint += `?${queryParams.join('&')}`;
+    }
+
+    const response = await this.makeRequest<{ records: any[]; num_records: number }>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Get specific QoS policy by UUID
+   */
+  async getQosPolicy(policyUuid: string): Promise<any> {
+    const endpoint = `/storage/qos/policies/${policyUuid}`;
+    return await this.makeRequest<any>(endpoint);
+  }
+
+  /**
+   * Get QoS policy by name and optional SVM
+   */
+  async getQosPolicyByName(policyName: string, svmName?: string): Promise<any> {
+    const params: any = { policyNamePattern: policyName };
+    if (svmName) {
+      params.svmName = svmName;
+    }
+
+    const policies = await this.listQosPolicies(params);
+    
+    if (policies.length === 0) {
+      throw new Error(`QoS policy '${policyName}' not found${svmName ? ` in SVM ${svmName}` : ''}`);
+    }
+
+    if (policies.length > 1) {
+      throw new Error(`Multiple QoS policies found with name '${policyName}'. Please specify SVM name or use UUID.`);
+    }
+
+    return policies[0];
+  }
+
+  /**
+   * Create fixed QoS policy
+   */
+  async createFixedQosPolicy(params: {
+    name: string;
+    svmName: string;
+    maxThroughput?: string;
+    minThroughput?: string;
+    isShared?: boolean;
+  }): Promise<{ uuid: string }> {
+    const requestBody: any = {
+      name: params.name,
+      svm: { name: params.svmName },
+      fixed: {}
+    };
+
+    // Parse throughput values to extract numeric values
+    if (params.maxThroughput) {
+      const maxValue = parseInt(params.maxThroughput.replace(/[^0-9]/g, ''));
+      if (!isNaN(maxValue)) {
+        requestBody.fixed.max_throughput_iops = maxValue;
+      }
+    }
+    
+    if (params.minThroughput) {
+      const minValue = parseInt(params.minThroughput.replace(/[^0-9]/g, ''));
+      if (!isNaN(minValue)) {
+        requestBody.fixed.min_throughput_iops = minValue;
+      }
+    }
+
+    if (params.isShared !== undefined) {
+      requestBody.shared = params.isShared;
+    }
+
+    return await this.makeRequest<{ uuid: string }>('/storage/qos/policies', 'POST', requestBody);
+  }
+
+  /**
+   * Create adaptive QoS policy
+   */
+  async createAdaptiveQosPolicy(params: {
+    name: string;
+    svmName: string;
+    expectedIops?: string;
+    peakIops?: string;
+    expectedIopsAllocation?: 'used-space' | 'allocated-space';
+    peakIopsAllocation?: 'used-space' | 'allocated-space';
+  }): Promise<{ uuid: string }> {
+    const requestBody: any = {
+      name: params.name,
+      svm: { name: params.svmName },
+      adaptive: {}
+    };
+
+    if (params.expectedIops) {
+      requestBody.adaptive.expected_iops = params.expectedIops;
+    }
+
+    if (params.peakIops) {
+      requestBody.adaptive.peak_iops = params.peakIops;
+    }
+
+    if (params.expectedIopsAllocation) {
+      requestBody.adaptive.expected_iops_allocation = params.expectedIopsAllocation;
+    }
+
+    if (params.peakIopsAllocation) {
+      requestBody.adaptive.peak_iops_allocation = params.peakIopsAllocation;
+    }
+
+    return await this.makeRequest<{ uuid: string }>('/storage/qos/policies', 'POST', requestBody);
+  }
+
+  /**
+   * Update QoS policy
+   */
+  async updateQosPolicy(policyUuid: string, updates: {
+    name?: string;
+    maxThroughput?: string;
+    minThroughput?: string;
+    expectedIops?: string;
+    peakIops?: string;
+    expectedIopsAllocation?: 'used-space' | 'allocated-space';
+    peakIopsAllocation?: 'used-space' | 'allocated-space';
+    isShared?: boolean;
+  }): Promise<void> {
+    const updateBody: any = {};
+
+    if (updates.name) {
+      updateBody.name = updates.name;
+    }
+
+    if (updates.maxThroughput || updates.minThroughput) {
+      updateBody.fixed = {};
+      if (updates.maxThroughput) {
+        updateBody.fixed.max_throughput = updates.maxThroughput;
+      }
+      if (updates.minThroughput) {
+        updateBody.fixed.min_throughput = updates.minThroughput;
+      }
+    }
+
+    if (updates.expectedIops || updates.peakIops || updates.expectedIopsAllocation || updates.peakIopsAllocation) {
+      updateBody.adaptive = {};
+      if (updates.expectedIops) {
+        updateBody.adaptive.expected_iops = updates.expectedIops;
+      }
+      if (updates.peakIops) {
+        updateBody.adaptive.peak_iops = updates.peakIops;
+      }
+      if (updates.expectedIopsAllocation) {
+        updateBody.adaptive.expected_iops_allocation = updates.expectedIopsAllocation;
+      }
+      if (updates.peakIopsAllocation) {
+        updateBody.adaptive.peak_iops_allocation = updates.peakIopsAllocation;
+      }
+    }
+
+    if (updates.isShared !== undefined) {
+      updateBody.is_shared = updates.isShared;
+    }
+
+    await this.makeRequest(`/storage/qos/policies/${policyUuid}`, 'PATCH', updateBody);
+  }
+
+  /**
+   * Delete QoS policy
+   */
+  async deleteQosPolicy(policyUuid: string): Promise<void> {
+    await this.makeRequest(`/storage/qos/policies/${policyUuid}`, 'DELETE');
+  }
+
   /**
    * Parse size string to bytes
    * Supports formats like: 100GB, 1TB, 500MB, etc.
