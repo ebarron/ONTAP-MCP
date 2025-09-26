@@ -840,7 +840,7 @@ RESPONSE STRATEGY:
             // Reload provisioning data if cluster switched
             if (recommendations.cluster) {
                 console.log('Forcing reload of provisioning data');
-                await this.demo.loadProvisioningData();
+                await this.demo.provisioningPanel.loadData();
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
