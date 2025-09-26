@@ -1223,11 +1223,20 @@ export class OntapApiClient {
 
     if (updates.maxThroughput || updates.minThroughput) {
       updateBody.fixed = {};
+      
+      // Parse throughput values to extract numeric values (same as create method)
       if (updates.maxThroughput) {
-        updateBody.fixed.max_throughput = updates.maxThroughput;
+        const maxValue = parseInt(updates.maxThroughput.replace(/[^0-9]/g, ''));
+        if (!isNaN(maxValue)) {
+          updateBody.fixed.max_throughput_iops = maxValue;
+        }
       }
+      
       if (updates.minThroughput) {
-        updateBody.fixed.min_throughput = updates.minThroughput;
+        const minValue = parseInt(updates.minThroughput.replace(/[^0-9]/g, ''));
+        if (!isNaN(minValue)) {
+          updateBody.fixed.min_throughput_iops = minValue;
+        }
       }
     }
 
@@ -1248,7 +1257,7 @@ export class OntapApiClient {
     }
 
     if (updates.isShared !== undefined) {
-      updateBody.is_shared = updates.isShared;
+      updateBody.shared = updates.isShared;
     }
 
     await this.makeRequest(`/storage/qos/policies/${policyUuid}`, 'PATCH', updateBody);

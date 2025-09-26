@@ -491,12 +491,25 @@ async function testQosLifecycle(mode = 'stdio') {
   console.log('Get result:', getResult);
   console.log(`✅ Retrieved policy details for ${testPolicyName}`);
 
-  // Step 5: Skip update for now due to API parameter issues
-  console.log('\n⏭️  Step 5: Skipping policy update (API parameter issues - will fix later)...');
-  console.log('Note: Create, List, Get, and Delete operations are working correctly');
+  // Step 5: Update policy with new throughput values
+  console.log('\n🔄 Step 5: Updating policy with new throughput values...');
+  const updateResult = await callTool('cluster_update_qos_policy', {
+    cluster_name: clusterName,
+    policy_uuid: policyUuid,
+    max_throughput: '2000iops',  // Double the original value
+    min_throughput: '200iops'    // Add minimum throughput
+  });
+  console.log('Update result:', updateResult);
+  console.log(`✅ Updated policy ${testPolicyName} with new throughput limits`);
 
-  // Step 6: Skip verification since we skipped update
-  console.log('\n⏭️  Step 6: Skipping verification (update was skipped)...');
+  // Step 6: Verify the update by getting updated policy details
+  console.log('\n🔍 Step 6: Verifying policy update...');
+  const updatedGetResult = await callTool('cluster_get_qos_policy', {
+    cluster_name: clusterName,
+    policy_uuid: policyUuid
+  });
+  console.log('Updated get result:', updatedGetResult);
+  console.log(`✅ Verified updated policy details for ${testPolicyName}`);
 
   // Step 7: Clean up - delete the test policy
   console.log('\n🗑️  Step 7: Cleaning up test policy...');
@@ -509,8 +522,7 @@ async function testQosLifecycle(mode = 'stdio') {
 
   console.log(`\n🎉 QoS Policy Lifecycle Test (${mode.toUpperCase()}) PASSED`);
   console.log(`✅ Template approach working: Using valid SVM from cluster`);
-  console.log(`✅ Core operations successful: CREATE ✓ LIST ✓ GET ✓ DELETE ✓`);
-  console.log(`⚠️  Update operation skipped due to API parameter format issues (will fix later)`);
+  console.log(`✅ Full operations successful: CREATE ✓ LIST ✓ GET ✓ UPDATE ✓ DELETE ✓`);
   console.log(`✅ Both STDIO and HTTP JSON-RPC should work with this approach`);
 
   // Clean up server processes
@@ -523,7 +535,6 @@ async function testQosLifecycle(mode = 'stdio') {
   } else if (mode === 'http' && global.httpServerProcess) {
     console.log('\n🧹 Cleaning up HTTP server process...');
     global.httpServerProcess.kill('SIGTERM');
-    // Give it a moment to terminate gracefully
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('✅ HTTP server process terminated');
   }
@@ -540,7 +551,7 @@ async function runQosLifecycleTest(mode) {
       console.error(`Stack: ${error.stack}`);
     }
     
-    // Clean up server processes after error
+    // Clean up server processes
     if (mode === 'stdio' && global.mcpServerProcess) {
       console.log('\n🧹 Cleaning up MCP server process after error...');
       global.mcpServerProcess.kill('SIGTERM');
