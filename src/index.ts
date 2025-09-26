@@ -314,13 +314,135 @@ async function startHttpServer(port: number = 3000) {
       });
     }
   });
+
+  // MCP JSON-RPC 2.0 endpoint
+  app.post('/mcp', async (req, res) => {
+    let requestId = null;
+    
+    try {
+      const { jsonrpc, method, params, id } = req.body;
+      requestId = id;
+      
+      // Validate JSON-RPC 2.0 format
+      if (jsonrpc !== '2.0') {
+        return res.json({
+          jsonrpc: '2.0',
+          id: requestId,
+          error: {
+            code: -32600,
+            message: 'Invalid Request',
+            data: 'JSON-RPC version must be 2.0'
+          }
+        });
+      }
+      
+      let result: any;
+      
+      // Handle MCP methods
+      switch (method) {
+        case 'tools/list':
+          result = {
+            tools: getAllToolDefinitions()
+          };
+          break;
+          
+        case 'tools/call':
+          const toolName = params?.name;
+          const toolArgs = params?.arguments || {};
+          
+          if (!toolName) {
+            return res.json({
+              jsonrpc: '2.0',
+              id: requestId,
+              error: {
+                code: -32602,
+                message: 'Invalid params',
+                data: 'Tool name is required'
+              }
+            });
+          }
+          
+          console.error(`=== MCP JSON-RPC - ${toolName} called ===`);
+          
+          const handler = getToolHandler(toolName);
+          if (!handler) {
+            return res.json({
+              jsonrpc: '2.0',
+              id: requestId,
+              error: {
+                code: -32601,
+                message: 'Method not found',
+                data: `Tool '${toolName}' not found`
+              }
+            });
+          }
+          
+          try {
+            const toolResult = await handler(toolArgs, clusterManager);
+            
+            // Ensure result is in MCP format (tools should return { content: [...] })
+            if (typeof toolResult === 'string') {
+              result = {
+                content: [{
+                  type: 'text',
+                  text: toolResult
+                }]
+              };
+            } else {
+              result = toolResult;
+            }
+          } catch (toolError) {
+            return res.json({
+              jsonrpc: '2.0',
+              id: requestId,
+              error: {
+                code: -32603,
+                message: 'Internal error',
+                data: toolError instanceof Error ? toolError.message : 'Tool execution failed'
+              }
+            });
+          }
+          break;
+          
+        default:
+          return res.json({
+            jsonrpc: '2.0',
+            id: requestId,
+            error: {
+              code: -32601,
+              message: 'Method not found',
+              data: `Method '${method}' not supported`
+            }
+          });
+      }
+      
+      // Return successful JSON-RPC 2.0 response
+      res.json({
+        jsonrpc: '2.0',
+        id: requestId,
+        result
+      });
+      
+    } catch (error) {
+      console.error('MCP JSON-RPC error:', error);
+      res.json({
+        jsonrpc: '2.0',
+        id: requestId,
+        error: {
+          code: -32603,
+          message: 'Internal error',
+          data: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+    }
+  });
   
   // Start HTTP server
   app.listen(port, () => {
     console.error(`NetApp ONTAP MCP Server running on HTTP port ${port}`);
     console.error(`Health check: http://localhost:${port}/health`);
-    console.error(`MCP SSE endpoint: http://localhost:${port}/sse`);
-    console.error(`RESTful API: http://localhost:${port}/api/tools/{toolName}`);
+    console.error(`MCP JSON-RPC 2.0: http://localhost:${port}/mcp`);
+    console.error(`Legacy REST API: http://localhost:${port}/api/tools/{toolName}`);
   });
 }
 

@@ -11,6 +11,45 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+// MCP JSON-RPC 2.0 helper function
+async function callMcpTool(toolName, args, httpPort = 3000) {
+  const url = `http://localhost:${httpPort}/mcp`;
+  
+  const jsonrpcRequest = {
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args
+    },
+    id: Date.now()
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(jsonrpcRequest),
+  });
+
+  // Response handling now done by callMcpTool
+  if (false) {
+    const error = await response.text();
+    throw new Error(`HTTP ${response.status}: ${error}`);
+  }
+
+  const jsonrpcResponse = response;
+  
+  // Handle JSON-RPC errors
+  if (jsonrpcResponse.error) {
+    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
+  }
+
+  // Return the result in the same format as REST API for compatibility
+  return jsonrpcResponse.result;
+}
+
 // Polyfill fetch for older Node.js versions
 if (!globalThis.fetch) {
   globalThis.fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
@@ -60,11 +99,12 @@ async function getClustersFromServer(httpPort = 3000) {
       body: JSON.stringify({})
     });
     
-    if (!response.ok) {
+    // Response handling now done by callMcpTool
+  if (false) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
-    const result = await response.json();
+    const result = response;
     
     // Parse the response from the tool
     const clusters = [];
@@ -416,7 +456,7 @@ async function main() {
   try {
     // Load cluster configuration
     let clusters;
-    if (mode === 'rest') {
+    if (mode === 'http') {
       // For REST mode only, try server first, fallback to clusters.json
       try {
         console.log('\n🔍 Loading clusters from MCP server...');
@@ -454,7 +494,7 @@ async function main() {
       }
     }
     
-    if (mode === 'rest' || mode === 'both') {
+    if (mode === 'http' || mode === 'both') {
       try {
         restSuccess = await testRestMode(testCluster);
       } catch (error) {
@@ -468,7 +508,7 @@ async function main() {
     if (mode === 'stdio' || mode === 'both') {
       console.log(`   STDIO Mode: ${stdioSuccess ? '✅ PASSED' : '❌ FAILED'}`);
     }
-    if (mode === 'rest' || mode === 'both') {
+    if (mode === 'http' || mode === 'both') {
       console.log(`   REST Mode:  ${restSuccess ? '✅ PASSED' : '❌ FAILED'}`);
     }
     

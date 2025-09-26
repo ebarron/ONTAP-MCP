@@ -109,7 +109,7 @@ async function getTestConfig(httpPort = 3000) {
 
 class VolumeLifecycleTest {
   constructor(mode = 'stdio') {
-    this.mode = mode; // 'stdio' or 'rest'
+    this.mode = mode; // 'stdio' or 'http'
     this.config = null; // Will be set async
     this.volume_uuid = null;
     this.httpPort = 3000;
@@ -275,9 +275,46 @@ class VolumeLifecycleTest {
     return await response.json();
   }
 
+  async callMcpTool(toolName, args) {
+    const url = `http://localhost:${this.httpPort}/mcp`;
+    
+    const jsonrpcRequest = {
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        name: toolName,
+        arguments: args
+      },
+      id: Date.now()
+    };
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(jsonrpcRequest),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`HTTP ${response.status}: ${error}`);
+    }
+
+    const jsonrpcResponse = await response.json();
+    
+    // Handle JSON-RPC errors
+    if (jsonrpcResponse.error) {
+      throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
+    }
+
+    // Return the result in the same format as REST API for compatibility
+    return jsonrpcResponse.result;
+  }
+
   async callTool(toolName, args) {
-    // Since we start an HTTP server in both modes, use REST calls
-    return await this.callRestTool(toolName, args);
+    // Use MCP JSON-RPC instead of REST API
+    return await this.callMcpTool(toolName, args);
   }
 
   // Test Steps
@@ -297,9 +334,9 @@ class VolumeLifecycleTest {
     
     // Extract UUID from response
     const text = result.content[0].text;
-    const uuidMatch = text.match(/UUID: ([a-f0-9-]+)/);
+    const uuidMatch = text.match(/🆔 \*\*UUID:\*\* ([a-f0-9-]+)|UUID: ([a-f0-9-]+)/);
     if (uuidMatch) {
-      this.volume_uuid = uuidMatch[1];
+      this.volume_uuid = uuidMatch[1] || uuidMatch[2];
       await this.log(`📝 Extracted UUID: ${this.volume_uuid}`);
     } else {
       // Need to list volumes to get UUID
@@ -427,8 +464,8 @@ class VolumeLifecycleTest {
 async function main() {
   const mode = process.argv[2] || 'stdio';
   
-  if (!['stdio', 'rest'].includes(mode)) {
-    console.error('Usage: node test-volume-lifecycle.js [stdio|rest]');
+  if (!['stdio', 'http'].includes(mode)) {
+    console.error('Usage: node test-volume-lifecycle.js [stdio|http]');
     process.exit(1);
   }
 

@@ -6,6 +6,44 @@
 
 const CLUSTER = 'julia-vsim-1';
 
+// MCP JSON-RPC 2.0 helper function
+async function callMcpTool(toolName, args, httpPort = 3000) {
+  const url = `http://localhost:${httpPort}/mcp`;
+  
+  const jsonrpcRequest = {
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args
+    },
+    id: Date.now()
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(jsonrpcRequest),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HTTP ${response.status}: ${error}`);
+  }
+
+  const jsonrpcResponse = await response.json();
+  
+  // Handle JSON-RPC errors
+  if (jsonrpcResponse.error) {
+    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
+  }
+
+  // Return the result in the same format as REST API for compatibility
+  return jsonrpcResponse.result;
+}
+
 const TESTS = [
   // Core cluster management
   { name: 'list_registered_clusters', params: {}, group: 'Cluster Management' },
@@ -26,13 +64,7 @@ const TESTS = [
 
 async function testTool(test) {
   try {
-    const response = await fetch(`http://localhost:3000/api/tools/${test.name}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(test.params)
-    });
-    
-    const result = await response.json();
+    const result = await callMcpTool(test.name, test.params);
     const text = result.content?.[0]?.text || '';
     
     if (text.includes('❌ Error') || text.includes('HTTP 400') || text.includes('HTTP 500')) {

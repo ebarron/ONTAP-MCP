@@ -65,17 +65,17 @@ log "=== Running All Tests ==="
 # Test 1: Volume Lifecycle (STDIO Mode)
 run_test "Volume Lifecycle (STDIO Mode)" "node test/test-volume-lifecycle.js stdio"
 
-# Test 2: Volume Lifecycle (REST Mode) 
-run_test "Volume Lifecycle (REST Mode)" "node test/test-volume-lifecycle.js rest"
+# Test 2: Volume Lifecycle (HTTP Mode) 
+run_test "Volume Lifecycle (HTTP Mode)" "node test/test-volume-lifecycle.js http"
 
 # Test 3: Export Policy Lifecycle (STDIO Mode)
 run_test "Export Policy Lifecycle (STDIO Mode)" "node test/test-export-policy-lifecycle.js stdio"
 
-# Test 4: Export Policy Lifecycle (REST Mode)
-run_test "Export Policy Lifecycle (REST Mode)" "node test/test-export-policy-lifecycle.js rest"
+# Test 4: Export Policy Lifecycle (HTTP Mode)
+run_test "Export Policy Lifecycle (HTTP Mode)" "node test/test-export-policy-lifecycle.js http"
 
-# Test 5: Tool Discovery (STDIO vs REST)
-run_test "Tool Discovery (STDIO vs REST)" "bash test/test-tool-discovery.sh"
+# Test 5: Tool Discovery (STDIO vs HTTP)
+run_test "Tool Discovery (STDIO vs HTTP)" "bash test/test-tool-discovery.sh"
 
 # Test 6: Tool Count Verification (Legacy)  
 run_test "Tool Count Verification (Legacy)" "bash test/verify-tool-count.sh"
@@ -116,14 +116,14 @@ run_test "User Scenario Test" "node test/test-user-scenario.js"
 # Test 18: CIFS Lifecycle Test (STDIO Mode)
 run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
 
-# Test 19: CIFS Lifecycle Test (REST Mode) - Now fully working with dual transport support!
-run_test "CIFS Lifecycle (REST Mode)" "node test/test-cifs-lifecycle.js rest"
+# Test 19: CIFS Lifecycle Test (HTTP Mode) - Now fully working with JSON-RPC support!
+run_test "CIFS Lifecycle (HTTP Mode)" "node test/test-cifs-lifecycle.js http"
 
 # Test 20: Cluster Info Test (STDIO Mode)
 run_test "Cluster Info Test (STDIO Mode)" "node test/test-cluster-info.js stdio"
 
-# Test 21: Cluster Info Test (REST Mode)
-run_test "Cluster Info Test (REST Mode)" "node test/test-cluster-info.js rest"
+# Test 21: Cluster Info Test (HTTP Mode)
+run_test "Cluster Info Test (HTTP Mode)" "node test/test-cluster-info.js http"
 
 echo ""
 log "=== Test Summary ==="

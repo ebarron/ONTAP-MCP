@@ -1,6 +1,6 @@
 # NetApp ONTAP MCP Server
 
-A Model Context Protocol (MCP) server that provides comprehensive access to NetApp ONTAP storage systems via REST APIs. Supports both single-cluster and multi-cluster management with complete volume lifecycle operations, data protection policies, and NFS/CIFS access control.
+A Model Context Protocol (MCP) server that provides comprehensive access to NetApp ONTAP storage systems via HTTP transport. Supports both single-cluster and multi-cluster management with complete volume lifecycle operations, data protection policies, and NFS/CIFS access control.
 
 ## 🚀 Quick Start
 
@@ -41,7 +41,7 @@ cp test/clusters.json.example test/clusters.json
 }
 ```
 
-#### Option B: HTTP REST API
+#### Option B: HTTP Transport
 ```bash
 # Set cluster configuration
 export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"password"}]'
@@ -82,7 +82,7 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 
 ### Transport Modes
 - **STDIO**: Direct integration with VS Code MCP and AI assistants
-- **HTTP REST API**: Web applications, testing, and external integrations
+- **HTTP Transport**: Web applications, testing, and external integrations
 - **Dual Mode**: All 48 tools available in both transports
 
 ## 📚 Documentation
@@ -90,7 +90,7 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 ### Quick Access
 - **Demo Interface**: See `demo/README.md` for web interface guide
 - **Testing**: See `test/README.md` for comprehensive testing framework
-- **HTTP Configuration**: See `HTTP_CONFIG.md` for REST API examples
+- **HTTP Configuration**: See `HTTP_CONFIG.md` for HTTP transport examples
 - **Development**: See `.github/copilot-instructions.md` for architecture details
 
 ### Key Features
@@ -128,7 +128,7 @@ src/
 ├── transports/            # Transport layer abstraction
 │   ├── base-transport.ts  # Common transport interface
 │   ├── stdio-transport.ts # MCP STDIO implementation
-│   └── http-transport.ts  # HTTP REST API implementation
+│   └── http-transport.ts  # HTTP transport implementation
 ├── tools/                 # MCP tool implementations (48 tools)
 │   ├── cluster-management-tools.ts  # Basic cluster operations
 │   ├── volume-tools.ts              # Volume lifecycle management
@@ -147,7 +147,7 @@ test/                      # Comprehensive testing framework
 - **Automated Provisioning**: Complete volume and share creation workflows
 - **Data Protection**: Automated snapshot policy management
 - **Multi-Cluster Operations**: Centralized management across ONTAP clusters
-- **Development & Testing**: Comprehensive REST API for external applications
+- **Development & Testing**: HTTP transport for external applications
 
 ## 📦 Examples
 

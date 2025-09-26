@@ -23,7 +23,7 @@ Best for local development and VS Code integration:
 ```
 
 ### HTTP Transport
-Best for multi-client environments and RESTful API access:
+Best for multi-client environments and web applications:
 
 ```json
 {
@@ -85,7 +85,7 @@ GET /sse
 ```
 MCP protocol endpoint for HTTP-based MCP clients.
 
-### RESTful API (Direct Tool Access)
+### JSON-RPC API (Direct Tool Access)
 ```
 POST /api/tools/{toolName}
 Content-Type: application/json
@@ -96,7 +96,7 @@ Content-Type: application/json
 }
 ```
 
-#### Available REST Tools:
+#### Available Tools:
 - `list_registered_clusters` - List all configured clusters
 - `cluster_list_volumes` - List volumes for a specific cluster
 - More tools can be added as needed
@@ -108,14 +108,14 @@ Content-Type: application/json
 curl http://localhost:3000/health
 ```
 
-### List Clusters via REST API
+### List Clusters via HTTP API
 ```bash
 curl -X POST http://localhost:3000/api/tools/list_registered_clusters \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-### List Volumes via REST API
+### List Volumes via HTTP API
 ```bash
 curl -X POST http://localhost:3000/api/tools/cluster_list_volumes \
   -H "Content-Type: application/json" \

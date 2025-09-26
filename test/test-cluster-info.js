@@ -5,9 +5,47 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// MCP JSON-RPC 2.0 helper function
+async function callMcpTool(toolName, args, httpPort = 3000) {
+  const url = `http://localhost:${httpPort}/mcp`;
+  
+  const jsonrpcRequest = {
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args
+    },
+    id: Date.now()
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(jsonrpcRequest),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HTTP ${response.status}: ${error}`);
+  }
+
+  const jsonrpcResponse = await response.json();
+  
+  // Handle JSON-RPC errors
+  if (jsonrpcResponse.error) {
+    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
+  }
+
+  // Return the result in the same format as REST API for compatibility
+  return jsonrpcResponse.result;
+}
+
 /**
  * Test the cluster information tools (get_all_clusters_info and list_registered_clusters)
- * in both STDIO and REST modes to ensure they work consistently.
+ * in both STDIO and HTTP modes to ensure they work consistently.
  */
 class ClusterInfoTester {
   constructor(mode = 'stdio') {
@@ -109,20 +147,10 @@ class ClusterInfoTester {
   }
 
   async callToolRest(toolName, params) {
-    const response = await fetch(`http://localhost:3000/api/tools/${toolName}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params)
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    const result = await callMcpTool(toolName, params);
     
     // Extract text content from MCP response structure
-    return data.content
+    return result.content
       .filter(item => item.type === 'text')
       .map(item => item.text)
       .join('');
@@ -187,7 +215,7 @@ class ClusterInfoTester {
     const results = [];
     
     try {
-      if (this.mode === 'rest') {
+      if (this.mode === 'http') {
         await this.startHttpServer();
       }
 
@@ -208,7 +236,7 @@ class ClusterInfoTester {
       });
 
     } finally {
-      if (this.mode === 'rest') {
+      if (this.mode === 'http') {
         await this.stopServer();
       }
     }
@@ -277,8 +305,8 @@ class ClusterInfoTester {
 async function main() {
   const mode = process.argv[2] || 'stdio';
   
-  if (!['stdio', 'rest'].includes(mode)) {
-    console.error('Usage: node test-cluster-info.js [stdio|rest]');
+  if (!['stdio', 'http'].includes(mode)) {
+    console.error('Usage: node test-cluster-info.js [stdio|http]');
     process.exit(1);
   }
   

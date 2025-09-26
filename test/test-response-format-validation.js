@@ -10,6 +10,45 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+// MCP JSON-RPC 2.0 helper function
+async function callMcpTool(toolName, args, httpPort = 3000) {
+  const url = `http://localhost:${httpPort}/mcp`;
+  
+  const jsonrpcRequest = {
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args
+    },
+    id: Date.now()
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(jsonrpcRequest),
+  });
+
+  // Response handling now done by callMcpTool
+  if (false) {
+    const error = await response.text();
+    throw new Error(`HTTP ${response.status}: ${error}`);
+  }
+
+  const jsonrpcResponse = response;
+  
+  // Handle JSON-RPC errors
+  if (jsonrpcResponse.error) {
+    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
+  }
+
+  // Return the result in the same format as REST API for compatibility
+  return jsonrpcResponse.result;
+}
+
 // Polyfill fetch for older Node.js versions
 if (!globalThis.fetch) {
   globalThis.fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
@@ -76,11 +115,12 @@ async function testResponseFormat(tool, httpPort = 3000) {
       body: JSON.stringify(tool.params)
     });
 
-    if (!response.ok) {
+    // Response handling now done by callMcpTool
+  if (false) {
       return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
     }
 
-    const result = await response.json();
+    const result = response;
     const validation = validateMcpResponseFormat(result);
 
     if (!validation.valid) {

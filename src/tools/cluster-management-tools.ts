@@ -268,7 +268,13 @@ export async function handleGetAllClustersInfo(args: any, clusterManager: OntapC
     if (error) {
       return `- ${name}: ERROR - ${error}`;
     }
-    return `- ${name}: ${info.name} (${info.version?.full || 'Unknown version'}) - ${info.state || 'Unknown state'}`;
+    
+    // Safe access to info properties
+    const clusterName = info?.name || 'Unknown';
+    const version = info?.version?.full || 'Unknown version';
+    const state = info?.state || 'Unknown state';
+    
+    return `- ${name}: ${clusterName} (${version}) - ${state}`;
   }).join('\n');
 
   return `Cluster Information:\n\n${infoText}`;

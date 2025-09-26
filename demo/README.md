@@ -42,13 +42,13 @@ python3 -m http.server 8080
 
 ## Overview
 
-This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validation of REST API endpoints through an end-to-end storage provisioning workflow.
+This demo directory contains a web-based demonstration interface for the NetApp ONTAP MCP (Model Context Protocol) server. The demo serves as both a functional showcase of the MCP capabilities and a comprehensive validation of HTTP API endpoints through an end-to-end storage provisioning workflow.
 
 ## Purpose
 
 The primary purpose of this demo is to:
 
-1. **REST API Validation**: Comprehensive testing of ONTAP MCP server's REST API endpoints through real provisioning workflows
+1. **HTTP API Validation**: Comprehensive testing of ONTAP MCP server's HTTP API endpoints through real provisioning workflows
 2. **Visual Demonstration**: Provide an authentic NetApp BlueXP-style interface to showcase MCP capabilities  
 3. **Testing Framework**: Complete end-to-end testing of storage provisioning including volume creation, NFS/CIFS configuration
 4. **API Integration Validation**: Test all 46+ MCP tools through realistic user scenarios
@@ -70,7 +70,7 @@ The primary purpose of this demo is to:
 - **Export Policy Management**: NFS export policy assignment with SVM-specific policy discovery
 - **CIFS Share Configuration**: Complete CIFS/SMB share creation with access control lists
 - **Volume Validation**: Client-side validation ensuring ONTAP-compatible naming conventions
-- **Real-time Testing**: Each provisioning step validates multiple MCP REST API endpoints
+- **Real-time Testing**: Each provisioning step validates multiple MCP HTTP API endpoints
 
 ### CIFS/SMB Integration
 Enhanced CIFS provisioning support includes:
@@ -79,11 +79,11 @@ Enhanced CIFS provisioning support includes:
 - **Access Control Lists**: Complete ACL configuration with user type support (Windows, Unix users/groups)
 - **Share Properties**: Optional share comments and advanced CIFS properties
 - **Protocol Switching**: Dynamic form fields that appear only when CIFS is selected
-- **API Compatibility**: Aligns with NetApp ONTAP MCP server schema and ONTAP REST API v1/v2
+- **API Compatibility**: Aligns with NetApp ONTAP MCP server schema and ONTAP HTTP API v1/v2
 
 ### Cluster Management
 - **List Registered Clusters**: Displays all configured ONTAP clusters
-- **Real-time Data**: Fetches live cluster information via REST API
+- **Real-time Data**: Fetches live cluster information via HTTP API
 - **Search Functionality**: Filter clusters with expanding search widget
 
 ### Authentication & CORS
@@ -95,10 +95,10 @@ Enhanced CIFS provisioning support includes:
 - **Responsive Layout**: Proper spacing, typography, and interactive elements
 - **Search Widget**: Expandable search functionality with authentic animations
 
-## MCP REST API Testing Through Provisioning Workflow
+## MCP HTTP API Testing Through Provisioning Workflow
 
 ### Complete API Coverage
-The provisioning workflow comprehensively tests these MCP REST endpoints in a realistic sequence:
+The provisioning workflow comprehensively tests these MCP HTTP endpoints in a realistic sequence:
 
 #### Cluster Discovery Phase
 - `POST /api/tools/list_registered_clusters` - Enumerate available clusters
@@ -344,7 +344,7 @@ cluster_list_volumes → get_volume_configuration → cluster_list_cifs_shares (
 
 ## MCP Server Integration
 
-The demo connects to the MCP server using its HTTP REST API at `http://localhost:3000`. The provisioning workflow integrates these MCP tools:
+The demo connects to the MCP server using its HTTP API at `http://localhost:3000`. The provisioning workflow integrates these MCP tools:
 
 ### Core Infrastructure Tools
 - `list_registered_clusters` - Load all registered clusters
@@ -396,7 +396,7 @@ If cluster operations fail:
 1. Verify ONTAP cluster credentials in ONTAP_CLUSTERS environment variable
 2. Check network connectivity to the cluster
 3. Ensure the cluster IP/FQDN is correct
-4. Verify ONTAP REST API is enabled
+4. Verify ONTAP HTTP API is enabled
 
 ### Volume Creation Failures
 If volume provisioning fails:
@@ -552,7 +552,7 @@ curl -s -X POST http://localhost:3000/api/tools/cluster_list_volumes \
 - [ ] Code examples reflect actual implementation
 - [ ] API endpoint documentation matches implementation
 
-This checklist ensures comprehensive validation of the MCP REST API through realistic storage provisioning workflows.
+This checklist ensures comprehensive validation of the MCP HTTP API through realistic storage provisioning workflows.
 
 ## Development
 

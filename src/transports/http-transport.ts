@@ -32,7 +32,10 @@ export class HttpTransport implements BaseTransport {
   }
 
   private setupRoutes(): void {
+    console.error('=== Starting setupRoutes() ===');
+    
     // Health check endpoint
+    console.error('Registering health check endpoint');
     this.app.get('/health', (req, res) => {
       res.json({ 
         status: 'healthy',
@@ -84,10 +87,129 @@ export class HttpTransport implements BaseTransport {
       }
     });
 
-    // TODO: Add JSON-RPC endpoint for MCP compliance
-    // this.app.post('/mcp', async (req, res) => {
-    //   // JSON-RPC 2.0 implementation
-    // });
+    // MCP JSON-RPC 2.0 endpoint
+    console.error('Registering MCP JSON-RPC 2.0 endpoint at /mcp');
+    this.app.post('/mcp', async (req, res) => {
+      console.error('MCP endpoint hit with request:', req.method, req.path);
+      let requestId = null;
+      
+      try {
+        const { jsonrpc, method, params, id } = req.body;
+        requestId = id;
+        
+        // Validate JSON-RPC 2.0 format
+        if (jsonrpc !== '2.0') {
+          return res.json({
+            jsonrpc: '2.0',
+            id: requestId,
+            error: {
+              code: -32600,
+              message: 'Invalid Request',
+              data: 'JSON-RPC version must be 2.0'
+            }
+          });
+        }
+        
+        let result: any;
+        
+        // Handle MCP methods
+        switch (method) {
+          case 'tools/list':
+            result = {
+              tools: getAllToolDefinitions()
+            };
+            break;
+            
+          case 'tools/call':
+            const toolName = params?.name;
+            const toolArgs = params?.arguments || {};
+            
+            if (!toolName) {
+              return res.json({
+                jsonrpc: '2.0',
+                id: requestId,
+                error: {
+                  code: -32602,
+                  message: 'Invalid params',
+                  data: 'Tool name is required'
+                }
+              });
+            }
+            
+            console.error(`=== MCP JSON-RPC - ${toolName} called ===`);
+            
+            const handler = getToolHandler(toolName);
+            if (!handler) {
+              return res.json({
+                jsonrpc: '2.0',
+                id: requestId,
+                error: {
+                  code: -32601,
+                  message: 'Method not found',
+                  data: `Tool '${toolName}' not found`
+                }
+              });
+            }
+            
+            try {
+              const toolResult = await handler(toolArgs, this.clusterManager);
+              
+              // Ensure result is in MCP format (tools should return { content: [...] })
+              if (typeof toolResult === 'string') {
+                result = {
+                  content: [{
+                    type: 'text',
+                    text: toolResult
+                  }]
+                };
+              } else {
+                result = toolResult;
+              }
+            } catch (toolError) {
+              return res.json({
+                jsonrpc: '2.0',
+                id: requestId,
+                error: {
+                  code: -32603,
+                  message: 'Internal error',
+                  data: toolError instanceof Error ? toolError.message : 'Tool execution failed'
+                }
+              });
+            }
+            break;
+            
+          default:
+            return res.json({
+              jsonrpc: '2.0',
+              id: requestId,
+              error: {
+                code: -32601,
+                message: 'Method not found',
+                data: `Method '${method}' not supported`
+              }
+            });
+        }
+        
+        // Return successful JSON-RPC 2.0 response
+        res.json({
+          jsonrpc: '2.0',
+          id: requestId,
+          result
+        });
+        
+      } catch (error) {
+        console.error('MCP JSON-RPC error:', error);
+        res.json({
+          jsonrpc: '2.0',
+          id: requestId,
+          error: {
+            code: -32603,
+            message: 'Internal error',
+            data: error instanceof Error ? error.message : 'Unknown error'
+          }
+        });
+      }
+    });
   }
 
   async start(port: number = 3000): Promise<void> {
@@ -101,8 +223,8 @@ export class HttpTransport implements BaseTransport {
       this.server = this.app.listen(port, () => {
         console.error(`NetApp ONTAP MCP Server running on HTTP port ${port}`);
         console.error(`Health check: http://localhost:${port}/health`);
-        console.error(`Tools API: http://localhost:${port}/api/tools`);
-        console.error(`Tool execution: http://localhost:${port}/api/tools/{toolName}`);
+        console.error(`MCP JSON-RPC 2.0: http://localhost:${port}/mcp`);
+        console.error(`Legacy REST API: http://localhost:${port}/api/tools`);
         resolve();
       });
     });

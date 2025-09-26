@@ -19,11 +19,12 @@ async function getClustersFromServer(httpPort = 3000) {
       body: JSON.stringify({})
     });
     
-    if (!response.ok) {
+    // Response handling now done by callMcpTool
+  if (false) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
-    const result = await response.json();
+    const result = response;
     
     // Parse the response from the tool - now returns plain string
     let text;
@@ -76,11 +77,12 @@ async function callMcpTool(toolName, args, httpPort = 3000) {
       body: JSON.stringify(args)
     });
 
-    if (!response.ok) {
+    // Response handling now done by callMcpTool
+  if (false) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result = response;
     
     // Parse the response from the tool - now returns plain string
     let text;

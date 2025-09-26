@@ -6,7 +6,7 @@ This directory contains comprehensive testing for the NetApp ONTAP MCP (Model Co
 
 ## Test Objectives
 
-1. **API Field Validation** - Ensure all field parameters are valid for ONTAP REST API
+1. **API Field Validation** - Ensure all field parameters are valid for ONTAP HTTP API
 2. **Tool Functionality** - Verify each tool works correctly end-to-end  
 3. **Error Handling** - Test error scenarios and edge cases
 4. **Integration** - Validate multi-tool workflows (create policy → apply to volume)
@@ -131,8 +131,8 @@ Tests now automatically load clusters from `clusters.json`:
 # Volume lifecycle test (uses karan-ontap-1 by default)
 node test/test-volume-lifecycle.js
 
-# With REST mode
-node test/test-volume-lifecycle.js rest
+# With HTTP mode
+node test/test-volume-lifecycle.js http
 ```
 
 ### Cluster Selection
@@ -166,13 +166,13 @@ MCP_JSON_PATH="/path/to/your/mcp.json" node test/sync-clusters.js
 
 | Test Tool | Purpose | Transport Mode | Type |
 |-----------|---------|----------------|------|
-| `test-volume-lifecycle.js` | Complete volume CRUD workflow | STDIO & REST | Core |
-| `test-volume-lifecycle.sh` | Volume lifecycle via shell script | REST only | Core |
-| `check-aggregates.js` | Cross-cluster aggregate verification | REST | Utility |
+| `test-volume-lifecycle.js` | Complete volume CRUD workflow | STDIO & HTTP | Core |
+| `test-volume-lifecycle.sh` | Volume lifecycle via shell script | HTTP only | Core |
+| `check-aggregates.js` | Cross-cluster aggregate verification | HTTP | Utility |
 | `verify-tool-count.sh` | Tool registration validation | Local | Validation |
-| `test-comprehensive.js` | Full feature testing suite | REST | Extended |
-| `test-policy-management.sh` | Policy workflow testing | REST | Extended |
-| `test-api-fields.js` | API field validation testing | REST | Debug |
+| `test-comprehensive.js` | Full feature testing suite | HTTP | Extended |
+| `test-policy-management.sh` | Policy workflow testing | HTTP | Extended |
+| `test-api-fields.js` | API field validation testing | HTTP | Debug |
 
 ### Quick Test Execution
 
@@ -185,8 +185,8 @@ npm run build
 
 # 3. Run core tests
 node test/test-volume-lifecycle.js stdio    # Test STDIO transport
-node test/test-volume-lifecycle.js rest     # Test HTTP REST API
-./test/test-volume-lifecycle.sh             # Test REST API via bash
+node test/test-volume-lifecycle.js http     # Test HTTP transport
+./test/test-volume-lifecycle.sh             # Test HTTP transport via bash
 node test/check-aggregates.js               # Check aggregates
 ./test/verify-tool-count.sh                 # Verify all tools registered
 ```

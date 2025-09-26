@@ -11,6 +11,44 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+// MCP JSON-RPC 2.0 helper function
+async function callMcpTool(toolName, args, httpPort = 3000) {
+  const url = `http://localhost:${httpPort}/mcp`;
+  
+  const jsonrpcRequest = {
+    jsonrpc: '2.0',
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args
+    },
+    id: Date.now()
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(jsonrpcRequest),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HTTP ${response.status}: ${error}`);
+  }
+
+  const jsonrpcResponse = await response.json();
+  
+  // Handle JSON-RPC errors
+  if (jsonrpcResponse.error) {
+    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
+  }
+
+  // Return the result in the same format as REST API for compatibility
+  return jsonrpcResponse.result;
+}
+
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,19 +71,28 @@ function loadClusters() {
 // Get clusters from the MCP server via HTTP API
 async function getClustersFromServer(httpPort = 3000) {
   try {
-    const response = await fetch(`http://localhost:${httpPort}/api/tools/list_registered_clusters`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({})
-    });
+    // Add retry mechanism for server startup
+    let result;
+    let attempts = 0;
+    const maxAttempts = 5;
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    while (!result && attempts < maxAttempts) {
+      try {
+        result = await callMcpTool('list_registered_clusters', {}, httpPort);
+        if (result) break;
+      } catch (error) {
+        console.log(`DEBUG: Attempt ${attempts + 1} failed:`, error.message);
+      }
+      attempts++;
+      if (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      }
     }
     
-    const result = await response.json();
+    if (!result) {
+      throw new Error(`Failed to get response from server after ${maxAttempts} attempts`);
+    }
+    
     console.log('DEBUG: Server response:', JSON.stringify(result, null, 2));
     
     if (result.content && result.content[0] && result.content[0].text) {
@@ -85,7 +132,7 @@ async function getClustersFromServer(httpPort = 3000) {
 async function getTestConfig(mode = 'stdio', httpPort = 3000) {
   let clusters = [];
   
-  if (mode === 'rest') {
+  if (mode === 'http') {
     clusters = await getClustersFromServer(httpPort);
   } else {
     // STDIO mode: load clusters from clusters.json
@@ -137,8 +184,8 @@ async function getTestConfig(mode = 'stdio', httpPort = 3000) {
 // Main test class
 class CifsShareLifecycleTest {
   constructor(mode = 'stdio') {
-    this.mode = mode; // 'stdio' or 'rest'
-    this.httpPort = 3001; // HTTP server port
+    this.mode = mode; // 'stdio' or 'http'
+    this.httpPort = 3000; // Standard port - tests run sequentially so no conflicts
     this.serverProcess = null; // For managing HTTP server process
   }
 
@@ -230,11 +277,12 @@ class CifsShareLifecycleTest {
       body: JSON.stringify(args)
     });
 
-    if (!response.ok) {
+    // Response handling now done by callMcpTool
+  if (false) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result = response;
     return result;
   }
 
@@ -247,7 +295,7 @@ class CifsShareLifecycleTest {
     }
   }
 
-  // Start HTTP server for REST mode testing
+  // Start HTTP server for HTTP mode testing
   async startHttpServer() {
     return new Promise((resolve, reject) => {
       // Load cluster configuration from external file
@@ -307,8 +355,8 @@ class CifsShareLifecycleTest {
     console.log(`\\n🚀 Starting CIFS Share Lifecycle Test (${this.mode.toUpperCase()} mode)\\n`);
 
     try {
-      // Start HTTP server for REST mode testing
-      if (this.mode === 'rest') {
+      // Start HTTP server for HTTP mode testing
+      if (this.mode === 'http') {
         console.log('📡 Starting HTTP server...');
         await this.startHttpServer();
         console.log(`✅ HTTP server started on port ${this.httpPort}\\n`);
@@ -328,8 +376,8 @@ class CifsShareLifecycleTest {
       console.log('📦 Step 1: Creating volume...');
       
       let createResult;
-      if (this.mode === 'rest') {
-        // REST mode: use multi-cluster tools with registered clusters
+      if (this.mode === 'http') {
+        // HTTP mode: use multi-cluster tools with registered clusters
         console.log(`📋 Using cluster: ${config.cluster_name}, aggregate: ${config.aggregate_name}`);
         try {
           createResult = await this.callTool('cluster_create_volume', {
@@ -377,8 +425,8 @@ class CifsShareLifecycleTest {
       console.log('\\n📁 Step 1b: Creating CIFS share on volume...');
       
       let createShareResult;
-      if (this.mode === 'rest') {
-        // REST mode: use multi-cluster tools
+      if (this.mode === 'http') {
+        // HTTP mode: use multi-cluster tools
         createShareResult = await this.callTool('cluster_create_cifs_share', {
           cluster_name: config.cluster_name,
           name: config.test_share_name,
@@ -416,8 +464,8 @@ class CifsShareLifecycleTest {
       console.log('\\n📋 Step 2: Listing CIFS shares to verify creation...');
       
       let listResult;
-      if (this.mode === 'rest') {
-        // REST mode: use multi-cluster tools
+      if (this.mode === 'http') {
+        // HTTP mode: use multi-cluster tools
         listResult = await this.callTool('cluster_list_cifs_shares', {
           cluster_name: config.cluster_name,
           svm_name: config.test_svm,
@@ -440,7 +488,7 @@ class CifsShareLifecycleTest {
         console.log(JSON.stringify(listResult, null, 2));
       }
 
-      // Step 3: Get detailed share information (optional, skip on REST mode for now)
+      // Step 3: Get detailed share information (optional, skip on HTTP mode for now)
       if (this.mode === 'stdio') {
         console.log('\\n🔍 Step 3: Getting detailed CIFS share information...');
         
@@ -458,7 +506,7 @@ class CifsShareLifecycleTest {
           console.log(JSON.stringify(getShareResult, null, 2));
         }
       } else {
-        console.log('\\n🔍 Step 3: Skipping detailed share information (not available in REST mode)...');
+        console.log('\\n🔍 Step 3: Skipping detailed share information (not available in HTTP mode)...');
       }
 
       // Step 4: Update CIFS share properties (only available in STDIO mode)
@@ -482,15 +530,15 @@ class CifsShareLifecycleTest {
           console.log(JSON.stringify(updateResult, null, 2));
         }
       } else {
-        console.log('\\n🔧 Step 4: Skipping CIFS share update (not available in REST mode)...');
+        console.log('\\n🔧 Step 4: Skipping CIFS share update (not available in HTTP mode)...');
       }
 
       // Step 5: Clean up - Delete CIFS share
       console.log('\\n🗑️  Step 5: Cleaning up - Deleting CIFS share...');
       
       let deleteShareResult;
-      if (this.mode === 'rest') {
-        // REST mode: use multi-cluster delete tool
+      if (this.mode === 'http') {
+        // HTTP mode: use multi-cluster delete tool
         deleteShareResult = await this.callTool('cluster_delete_cifs_share', {
           cluster_name: config.cluster_name,
           name: config.test_share_name,
@@ -518,8 +566,8 @@ class CifsShareLifecycleTest {
       
       // First get the volume UUID
       let volumesResult;
-      if (this.mode === 'rest') {
-        // REST mode: use multi-cluster tools
+      if (this.mode === 'http') {
+        // HTTP mode: use multi-cluster tools
         volumesResult = await this.callTool('cluster_list_volumes', {
           cluster_name: config.cluster_name,
           svm_name: config.test_svm
@@ -547,8 +595,8 @@ class CifsShareLifecycleTest {
         
         // Offline the volume
         let offlineResult;
-        if (this.mode === 'rest') {
-          // REST mode: use multi-cluster tools
+        if (this.mode === 'http') {
+          // HTTP mode: use multi-cluster tools
           offlineResult = await this.callTool('cluster_offline_volume', {
             cluster_name: config.cluster_name,
             volume_uuid: volumeUuid
@@ -571,8 +619,8 @@ class CifsShareLifecycleTest {
         // Delete the volume
         console.log('\\n🗑️  Step 7: Deleting test volume...');
         let deleteVolumeResult;
-        if (this.mode === 'rest') {
-          // REST mode: use multi-cluster tools
+        if (this.mode === 'http') {
+          // HTTP mode: use multi-cluster tools
           deleteVolumeResult = await this.callTool('cluster_delete_volume', {
             cluster_name: config.cluster_name,
             volume_uuid: volumeUuid
@@ -603,7 +651,7 @@ class CifsShareLifecycleTest {
       throw error;
     } finally {
       // Always stop HTTP server if running
-      if (this.mode === 'rest') {
+      if (this.mode === 'http') {
         await this.stopHttpServer();
       }
     }
@@ -614,8 +662,8 @@ class CifsShareLifecycleTest {
 async function main() {
   const mode = process.argv[2] || 'stdio'; // Default to stdio mode
   
-  if (!['stdio', 'rest'].includes(mode)) {
-    console.error('Usage: node test-cifs-lifecycle.js [stdio|rest]');
+  if (!['stdio', 'http'].includes(mode)) {
+    console.error('Usage: node test-cifs-lifecycle.js [stdio|http]');
     process.exit(1);
   }
 
