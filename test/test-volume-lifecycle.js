@@ -319,7 +319,7 @@ class VolumeLifecycleTest {
 
   // Test Steps
   async step1_CreateVolume() {
-    await this.log(`🔧 Step 1: Creating volume '${this.config.volume_name}'`);
+    await this.log(`🔧 Step 1: Creating volume '${this.config.volume_name}' with performance-fixed QoS policy`);
     
     const createArgs = {
       cluster_name: this.config.cluster_name,
@@ -327,10 +327,11 @@ class VolumeLifecycleTest {
       volume_name: this.config.volume_name,
       size: this.config.size,
       aggregate_name: this.config.aggregate_name,
+      qos_policy: 'performance-fixed' // Use pre-defined ONTAP QoS policy
     };
 
     const result = await this.callTool('cluster_create_volume', createArgs);
-    await this.log(`✅ Volume created: ${JSON.stringify(result.content[0].text)}`);
+    await this.log(`✅ Volume created with QoS policy: ${JSON.stringify(result.content[0].text)}`);
     
     // Extract UUID from response
     const text = result.content[0].text;
@@ -372,6 +373,40 @@ class VolumeLifecycleTest {
       await this.log(`✅ Volume verified online and ready`);
     } else {
       throw new Error('Volume not found or not online');
+    }
+  }
+
+  async step2_5_UpdateVolumeQoSPolicy() {
+    await this.log(`🔄 Step 2.5: Testing comprehensive volume update - changing QoS policy from performance-fixed to value-fixed`);
+    
+    const updateArgs = {
+      cluster_name: this.config.cluster_name,
+      volume_uuid: this.volume_uuid,
+      qos_policy: 'value-fixed', // Change to value-fixed to test update functionality
+      comment: `Updated via comprehensive update tool - ${new Date().toISOString()}`
+    };
+
+    const result = await this.callTool('cluster_update_volume', updateArgs);
+    await this.log(`✅ Volume update result: ${result.content[0].text}`);
+    
+    // Verify the update was applied by checking volume configuration
+    await this.sleep(2000); // Wait 2 seconds for update to take effect
+    
+    try {
+      const configResult = await this.callTool('get_volume_configuration', {
+        volume_uuid: this.volume_uuid
+      });
+      
+      const configText = configResult.content[0].text;
+      await this.log(`📋 Volume configuration after update: ${configText}`);
+      
+      if (configText.includes('value-fixed')) {
+        await this.log(`✅ QoS policy successfully updated to value-fixed`);
+      } else {
+        await this.log(`⚠️ QoS policy update may not be reflected in configuration yet`);
+      }
+    } catch (error) {
+      await this.log(`⚠️ Could not verify configuration update: ${error.message}`);
     }
   }
 
@@ -444,10 +479,11 @@ class VolumeLifecycleTest {
 
       await this.step1_CreateVolume();
       await this.step2_WaitAndVerify();
+      await this.step2_5_UpdateVolumeQoSPolicy();
       await this.step3_OfflineVolume();
       await this.step4_DeleteVolume();
       
-      await this.log(`🎉 Volume Lifecycle Test COMPLETED SUCCESSFULLY!`);
+      await this.log(`🎉 Volume Lifecycle Test with QoS Policy-Group Integration COMPLETED SUCCESSFULLY!`);
       
     } catch (error) {
       await this.log(`❌ Test FAILED: ${error.message}`);

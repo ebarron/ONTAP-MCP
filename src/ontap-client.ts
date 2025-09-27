@@ -12,6 +12,7 @@ import type {
   VolumeStats,
   CreateVolumeParams,
   CreateVolumeResponse,
+  UpdateVolumeParams,
   VolumeSnapshotConfig,
   VolumeNfsConfig
 } from './types/volume-types.js';
@@ -275,6 +276,13 @@ export class OntapApiClient {
     // Add snapshot policy if specified
     if (params.snapshot_policy) {
       body.snapshot_policy = { name: params.snapshot_policy };
+    }
+
+    // Add QoS policy if specified
+    if (params.qos_policy) {
+      body.qos = {
+        policy: { name: params.qos_policy }
+      };
     }
 
     // Add NFS export policy if specified
@@ -809,6 +817,59 @@ export class OntapApiClient {
     
     await this.makeRequest(
       `/storage/volumes/${volumeUuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Comprehensive volume update method
+   * Updates multiple volume properties in a single operation
+   */
+  async updateVolume(params: UpdateVolumeParams): Promise<void> {
+    const body: any = {};
+
+    // Update size (only increases allowed)
+    if (params.size) {
+      body.size = this.parseSize(params.size);
+    }
+
+    // Update comment
+    if (params.comment !== undefined) {
+      body.comment = params.comment;
+    }
+
+    // Update security style
+    if (params.security_style) {
+      body.nas = body.nas || {};
+      body.nas.security_style = params.security_style;
+    }
+
+    // Update QoS policy
+    if (params.qos_policy !== undefined) {
+      if (params.qos_policy === '') {
+        // Empty string removes the QoS policy
+        body.qos = {};
+      } else {
+        body.qos = {
+          policy: { name: params.qos_policy }
+        };
+      }
+    }
+
+    // Update snapshot policy
+    if (params.snapshot_policy) {
+      body.snapshot_policy = { name: params.snapshot_policy };
+    }
+
+    // Update NFS export policy
+    if (params.nfs_export_policy) {
+      body.nas = body.nas || {};
+      body.nas.export_policy = { name: params.nfs_export_policy };
+    }
+
+    await this.makeRequest(
+      `/storage/volumes/${params.volume_uuid}`,
       'PATCH',
       body
     );

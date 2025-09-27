@@ -9,7 +9,7 @@ echo "=== ONTAP MCP Tool Discovery Test ==="
 echo ""
 
 # Expected tool count
-EXPECTED_TOOL_COUNT=53
+EXPECTED_TOOL_COUNT=55
 
 # Test 1: REST API Tool Discovery
 echo "🌐 Testing REST API tool discovery..."

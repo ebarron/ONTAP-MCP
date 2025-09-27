@@ -110,6 +110,12 @@ import {
   createUpdateVolumeCommentToolDefinition,
   handleUpdateVolumeComment,
   
+  // Comprehensive volume update tools
+  createUpdateVolumeToolDefinition,
+  handleUpdateVolume,
+  createClusterUpdateVolumeToolDefinition,
+  handleClusterUpdateVolume,
+  
   // Volume NFS access tools
   createConfigureVolumeNfsAccessToolDefinition,
   handleConfigureVolumeNfsAccess,

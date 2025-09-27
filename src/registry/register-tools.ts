@@ -110,6 +110,12 @@ import {
   createUpdateVolumeCommentToolDefinition,
   handleUpdateVolumeComment,
   
+  // Comprehensive volume update tools
+  createUpdateVolumeToolDefinition,
+  handleUpdateVolume,
+  createClusterUpdateVolumeToolDefinition,
+  handleClusterUpdateVolume,
+  
   createConfigureVolumeNfsAccessToolDefinition,
   handleConfigureVolumeNfsAccess,
   createDisableVolumeNfsAccessToolDefinition,
@@ -302,6 +308,21 @@ export function registerAllTools(): void {
     category: ToolCategory.VOLUME_MANAGEMENT,
     definition: createUpdateVolumeCommentToolDefinition,
     handler: handleUpdateVolumeComment
+  });
+
+  // Comprehensive volume update tools
+  registerTool({
+    name: "update_volume",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createUpdateVolumeToolDefinition,
+    handler: handleUpdateVolume
+  });
+
+  registerTool({
+    name: "cluster_update_volume",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createClusterUpdateVolumeToolDefinition,
+    handler: handleClusterUpdateVolume
   });
 
   // Volume NFS access tools

@@ -2,10 +2,7 @@
 
 /**
  * Dynamic tool count verification for NetApp ONTAP MCP Server
- * This s        if (tools.length === 53) {
-        console.log('✅ PASS: Found expected 53 tools');
-      } else {
-        console.log(`❌ FAIL: Expected 53 tools, found ${tools.length}`);t actually queries the MCP server to count tools rather than using hardcoded values
+ * This script actually queries the MCP server to count tools rather than using hardcoded values
  */
 
 import { spawn } from 'child_process';
@@ -99,10 +96,10 @@ setTimeout(() => {
       });
       
       console.log('');
-      if (tools.length === 53) {
-        console.log('✅ PASS: Found expected 53 tools');
+      if (tools.length === 55) {
+        console.log('✅ PASS: Found expected 55 tools');
       } else {
-        console.log(`❌ FAIL: Expected 53 tools, found ${tools.length}`);
+        console.log(`❌ FAIL: Expected 55 tools, found ${tools.length}`);
       }
       
       if (totalCounted !== tools.length) {

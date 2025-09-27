@@ -59,6 +59,16 @@ export interface SnapshotPolicyReference {
 }
 
 /**
+ * QoS policy reference
+ */
+export interface QosPolicyReference {
+  /** QoS policy name */
+  name: string;
+  /** QoS policy UUID */
+  uuid?: string;
+}
+
+/**
  * Volume NAS configuration
  */
 export interface VolumeNasConfig {
@@ -192,6 +202,8 @@ export interface CreateVolumeParams {
   snapshot_policy?: string;
   /** Optional NFS export policy name */
   nfs_export_policy?: string;
+  /** Optional QoS policy name (can be from volume's SVM or admin SVM) */
+  qos_policy?: string;
   /** Optional CIFS share configuration */
   cifs_share?: VolumeCifsConfig;
 }
@@ -239,6 +251,26 @@ export interface UpdateVolumeSecurityStyleParams {
   volume_uuid: string;
   /** New security style */
   security_style: VolumeSecurityStyle;
+}
+
+/**
+ * Comprehensive volume update parameters
+ */
+export interface UpdateVolumeParams {
+  /** Volume UUID */
+  volume_uuid: string;
+  /** New volume size (e.g., '500GB', '2TB') - can only increase */
+  size?: string;
+  /** New comment/description */
+  comment?: string;
+  /** New security style */
+  security_style?: VolumeSecurityStyle;
+  /** New QoS policy name (can be from volume's SVM or admin SVM, or empty string to remove) */
+  qos_policy?: string;
+  /** New snapshot policy name */
+  snapshot_policy?: string;
+  /** New NFS export policy name */
+  nfs_export_policy?: string;
 }
 
 /**

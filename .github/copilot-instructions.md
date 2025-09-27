@@ -7,7 +7,7 @@
 - **NEVER use `git push` without explicit user permission**  
 - **User controls ALL commits and pushes - wait for explicit instructions**
 
-This is an MCP (Model Context Protocol) server providing 53 tools for NetApp ONTAP storage management across multiple clusters.
+This is an MCP (Model Context Protocol) server providing 55 tools for NetApp ONTAP storage management across multiple clusters.
 
 ## Architecture Overview
 
@@ -15,7 +15,7 @@ This is an MCP (Model Context Protocol) server providing 53 tools for NetApp ONT
 - **STDIO Mode**: Default for VS Code MCP integration (`npm start`)
 - **HTTP Mode**: RESTful API server for web apps (`npm run start:http`)
 - Transport detected by CLI args: `--http=3000` or `http 3000` activates HTTP mode
-- All 53 tools available in both transports with identical functionality
+- All 55 tools available in both transports with identical functionality
 
 ### Multi-Cluster Management
 - **OntapClusterManager**: Central registry for multiple ONTAP clusters
@@ -130,7 +130,7 @@ node build/index.js --http=3000
 - **NEVER use git push unless user explicitly requests it**
 - **NEVER use git commit unless user explicitly requests it**
 - Always build and test both transport modes before changes
-- Use test scripts to verify all 53 tools still register correctly
+- Use test scripts to verify all 55 tools still register correctly
 - Wait for explicit git instructions - user controls all commits and pushes
 - Only stage changes (git add) and show status when making file changes
 

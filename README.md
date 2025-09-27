@@ -55,10 +55,12 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 
 ## 🛠️ MCP Capabilities
 
-### 53 Storage Management Tools
+### 55 Storage Management Tools
 
-#### Core Volume Operations (18 tools)
+#### Core Volume Operations (20 tools)
 - Complete volume lifecycle: create, read, update, delete, resize
+- **NEW**: Comprehensive volume updates (multiple properties in single operation)
+- **NEW**: QoS policy-group integration (performance-fixed, value-fixed, extreme-fixed)
 - NFS access control with export policies
 - Safe deletion workflow (offline → delete)
 - Volume configuration and statistics
@@ -81,6 +83,13 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 - Adaptive QoS policies with dynamic scaling
 - Performance allocation per workload/volume
 
+#### NEW: Comprehensive Volume Updates (2 tools)
+- **`update_volume`**: Single-cluster comprehensive updates
+- **`cluster_update_volume`**: Multi-cluster comprehensive updates
+- Update multiple properties in single operation: size, QoS policy, comment, security style, snapshot policy, NFS export policy
+- QoS policy integration with pre-defined ONTAP policy-groups
+- Seamless policy changes without service interruption
+
 #### Multi-Cluster Management (11 tools)
 - Cluster registration and discovery
 - Cross-cluster volume operations
@@ -89,7 +98,7 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 ### Transport Modes
 - **STDIO**: Direct integration with VS Code MCP and AI assistants
 - **HTTP Transport**: Web applications, testing, and external integrations
-- **Dual Mode**: All 53 tools available in both transports
+- **Dual Mode**: All 55 tools available in both transports
 
 ## 📚 Documentation
 
@@ -135,7 +144,7 @@ src/
 │   ├── base-transport.ts  # Common transport interface
 │   ├── stdio-transport.ts # MCP STDIO implementation
 │   └── http-transport.ts  # HTTP transport implementation
-├── tools/                 # MCP tool implementations (53 tools)
+├── tools/                 # MCP tool implementations (55 tools)
 │   ├── cluster-management-tools.ts  # Basic cluster operations
 │   ├── volume-tools.ts              # Volume lifecycle management
 │   ├── snapshot-policy-tools.ts     # Snapshot policy management

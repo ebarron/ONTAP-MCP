@@ -16,6 +16,7 @@ import type {
   VolumeStats, 
   CreateVolumeParams, 
   CreateVolumeResponse,
+  UpdateVolumeParams,
   VolumeSecurityStyle,
   ResizeVolumeParams,
   UpdateVolumeCommentParams,
@@ -60,6 +61,7 @@ const CreateVolumeSchema = z.object({
   volume_name: z.string().describe("Name of the new volume"),
   size: z.string().describe("Size of the volume (e.g., '100GB', '1TB')"),
   aggregate_name: z.string().describe("Optional: Name of the aggregate to use").optional(),
+  qos_policy: z.string().describe("Optional: QoS policy name (can be from volume's SVM or admin SVM)").optional(),
   cifs_share: CifsShareConfigSchema.optional().describe("Optional CIFS share configuration")
 });
 
@@ -96,6 +98,7 @@ const ClusterCreateVolumeSchema = z.object({
   volume_name: z.string().describe("Name of the new volume"),
   size: z.string().describe("Size of the volume (e.g., '100GB', '1TB')"),
   aggregate_name: z.string().describe("Optional: Name of the aggregate to use").optional(),
+  qos_policy: z.string().describe("Optional: QoS policy name (can be from volume's SVM or admin SVM)").optional(),
   cifs_share: CifsShareConfigSchema.optional().describe("Optional CIFS share configuration")
 });
 
@@ -138,6 +141,32 @@ const UpdateVolumeCommentSchema = z.object({
   cluster_name: z.string().describe("Name of the registered cluster").optional(),
   volume_uuid: z.string().describe("UUID of the volume"),
   comment: z.string().describe("New comment/description for the volume").optional()
+});
+
+// Comprehensive volume update schemas (legacy single-cluster)
+const UpdateVolumeSchema = z.object({
+  cluster_ip: z.string().describe("IP address or FQDN of the ONTAP cluster"),
+  username: z.string().describe("Username for authentication"),
+  password: z.string().describe("Password for authentication"),
+  volume_uuid: z.string().describe("UUID of the volume to update"),
+  size: z.string().describe("New size (e.g., '500GB', '2TB') - can only increase").optional(),
+  comment: z.string().describe("New comment/description").optional(),
+  security_style: z.enum(['unix', 'ntfs', 'mixed', 'unified']).describe("New security style").optional(),
+  qos_policy: z.string().describe("New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)").optional(),
+  snapshot_policy: z.string().describe("New snapshot policy name").optional(),
+  nfs_export_policy: z.string().describe("New NFS export policy name").optional()
+});
+
+// Comprehensive volume update schemas (multi-cluster)
+const ClusterUpdateVolumeSchema = z.object({
+  cluster_name: z.string().describe("Name of the registered cluster"),
+  volume_uuid: z.string().describe("UUID of the volume to update"),
+  size: z.string().describe("New size (e.g., '500GB', '2TB') - can only increase").optional(),
+  comment: z.string().describe("New comment/description").optional(),
+  security_style: z.enum(['unix', 'ntfs', 'mixed', 'unified']).describe("New security style").optional(),
+  qos_policy: z.string().describe("New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)").optional(),
+  snapshot_policy: z.string().describe("New snapshot policy name").optional(),
+  nfs_export_policy: z.string().describe("New NFS export policy name").optional()
 });
 
 const ConfigureVolumeNfsAccessSchema = z.object({
@@ -396,6 +425,7 @@ export async function handleCreateVolume(args: any): Promise<any> {
       volume_name: params.volume_name,
       size: params.size,
       aggregate_name: params.aggregate_name,
+      qos_policy: params.qos_policy,
       cifs_share: params.cifs_share
     };
     
@@ -407,6 +437,7 @@ export async function handleCreateVolume(args: any): Promise<any> {
            `🏢 **SVM:** ${params.svm_name}\n` +
            `📊 **Size:** ${params.size}\n` +
            `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\n` : ''}` +
+           `${params.qos_policy ? `🎯 **QoS Policy:** ${params.qos_policy}\n` : ''}` +
            `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\n` : ''}`;
     
     // Add CIFS share information if configured
@@ -645,6 +676,7 @@ export async function handleClusterCreateVolume(args: any, clusterManager: Ontap
       volume_name: params.volume_name,
       size: params.size,
       aggregate_name: params.aggregate_name,
+      qos_policy: params.qos_policy,
       cifs_share: params.cifs_share
     };
     
@@ -657,6 +689,7 @@ export async function handleClusterCreateVolume(args: any, clusterManager: Ontap
            `🏢 **SVM:** ${params.svm_name}\\n` +
            `📊 **Size:** ${params.size}\\n` +
            `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\\n` : ''}` +
+           `${params.qos_policy ? `🎯 **QoS Policy:** ${params.qos_policy}\\n` : ''}` +
            `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\\n` : ''}`;
     
     // Add CIFS share information if configured
@@ -987,9 +1020,131 @@ export async function handleDisableVolumeNfsAccess(args: any, clusterManager: On
     
     return `✅ **NFS access disabled successfully**\\n\\n` +
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
-           `🔐 **Export Policy:** default\\n\\n` +
-           `🔒 **Note:** The volume has been reverted to the default export policy, which typically restricts access.`;
+           `🔐 **Export Policy:** default (restrictive)\\n\\n` +
+           `⚠️ **Note:** The volume has been reverted to the default export policy, which may restrict NFS access.`;
   } catch (error) {
     return `❌ **Error disabling NFS access:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+// ================================
+// Comprehensive Volume Update Tools
+// ================================
+
+export function createUpdateVolumeToolDefinition(): Tool {
+  return {
+    name: "update_volume",
+    description: "Update multiple volume properties in a single operation including size, comment, security style, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
+        username: { type: "string", description: "Username for authentication" },
+        password: { type: "string", description: "Password for authentication" },
+        volume_uuid: { type: "string", description: "UUID of the volume to update" },
+        size: { type: "string", description: "New size (e.g., '500GB', '2TB') - can only increase" },
+        comment: { type: "string", description: "New comment/description" },
+        security_style: { type: "string", enum: ["unix", "ntfs", "mixed", "unified"], description: "New security style" },
+        qos_policy: { type: "string", description: "New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)" },
+        snapshot_policy: { type: "string", description: "New snapshot policy name" },
+        nfs_export_policy: { type: "string", description: "New NFS export policy name" }
+      },
+      required: ["cluster_ip", "username", "password", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleUpdateVolume(args: any): Promise<any> {
+  const params = UpdateVolumeSchema.parse(args);
+  const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
+  
+  try {
+    const updateParams: UpdateVolumeParams = {
+      volume_uuid: params.volume_uuid,
+      size: params.size,
+      comment: params.comment,
+      security_style: params.security_style,
+      qos_policy: params.qos_policy,
+      snapshot_policy: params.snapshot_policy,
+      nfs_export_policy: params.nfs_export_policy
+    };
+    
+    await client.updateVolume(updateParams);
+    
+    let response = `✅ **Volume updated successfully!**\\n\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n\\n` +
+           `🔄 **Updated Properties:**\\n`;
+    
+    if (params.size) response += `   📊 Size: ${params.size}\\n`;
+    if (params.comment !== undefined) response += `   💬 Comment: ${params.comment || '(cleared)'}\\n`;
+    if (params.security_style) response += `   🔒 Security Style: ${params.security_style}\\n`;
+    if (params.qos_policy !== undefined) response += `   🎯 QoS Policy: ${params.qos_policy || '(removed)'}\\n`;
+    if (params.snapshot_policy) response += `   📸 Snapshot Policy: ${params.snapshot_policy}\\n`;
+    if (params.nfs_export_policy) response += `   🔐 Export Policy: ${params.nfs_export_policy}\\n`;
+    
+    response += `\\n💡 **Note:** All specified properties have been updated. QoS policies can be from the volume's SVM or admin SVM.`;
+    
+    return response;
+  } catch (error) {
+    return `❌ **Error updating volume:** ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export function createClusterUpdateVolumeToolDefinition(): Tool {
+  return {
+    name: "cluster_update_volume",
+    description: "Update multiple volume properties on a registered cluster including size, comment, security style, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        volume_uuid: { type: "string", description: "UUID of the volume to update" },
+        size: { type: "string", description: "New size (e.g., '500GB', '2TB') - can only increase" },
+        comment: { type: "string", description: "New comment/description" },
+        security_style: { type: "string", enum: ["unix", "ntfs", "mixed", "unified"], description: "New security style" },
+        qos_policy: { type: "string", description: "New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)" },
+        snapshot_policy: { type: "string", description: "New snapshot policy name" },
+        nfs_export_policy: { type: "string", description: "New NFS export policy name" }
+      },
+      required: ["cluster_name", "volume_uuid"],
+    },
+  };
+}
+
+export async function handleClusterUpdateVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
+  const params = ClusterUpdateVolumeSchema.parse(args);
+  
+  try {
+    const client = clusterManager.getClient(params.cluster_name);
+    
+    const updateParams: UpdateVolumeParams = {
+      volume_uuid: params.volume_uuid,
+      size: params.size,
+      comment: params.comment,
+      security_style: params.security_style,
+      qos_policy: params.qos_policy,
+      snapshot_policy: params.snapshot_policy,
+      nfs_export_policy: params.nfs_export_policy
+    };
+    
+    await client.updateVolume(updateParams);
+    
+    let response = `✅ **Volume updated successfully!**\\n\\n` +
+           `🎯 **Cluster:** ${params.cluster_name}\\n` +
+           `🆔 **Volume UUID:** ${params.volume_uuid}\\n\\n` +
+           `🔄 **Updated Properties:**\\n`;
+    
+    if (params.size) response += `   📊 Size: ${params.size}\\n`;
+    if (params.comment !== undefined) response += `   💬 Comment: ${params.comment || '(cleared)'}\\n`;
+    if (params.security_style) response += `   🔒 Security Style: ${params.security_style}\\n`;
+    if (params.qos_policy !== undefined) response += `   🎯 QoS Policy: ${params.qos_policy || '(removed)'}\\n`;
+    if (params.snapshot_policy) response += `   📸 Snapshot Policy: ${params.snapshot_policy}\\n`;
+    if (params.nfs_export_policy) response += `   🔐 Export Policy: ${params.nfs_export_policy}\\n`;
+    
+    response += `\\n💡 **Note:** All specified properties have been updated. QoS policies can be from the volume's SVM or admin SVM.`;
+    
+    return response;
+  } catch (error) {
+    return `❌ **Error updating volume:** ${error instanceof Error ? error.message : String(error)}`;
   }
 }
