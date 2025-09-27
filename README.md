@@ -59,8 +59,8 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 
 #### Core Volume Operations (20 tools)
 - Complete volume lifecycle: create, read, update, delete, resize
-- Comprehensive volume updates (multiple properties in single operation)
-- QoS policy-group integration (performance-fixed, value-fixed, extreme-fixed)
+- Comprehensive volume updates (multiple properties in single operation)  
+- QoS policy-group and snapshot policy assignment and updates
 - NFS access control with export policies
 - Safe deletion workflow (offline → delete)
 - Volume configuration and statistics
@@ -82,12 +82,6 @@ curl http://localhost:3000/api/tools/list_registered_clusters
 - Fixed QoS policies with IOPS/bandwidth limits
 - Adaptive QoS policies with dynamic scaling
 - Performance allocation per workload/volume
-
-#### Comprehensive Volume Updates (2 tools)
-- Multi-property updates in single operation
-- QoS policy integration with pre-defined ONTAP policy-groups
-- Size, comment, security style, snapshot policy, NFS export policy updates
-- Single-cluster and multi-cluster support
 
 #### Multi-Cluster Management (11 tools)
 - Cluster registration and discovery
