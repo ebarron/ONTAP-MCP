@@ -89,6 +89,17 @@ class ProvisioningPanel {
                         </div>
                     </div>
                     
+                    <!-- Performance Section -->
+                    <div class="form-section">
+                        <h3>Performance</h3>
+                        <div class="form-group">
+                            <label for="qosPolicy">QoS Policy Group</label>
+                            <select id="qosPolicy" name="qosPolicy">
+                                <option value="">Loading policies...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
                     <!-- Protection Section -->
                     <div class="form-section">
                         <h3>Protection</h3>
@@ -179,13 +190,17 @@ class ProvisioningPanel {
     async loadData() {
         // Show loading states
         this.setDropdownLoading('svmSelect', 'Loading SVMs...');
+        this.setDropdownLoading('qosPolicy', 'Loading policies...');
         this.setDropdownLoading('snapshotPolicy', 'Loading policies...');
         this.setDropdownLoading('exportPolicy', 'Select SVM first...');
 
         // Load SVMs first
-        // Export policies and snapshot policies will be loaded when user selects an SVM
+        // QoS policies, export policies and snapshot policies will be loaded when user selects an SVM
         try {
             await this.loadSvms();
+            
+            // Load admin QoS policies (available across all SVMs)
+            await this.loadAdminQosPolicies();
             
             // Set export policy to disabled state until SVM is selected
             const exportSelect = document.getElementById('exportPolicy');
@@ -248,6 +263,7 @@ class ProvisioningPanel {
                             this.loadExportPolicies();
                             this.loadSnapshotPoliciesForSvm(newSvmSelect.value);
                             this.loadAggregatesForSvm(newSvmSelect.value);
+                            this.loadQosPoliciesForSvm(newSvmSelect.value);
                         } else {
                             // Reset export policy dropdown
                             const exportSelect = document.getElementById('exportPolicy');
@@ -263,6 +279,9 @@ class ProvisioningPanel {
                             const aggregateSelect = document.getElementById('aggregateSelect');
                             aggregateSelect.innerHTML = '<option value="">Select SVM first</option>';
                             aggregateSelect.disabled = true;
+                            
+                            // Reset QoS policy dropdown to admin policies only
+                            this.loadAdminQosPolicies();
                         }
                     });
                 } else {
@@ -502,16 +521,25 @@ class ProvisioningPanel {
 
     // Create NFS volume
     async createNfsVolume(volumeName, volumeSize, svmName, aggregateName) {
-        const response = await this.apiClient.callMcp('cluster_create_volume', {
+        const qosPolicy = document.getElementById('qosPolicy').value;
+        
+        const volumeParams = {
             cluster_name: this.demo.selectedCluster.name,
             svm_name: svmName,
             volume_name: volumeName,
             size: volumeSize,
             aggregate_name: aggregateName
-        });
+        };
+        
+        // Add QoS policy if selected
+        if (qosPolicy) {
+            volumeParams.qos_policy = qosPolicy;
+        }
+
+        const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
         if (response.success) {
-            this.notifications.showSuccess(`NFS volume ${volumeName} created successfully`);
+            this.notifications.showSuccess(`NFS volume ${volumeName} created successfully${qosPolicy ? ` with QoS policy ${qosPolicy}` : ''}`);
             this.close();
         } else {
             throw new Error(response.error || 'Unknown error');
@@ -524,6 +552,7 @@ class ProvisioningPanel {
         const shareComment = document.getElementById('shareComment').value;
         const cifsUsers = document.getElementById('cifsUsers').value;
         const cifsPermissions = document.getElementById('cifsPermissions').value;
+        const qosPolicy = document.getElementById('qosPolicy').value;
 
         if (!shareName) {
             throw new Error('CIFS share name is required');
@@ -545,20 +574,151 @@ class ProvisioningPanel {
             ]
         };
 
-        const response = await this.apiClient.callMcp('cluster_create_volume', {
+        const volumeParams = {
             cluster_name: this.demo.selectedCluster.name,
             svm_name: svmName,
             volume_name: volumeName,
             size: volumeSize,
             aggregate_name: aggregateName,
             cifs_share: cifsShare
-        });
+        };
+        
+        // Add QoS policy if selected
+        if (qosPolicy) {
+            volumeParams.qos_policy = qosPolicy;
+        }
+
+        const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
         if (response.success) {
-            this.notifications.showSuccess(`CIFS volume ${volumeName} with share ${shareName} created successfully`);
+            this.notifications.showSuccess(`CIFS volume ${volumeName} with share ${shareName} created successfully${qosPolicy ? ` with QoS policy ${qosPolicy}` : ''}`);
             this.close();
         } else {
             throw new Error(response.error || 'Unknown error');
+        }
+    }
+
+    // Load admin QoS policies (available across all SVMs)
+    async loadAdminQosPolicies() {
+        try {
+            const response = await this.apiClient.callMcp('cluster_list_qos_policies', {
+                cluster_name: this.demo.selectedCluster.name
+                // Don't specify svm_name to get all policies including admin ones
+            });
+
+            const qosSelect = document.getElementById('qosPolicy');
+            let policies = [];
+
+            if (response.success) {
+                // Parse text response to extract policy names
+                if (typeof response.data === 'string') {
+                    const lines = response.data.split('\n');
+                    for (const line of lines) {
+                        // Look for lines with policy names, format: "🎛️ **policy_name** (uuid)"
+                        const policyMatch = line.match(/🎛️\s+\*\*([^*]+)\*\*\s+\(/);
+                        if (policyMatch) {
+                            const policyName = policyMatch[1].trim();
+                            if (policyName && policyName !== 'Unknown') {
+                                // Extract SVM info if available
+                                const svmMatch = line.match(/SVM:\s+([^\s\n]+)/);
+                                const policySvm = svmMatch ? svmMatch[1] : 'cluster';
+                                policies.push({ name: policyName, svm: policySvm });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Build dropdown options
+            let options = '<option value="">No QoS Policy (Default)</option>';
+            if (policies.length > 0) {
+                // Group policies by type for better organization
+                const adminPolicies = policies.filter(p => p.svm !== this.demo.selectedCluster.name && p.svm !== 'cluster');
+                const clusterPolicies = policies.filter(p => p.svm === this.demo.selectedCluster.name || p.svm === 'cluster');
+                
+                if (clusterPolicies.length > 0) {
+                    options += clusterPolicies.map(policy => 
+                        `<option value="${policy.name}">${policy.name}</option>`
+                    ).join('');
+                }
+                
+                if (adminPolicies.length > 0) {
+                    options += adminPolicies.map(policy => 
+                        `<option value="${policy.name}">${policy.name} (${policy.svm})</option>`
+                    ).join('');
+                }
+            }
+            
+            qosSelect.innerHTML = options;
+            this.setDropdownReady('qosPolicy');
+        } catch (error) {
+            console.error('Error loading admin QoS policies:', error);
+            const qosSelect = document.getElementById('qosPolicy');
+            qosSelect.innerHTML = '<option value="">No QoS Policy (Default)</option>';
+            this.setDropdownReady('qosPolicy');
+        }
+    }
+
+    // Load QoS policies for a specific SVM and combine with cluster-wide policies
+    async loadQosPoliciesForSvm(svmName) {
+        try {
+            // Load both cluster-wide policies and SVM-specific policies
+            const [clusterResponse, svmResponse] = await Promise.all([
+                this.apiClient.callMcp('cluster_list_qos_policies', {
+                    cluster_name: this.demo.selectedCluster.name
+                    // No svm_name filter to get all policies
+                }),
+                this.apiClient.callMcp('cluster_list_qos_policies', {
+                    cluster_name: this.demo.selectedCluster.name,
+                    svm_name: svmName
+                })
+            ]);
+
+            const qosSelect = document.getElementById('qosPolicy');
+            let allPolicies = [];
+
+            // Parse cluster-wide policies (including admin policies)
+            if (clusterResponse.success && typeof clusterResponse.data === 'string') {
+                const lines = clusterResponse.data.split('\n');
+                for (const line of lines) {
+                    const policyMatch = line.match(/🎛️\s+\*\*([^*]+)\*\*\s+\(/);
+                    if (policyMatch) {
+                        const policyName = policyMatch[1].trim();
+                        if (policyName && policyName !== 'Unknown') {
+                            // Try to determine SVM from the line context, default to 'cluster'
+                            const svmMatch = line.match(/SVM:\s+([^\s\n]+)/);
+                            const policySvm = svmMatch ? svmMatch[1] : 'cluster';
+                            allPolicies.push({ name: policyName, svm: policySvm });
+                        }
+                    }
+                }
+            }
+
+            // Build dropdown options - avoid duplicates
+            const uniquePolicies = [];
+            const seenPolicies = new Set();
+            
+            allPolicies.forEach(policy => {
+                if (!seenPolicies.has(policy.name)) {
+                    seenPolicies.add(policy.name);
+                    uniquePolicies.push(policy);
+                }
+            });
+
+            let options = '<option value="">No QoS Policy (Default)</option>';
+            
+            if (uniquePolicies.length > 0) {
+                options += uniquePolicies.map(policy => 
+                    `<option value="${policy.name}">${policy.name}${policy.svm && policy.svm !== 'cluster' ? ` (${policy.svm})` : ''}</option>`
+                ).join('');
+            }
+            
+            qosSelect.innerHTML = options;
+            this.setDropdownReady('qosPolicy');
+        } catch (error) {
+            console.error('Error loading QoS policies for SVM:', error);
+            // Fall back to cluster-wide policies only
+            this.loadAdminQosPolicies();
         }
     }
 

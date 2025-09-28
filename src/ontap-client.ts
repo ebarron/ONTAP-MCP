@@ -1130,6 +1130,13 @@ export class OntapApiClient {
 
   /**
    * List QoS policies
+   * 
+   * TEMPORARY WORKAROUND: The ONTAP REST API does not expose built-in QoS policy groups
+   * that are available via CLI (qos policy-group show). Until we find the permanent
+   * REST API solution, we hardcode the standard admin vserver policy groups:
+   * - extreme-fixed: 0-50000IOPS,1.53GB/s
+   * - performance-fixed: 0-30000IOPS,937.5MB/s  
+   * - value-fixed: 0-15000IOPS,468.8MB/s
    */
   async listQosPolicies(params?: { 
     svmName?: string; 
@@ -1155,8 +1162,99 @@ export class OntapApiClient {
       endpoint += `?${queryParams.join('&')}`;
     }
 
+    // Get policies from REST API
     const response = await this.makeRequest<{ records: any[]; num_records: number }>(endpoint);
-    return response.records || [];
+    const apiPolicies = response.records || [];
+
+    // TEMPORARY HARDCODED ADMIN POLICIES
+    // These built-in policy groups exist on the admin vserver but are not exposed via REST API
+    const clusterInfo = await this.makeRequest<any>('/cluster');
+    const adminVserverName = clusterInfo.name; // e.g., "C1_sti245-vsim-ocvs026a_1758285854"
+    
+    const hardcodedAdminPolicies = [
+      {
+        uuid: `hardcoded-extreme-fixed-${adminVserverName.slice(-8)}`, // Fake UUID based on cluster
+        name: 'extreme-fixed',
+        type: 'fixed',
+        svm: {
+          name: adminVserverName,
+          uuid: clusterInfo.uuid
+        },
+        is_shared: false,
+        workload_count: 0,
+        fixed: {
+          max_throughput: '50000IOPS,1.53GB/s',
+          min_throughput: '0IOPS'
+        },
+        class: 'user-defined',
+        _hardcoded: true // Internal flag to identify these as temporary entries
+      },
+      {
+        uuid: `hardcoded-performance-fixed-${adminVserverName.slice(-8)}`,
+        name: 'performance-fixed',
+        type: 'fixed',
+        svm: {
+          name: adminVserverName,
+          uuid: clusterInfo.uuid
+        },
+        is_shared: false,
+        workload_count: 0,
+        fixed: {
+          max_throughput: '30000IOPS,937.5MB/s',
+          min_throughput: '0IOPS'
+        },
+        class: 'user-defined',
+        _hardcoded: true
+      },
+      {
+        uuid: `hardcoded-value-fixed-${adminVserverName.slice(-8)}`,
+        name: 'value-fixed',
+        type: 'fixed',
+        svm: {
+          name: adminVserverName,
+          uuid: clusterInfo.uuid
+        },
+        is_shared: false,
+        workload_count: 0,
+        fixed: {
+          max_throughput: '15000IOPS,468.8MB/s',
+          min_throughput: '0IOPS'
+        },
+        class: 'user-defined',
+        _hardcoded: true
+      }
+    ];
+
+    // Filter hardcoded policies based on SVM parameter
+    let filteredHardcodedPolicies = hardcodedAdminPolicies;
+    
+    if (params?.svmName) {
+      // Only return hardcoded policies if the requested SVM is the admin vserver
+      if (params.svmName === adminVserverName) {
+        filteredHardcodedPolicies = hardcodedAdminPolicies;
+      } else {
+        filteredHardcodedPolicies = []; // Don't include admin policies for other SVMs
+      }
+    }
+    // If no svmName specified, include all policies (API + hardcoded admin)
+
+    // Filter by policy name pattern if specified
+    if (params?.policyNamePattern) {
+      const pattern = params.policyNamePattern.toLowerCase();
+      filteredHardcodedPolicies = filteredHardcodedPolicies.filter(policy => 
+        policy.name.toLowerCase().includes(pattern)
+      );
+    }
+
+    // Filter by policy type if specified
+    if (params?.policyType) {
+      filteredHardcodedPolicies = filteredHardcodedPolicies.filter(policy => 
+        policy.type === params.policyType
+      );
+    }
+
+    // Combine API policies with filtered hardcoded policies
+    return [...apiPolicies, ...filteredHardcodedPolicies];
   }
 
   /**

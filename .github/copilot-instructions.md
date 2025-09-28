@@ -7,79 +7,74 @@
 - **NEVER use `git push` without explicit user permission**  
 - **User controls ALL commits and pushes - wait for explicit instructions**
 
-This is an MCP (Model Context Protocol) server providing 55 tools for NetApp ONTAP storage management across multiple clusters.
+This is an MCP (Model Context Protocol) server providing 55+ tools for NetApp ONTAP storage management across multiple clusters. The server supports dual transports (STDIO/HTTP) and manages complete storage lifecycles including volumes, snapshots, NFS/CIFS access, and performance policies.
 
-## Architecture Overview
+## Core Architecture
 
-### Dual Transport Design
-- **STDIO Mode**: Default for VS Code MCP integration (`npm start`)
-- **HTTP Mode**: RESTful API server for web apps (`npm run start:http`)
-- Transport detected by CLI args: `--http=3000` or `http 3000` activates HTTP mode
-- All 55 tools available in both transports with identical functionality
+### Dual Transport Pattern
+- **STDIO Mode**: VS Code MCP integration (`npm start`)
+- **HTTP Mode**: Web API server (`npm run start:http` or `--http=3000`)
+- **Transport Detection**: CLI args determine mode automatically
+- **Critical**: All 55+ tools must be registered in BOTH STDIO and HTTP handlers in `src/index.ts`
 
 ### Multi-Cluster Management
-- **OntapClusterManager**: Central registry for multiple ONTAP clusters
-- **Dynamic Registration**: Add clusters at runtime via `add_cluster` tool
-- **Environment Config**: Pre-load clusters via `ONTAP_CLUSTERS` JSON array
-- **Dual Patterns**: Legacy single-cluster tools (`create_volume`) + new multi-cluster tools (`cluster_create_volume`)
+- **OntapClusterManager**: Central registry in `src/ontap-client.ts`
+- **Environment Loading**: `ONTAP_CLUSTERS='[{"name":"...","cluster_ip":"..."}]'`
+- **Dual Tool Patterns**: Legacy single-cluster + new multi-cluster (`cluster_*`) tools
+- **Client Resolution**: Use `getApiClient()` helper to support both patterns
 
-### Tool Organization (src/tools/)
+### Storage Tool Organization
 ```
-volume-tools.ts           # Volume lifecycle + NFS access (18 tools)
-snapshot-policy-tools.ts  # Backup policies (4 tools)  
-export-policy-tools.ts    # NFS security (9 tools)
-snapshot-schedule-tools.ts # Cron schedules (5 tools)
-cifs-share-tools.ts       # CIFS/SMB share management (8 tools)
-cluster-management-tools.ts # Basic cluster operations (4 tools)
-qos-policy-tools.ts       # QoS performance policies (5 tools)
+src/tools/
+├── volume-tools.ts           # Volume lifecycle + NFS (18 tools)
+├── cifs-share-tools.ts       # CIFS/SMB management (8 tools)
+├── snapshot-policy-tools.ts  # Data protection (4 tools)
+├── export-policy-tools.ts    # NFS security (9 tools)
+├── qos-policy-tools.ts       # Performance policies (5 tools)
+└── cluster-management-tools.ts # Basic cluster ops (4 tools)
 ```
 
-## Development Patterns
+## Critical Development Patterns
+
+### MCP Tool Registration (Most Common Issue)
+**Problem**: Tool works in VS Code but fails HTTP mode with 500 error
+**Root Cause**: Missing registration in HTTP handler switch statement
+
+**Required Registration Points** (all in `src/index.ts`):
+1. Import tool functions (~line 89)
+2. Register in STDIO MCP handler (~line 868)  
+3. Register in HTTP REST API handler (~line 1192)
+
+```typescript
+// Example fix for new tool:
+case 'new_tool_name':
+  result = await handleNewTool(args, clusterManager);
+  break;
+```
 
 ### MCP Tool Creation Pattern
-Every tool follows this structure:
 ```typescript
-// 1. Zod schema for validation
-const ToolSchema = z.object({
-  cluster_name: z.string().describe("Name of registered cluster").optional(),
-  cluster_ip: z.string().describe("IP address").optional(),
-  // ... parameters
+// 1. Zod schema with dual cluster support
+const Schema = z.object({
+  cluster_name: z.string().optional(),
+  cluster_ip: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  // ... other params
 });
 
-// 2. Tool definition factory
-export function createToolDefinition(): Tool {
-  return {
-    name: "tool_name",
-    description: "Clear description",
-    inputSchema: zodToJsonSchema(ToolSchema)
-  };
-}
-
-// 3. Handler function
-export async function handleTool(args: any, clusterManager: OntapClusterManager): Promise<string> {
-  const validated = ToolSchema.parse(args);
-  const client = getApiClient(clusterManager, validated.cluster_name, validated.cluster_ip);
+// 2. Handler using getApiClient helper
+export async function handleTool(args: any, clusterManager: OntapClusterManager) {
+  const validated = Schema.parse(args);
+  const client = getApiClient(clusterManager, validated.cluster_name, validated.cluster_ip, validated.username, validated.password);
   // ... implementation
 }
 ```
 
-### API Client Helper Pattern
-Use `getApiClient()` helper to support both cluster patterns:
-```typescript
-function getApiClient(clusterManager, clusterName?, clusterIp?, username?, password?) {
-  if (clusterName) return clusterManager.getClient(clusterName);
-  if (clusterIp && username && password) return new OntapApiClient(clusterIp, username, password);
-  throw new Error("Either cluster_name or (cluster_ip + username + password) required");
-}
-```
-
-### Safety-First Volume Operations
-Volume deletion requires offline-first workflow:
-```typescript
-// 1. Take offline: cluster_offline_volume
-// 2. Delete: cluster_delete_volume  
-// Never delete online volumes - enforced by ONTAP API
-```
+### NetApp ONTAP Safety Patterns
+- **Volume Deletion**: Must offline first (`cluster_offline_volume` → `cluster_delete_volume`)
+- **Volume UUIDs**: Primary identifiers (auto-resolved from names)
+- **SVM Scoping**: Most operations are SVM-scoped, not cluster-wide
 
 ## Build & Test Workflow
 
@@ -142,12 +137,6 @@ node build/index.js --http=3000
 - Export policies control NFS access, snapshot policies handle backups
 - CIFS shares provide SMB/Windows file access with user/group ACLs
 
-## CIFS/SMB Integration
-- **Volume Creation**: Can provision CIFS shares during volume creation
-- **Access Control**: Supports Windows users/groups and permission levels (read/change/full_control)
-- **Share Properties**: Configurable encryption, oplocks, offline files, security settings
-- **Integration Pattern**: Follow same dual transport pattern as export policies
-
 ## Demo Web Interface Development
 
 ### Demo Architecture (demo/ directory)
@@ -155,30 +144,55 @@ The project includes a complete NetApp BlueXP-style demo interface for MCP REST 
 
 ```
 demo/
-├── index.html          # Main demo interface (NetApp BlueXP styling)
-├── styles.css          # Authentic BlueXP design system
-├── app.js              # MCP API integration + UI interactions
-├── README.md           # Demo documentation and setup
-├── test-api.html       # Interactive API testing utility
-└── test.html           # CSS/styling verification page
+├── index.html              # Main demo interface (NetApp BlueXP styling)
+├── styles.css              # Authentic BlueXP design system
+├── app.js                  # MCP API integration + UI interactions
+├── README.md               # Demo documentation and setup
+├── CHATBOT_README.md       # AI assistant setup guide
+├── CHATBOT_STRUCTURED_FORMAT.md # Chatbot integration specs
+├── js/
+│   ├── components/
+│   │   ├── ChatbotAssistant.js      # AI provisioning assistant
+│   │   ├── ProvisioningPanel.js     # Storage provisioning workflow
+│   │   ├── ExportPolicyModal.js     # NFS export policy management
+│   │   └── app-initialization.js    # App initialization logic
+│   ├── core/
+│   │   ├── McpApiClient.js          # HTTP transport layer
+│   │   └── utils.js                 # Utility functions
+│   └── ui/
+│       └── ToastNotifications.js    # User feedback system
+└── test/
+    ├── test-api.html            # Interactive API testing utility
+    ├── debug.html               # CSS/styling verification
+    ├── debug-test.html          # Debug testing interface
+    └── run-demo-tests.sh        # Demo test automation
 ```
 
 ### Demo Startup Pattern
 **Critical: Two-server architecture required**
 ```bash
 # Method 1: Using convenience scripts (recommended)
-./start-demo.sh    # Starts both MCP server and demo server
-./stop-demo.sh     # Stops both servers cleanly
+# Run in background to avoid blocking terminal
+nohup ./start-demo.sh > demo-startup.log 2>&1 &
 
-# Method 2: Manual startup
-# Terminal 1: Start MCP HTTP server with clusters
-cd /Users/ebarron/ONTAP-MCP
-export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"pass"}]'
-node build/index.js --http=3000
+# Wait for full startup (both MCP and web servers)
+sleep 8 && echo "Demo should be ready at http://localhost:8080"
 
-# Terminal 2: Start demo web server (from demo directory!)
-cd /Users/ebarron/ONTAP-MCP/demo
-python3 -m http.server 8080
+# Check status
+tail -f demo-startup.log
+
+# To stop
+./stop-demo.sh
+
+# Method 2: Manual startup (clusters MUST be sourced from test/clusters.json)
+# Load clusters directly from clusters.json (MCP server supports object format)
+export ONTAP_CLUSTERS="$(cat test/clusters.json)"
+
+# Start MCP HTTP server in background
+nohup node build/index.js --http=3000 > mcp-server.log 2>&1 &
+
+# Start demo web server from demo directory in background
+cd demo && nohup python3 -m http.server 8080 > ../demo-server.log 2>&1 &
 
 # Access: http://localhost:8080
 ```
@@ -373,22 +387,14 @@ demo/js/
 ├── components/
 │   ├── ChatbotAssistant.js      # AI provisioning assistant (1040+ lines)
 │   ├── ProvisioningPanel.js     # Storage provisioning workflow
-│   ├── ToastNotifications.js    # User feedback system
-│   └── modals/
-│       ├── VolumeModal.js       # Volume creation modal
-│       └── ExportPolicyModal.js # NFS export policy management
+│   ├── ExportPolicyModal.js     # NFS export policy management
+│   └── app-initialization.js    # App initialization logic
 ├── core/
-│   └── McpApiClient.js          # HTTP transport layer
+│   ├── McpApiClient.js          # HTTP transport layer
+│   └── utils.js                 # Utility functions
 └── ui/
-    └── SearchWidget.js          # Expandable search functionality
+    └── ToastNotifications.js    # User feedback system
 ```
-
-### Demo Enhancement Patterns
-- **Search Expansion**: Click-to-expand search functionality
-- **Error Handling**: Graceful API failure messaging
-- **Loading States**: Visual feedback during API calls
-- **Responsive Design**: Mobile-friendly NetApp styling
-- **Progressive Enhancement**: Core functionality without JavaScript
 
 ## Key Files to Reference
 - `src/index.ts`: Transport detection and tool registration
