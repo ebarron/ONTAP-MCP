@@ -376,32 +376,19 @@ class CifsShareLifecycleTest {
       console.log('📦 Step 1: Creating volume...');
       
       let createResult;
-      if (this.mode === 'http') {
-        // HTTP mode: use multi-cluster tools with registered clusters
-        console.log(`📋 Using cluster: ${config.cluster_name}, aggregate: ${config.aggregate_name}`);
-        try {
-          createResult = await this.callTool('cluster_create_volume', {
-            cluster_name: config.cluster_name,
-            svm_name: config.test_svm,
-            volume_name: config.test_volume_name,
-            size: config.test_volume_size,
-            aggregate_name: config.aggregate_name
-          });
-        } catch (error) {
-          console.error('❌ Volume creation failed:', error.message);
-          throw error;
-        }
-      } else {
-        // STDIO mode: use single-cluster tools with explicit credentials
-        createResult = await this.callTool('create_volume', {
-          cluster_ip: config.cluster_ip,
-          username: config.username,
-          password: config.password,
+      // Use multi-cluster tools in both HTTP and STDIO modes
+      console.log(`📋 Using cluster: ${config.cluster_name}, aggregate: ${config.aggregate_name}`);
+      try {
+        createResult = await this.callTool('cluster_create_volume', {
+          cluster_name: config.cluster_name,
           svm_name: config.test_svm,
           volume_name: config.test_volume_name,
           size: config.test_volume_size,
           aggregate_name: config.aggregate_name
         });
+      } catch (error) {
+        console.error('❌ Volume creation failed:', error.message);
+        throw error;
       }
 
       console.log('✅ Volume created successfully:');
@@ -566,21 +553,11 @@ class CifsShareLifecycleTest {
       
       // First get the volume UUID
       let volumesResult;
-      if (this.mode === 'http') {
-        // HTTP mode: use multi-cluster tools
-        volumesResult = await this.callTool('cluster_list_volumes', {
-          cluster_name: config.cluster_name,
-          svm_name: config.test_svm
-        });
-      } else {
-        // STDIO mode: use single-cluster tools
-        volumesResult = await this.callTool('list_volumes', {
-          cluster_ip: config.cluster_ip,
-          username: config.username,
-          password: config.password,
-          svm_name: config.test_svm
-        });
-      }
+      // Use multi-cluster tools in both HTTP and STDIO modes
+      volumesResult = await this.callTool('cluster_list_volumes', {
+        cluster_name: config.cluster_name,
+        svm_name: config.test_svm
+      });
 
       if (volumesResult.content && volumesResult.content[0]) {
         const volumeText = volumesResult.content[0].text;
@@ -593,47 +570,25 @@ class CifsShareLifecycleTest {
       if (volumeUuid) {
         console.log(`📦 Found volume UUID: ${volumeUuid}`);
         
-        // Offline the volume
+        // Offline the volume using multi-cluster tools
         let offlineResult;
-        if (this.mode === 'http') {
-          // HTTP mode: use multi-cluster tools
-          offlineResult = await this.callTool('cluster_offline_volume', {
-            cluster_name: config.cluster_name,
-            volume_uuid: volumeUuid
-          });
-        } else {
-          // STDIO mode: use single-cluster tools
-          offlineResult = await this.callTool('offline_volume', {
-            cluster_ip: config.cluster_ip,
-            username: config.username,
-            password: config.password,
-            volume_uuid: volumeUuid
-          });
-        }
+        offlineResult = await this.callTool('cluster_offline_volume', {
+          cluster_name: config.cluster_name,
+          volume_uuid: volumeUuid
+        });
 
         console.log('✅ Volume taken offline');
         
         // Wait a moment
         await sleep(2000);
 
-        // Delete the volume
+        // Delete the volume using multi-cluster tools
         console.log('\\n🗑️  Step 7: Deleting test volume...');
         let deleteVolumeResult;
-        if (this.mode === 'http') {
-          // HTTP mode: use multi-cluster tools
-          deleteVolumeResult = await this.callTool('cluster_delete_volume', {
-            cluster_name: config.cluster_name,
-            volume_uuid: volumeUuid
-          });
-        } else {
-          // STDIO mode: use single-cluster tools
-          deleteVolumeResult = await this.callTool('delete_volume', {
-            cluster_ip: config.cluster_ip,
-            username: config.username,
-            password: config.password,
-            volume_uuid: volumeUuid
-          });
-        }
+        deleteVolumeResult = await this.callTool('cluster_delete_volume', {
+          cluster_name: config.cluster_name,
+          volume_uuid: volumeUuid
+        });
 
         if (deleteVolumeResult.content && deleteVolumeResult.content[0]) {
           console.log(deleteVolumeResult.content[0].text);

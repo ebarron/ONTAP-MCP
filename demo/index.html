@@ -182,11 +182,11 @@ See demo/README.md for complete documentation.
                         <circle class="service-icon-circle" fill-rule="evenodd" clip-rule="evenodd" cx="24" cy="24" r="23" stroke-width="2" stroke="var(--icon-primary)"></circle>
                         <path d="M22.1905 16C20.8319 16.0091 19.5197 16.4957 18.4834 17.3748C17.4471 18.2539 16.7526 19.4695 16.5214 20.8091C15.2444 20.937 14.0648 21.5492 13.2248 22.5201C12.3849 23.491 11.9483 24.7468 12.0049 26.0297C12.0614 27.3126 12.6067 28.5251 13.5288 29.4182C14.4509 30.3114 15.6798 30.8174 16.9631 30.8323H28.4277V29.9244L16.9631 29.7713C15.9394 29.7286 14.9717 29.2916 14.2625 28.5518C13.5532 27.8119 13.1572 26.8264 13.1572 25.8012C13.1572 24.776 13.5532 23.7904 14.2625 23.0505C14.9717 22.3107 15.9394 21.8737 16.9631 21.831C17.0945 21.8309 17.2211 21.7816 17.318 21.6928C17.4148 21.604 17.4749 21.4821 17.4864 21.3511C17.6012 20.1804 18.1458 19.094 19.015 18.3019C19.8841 17.5099 21.016 17.0685 22.1917 17.0633C22.8081 17.0576 23.4188 17.1814 23.9844 17.4266C24.55 17.6718 25.0579 18.033 25.4753 18.4868C25.5464 18.5611 25.6379 18.6125 25.7382 18.6346C25.8386 18.6568 25.9432 18.6486 26.0389 18.6111C26.4831 18.4595 26.9497 18.384 27.4191 18.3879C28.319 18.3863 29.1883 18.7147 29.8627 19.3109C30.5371 19.9072 30.9697 20.73 31.0788 21.6238C31.0897 21.7219 31.1278 21.8149 31.1887 21.8924C31.2497 21.9699 31.3312 22.0287 31.4239 22.0623C32.2817 22.4017 32.9957 23.0279 33.4444 23.8343C33.8931 24.6408 34.0489 25.5778 33.8854 26.4862C33.7218 27.3946 33.249 28.2183 32.5472 28.8174C31.8454 29.4164 30.958 29.7539 30.0356 29.7725L28.4254 29.9244V30.8323H30.0356C31.1775 30.817 32.2801 30.4135 33.1625 29.6882C34.0448 28.9629 34.6543 27.9588 34.8909 26.8411C35.1274 25.7233 34.9769 24.5582 34.4641 23.5373C33.9513 22.5164 33.1067 21.7004 32.0691 21.2234C31.872 20.1324 31.2992 19.145 30.4501 18.4328C29.601 17.7205 28.5294 17.3284 27.4214 17.3245C26.9345 17.3289 26.4505 17.4013 25.9837 17.5397C24.9664 16.5541 23.6065 16.0021 22.1905 16Z" fill="var(--icon-primary)"></path>
                     </svg>
-                    <div role="heading" class="tab-title">ONTAP MCP Canvas</div>
+                    <div role="heading" class="tab-title">Provision Storage</div>
                 </div>
                 <div class="tab-links">
-                    <a class="tab-link tab-link-active" href="#" aria-current="page">My ONTAP Clusters</a>
-                    <a class="tab-link" href="#">Cluster Health</a>
+                    <a class="tab-link tab-link-active" href="#" onclick="app.showClustersView(); return false;" data-view="clusters" aria-current="page">My ONTAP Clusters</a>
+                    <a class="tab-link" href="#" onclick="app.showStorageClassesView(); return false;" data-view="storage-classes">My Storage Classes</a>
                 </div>
                 <button class="switch-mode-button">
                     <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22.54 14.816" style="width: 22px; height: 14px;">
@@ -199,52 +199,69 @@ See demo/README.md for complete documentation.
 
             <div class="layout-page">
 
-                <section class="layout-content">
-                    <div class="table-container">
-                        <div class="widgets-row">
-                            <div class="table-counter">
-                                <span>
-                                    <span>Working Environments&nbsp;</span>
-                                    <span id="clusterCount">(0)</span>
-                                </span>
-                                <a href="#" id="provisionStorageLink" class="provision-storage-link disabled" onclick="app.openProvisionStorage(); return false;">
-                                    Provision Storage
-                                </a>
-                            </div>
-                            <div class="table-widgets">
-                                <div class="search-widget">
-                                    <div class="search-widget-wrapper">
-                                        <button class="search-button" aria-label="Search">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path fill-rule="evenodd" clip-rule="evenodd" d="M15.5956 16.5403C14.1735 17.6046 12.4005 18.2361 10.4782 18.2361C5.79581 18.2361 2 14.4895 2 9.86803C2 5.24652 5.79581 1.5 10.4782 1.5C15.1606 1.5 18.9564 5.24652 18.9564 9.86803C18.9564 11.8796 18.2372 13.7254 17.0389 15.1686L21.7055 19.8168C22.0981 20.2024 22.0982 20.8268 21.7058 21.2117C21.3133 21.5966 20.677 21.596 20.2845 21.2105L15.5956 16.5403ZM17.4602 9.86803C17.4602 13.674 14.3343 16.7593 10.4782 16.7593C6.62211 16.7593 3.49615 13.674 3.49615 9.86803C3.49615 6.06208 6.62211 2.97671 10.4782 2.97671C14.3343 2.97671 17.4602 6.06208 17.4602 9.86803Z" fill="var(--icon-primary)"/>
-                                            </svg>
-                                        </button>
-                                        <input class="search-input" id="searchInput" placeholder="Search clusters" value="">
-                                        <button class="search-clear-button" id="clearSearch" aria-label="Close">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path d="M16.7842 7.21583C16.4793 6.91098 15.9644 6.93155 15.6341 7.26183L12 10.896L8.36587 7.26184C8.03559 6.93156 7.52068 6.91099 7.21583 7.21584C6.91098 7.52069 6.93155 8.0356 7.26183 8.36588L10.896 12L7.26183 15.6341C6.93155 15.9644 6.91098 16.4793 7.21583 16.7842C7.52068 17.089 8.03559 17.0684 8.36587 16.7382L12 13.104L15.6341 16.7382C15.9644 17.0685 16.4793 17.089 16.7842 16.7842C17.089 16.4793 17.0685 15.9644 16.7382 15.6341L13.104 12L16.7382 8.36587C17.0684 8.03559 17.089 7.52068 16.7842 7.21583Z" fill="var(--icon-primary)"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                                <button class="add-cluster-button" id="addClusterBtn">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M11.25 4.75C11.25 4.33578 11.5858 4 12 4C12.4142 4 12.75 4.33578 12.75 4.75V11.25H19.25C19.6642 11.25 20 11.5858 20 12C20 12.4142 19.6642 12.75 19.25 12.75H12.75V19.25C12.75 19.6642 12.4142 20 12 20C11.5858 20 11.25 19.6642 11.25 19.25V12.75H4.75C4.33582 12.75 4 12.4142 4 12C4 11.5858 4.33582 11.25 4.75 11.25H11.25V4.75Z"/>
-                                    </svg>
-                                    Add Working Environment
-                                </button>
-                            </div>
+                <!-- Storage Classes View -->
+                <div id="storageClassesView" class="view-container" style="display: none;">
+                    <section class="storage-classes-section">
+                        <div class="section-header">
+                            <h2 class="section-title">Storage Classes</h2>
+                            <a href="#" id="provisionStorageClassLink" class="provision-storage-link" onclick="app.openStorageClassProvisioning(); return false;">
+                                Provision Storage
+                            </a>
                         </div>
+                        <div class="storage-classes-container" id="storageClassesContainer">
+                            <!-- Storage class cards will be dynamically generated here -->
+                        </div>
+                    </section>
+                </div>
 
-                        <!-- Clusters Table -->
-                        <div class="data-table">
-                            <div class="table-header-row">
-                                <div class="table-header-cell" style="flex: 0 0 60px;">
-                                    <div class="header-label">
-                                        <span>Select</span>
-                                    </div>
+                <!-- Working Environments View (default) -->
+                <div id="clustersView" class="view-container">
+                    <section class="layout-content">
+                        <div class="table-container">
+                            <div class="widgets-row">
+                                <div class="table-counter">
+                                    <span>
+                                        <span>Working Environments&nbsp;</span>
+                                        <span id="clusterCount">(0)</span>
+                                    </span>
+                                    <a href="#" id="provisionStorageLink" class="provision-storage-link disabled" onclick="app.openProvisionStorage(); return false;">
+                                        Provision Storage
+                                    </a>
                                 </div>
-                                <div class="table-header-cell" style="flex: 1 0 200px;">
+                                <div class="table-widgets">
+                                    <div class="search-widget">
+                                        <div class="search-widget-wrapper">
+                                            <button class="search-button" aria-label="Search">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M15.5956 16.5403C14.1735 17.6046 12.4005 18.2361 10.4782 18.2361C5.79581 18.2361 2 14.4895 2 9.86803C2 5.24652 5.79581 1.5 10.4782 1.5C15.1606 1.5 18.9564 5.24652 18.9564 9.86803C18.9564 11.8796 18.2372 13.7254 17.0389 15.1686L21.7055 19.8168C22.0981 20.2024 22.0982 20.8268 21.7058 21.2117C21.3133 21.5966 20.677 21.596 20.2845 21.2105L15.5956 16.5403ZM17.4602 9.86803C17.4602 13.674 14.3343 16.7593 10.4782 16.7593C6.62211 16.7593 3.49615 13.674 3.49615 9.86803C3.49615 6.06208 6.62211 2.97671 10.4782 2.97671C14.3343 2.97671 17.4602 6.06208 17.4602 9.86803Z" fill="var(--icon-primary)"/>
+                                                </svg>
+                                            </button>
+                                            <input class="search-input" id="searchInput" placeholder="Search clusters" value="">
+                                            <button class="search-clear-button" id="clearSearch" aria-label="Close">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M16.7842 7.21583C16.4793 6.91098 15.9644 6.93155 15.6341 7.26183L12 10.896L8.36587 7.26184C8.03559 6.93156 7.52068 6.91099 7.21583 7.21584C6.91098 7.52069 6.93155 8.0356 7.26183 8.36588L10.896 12L7.26183 15.6341C6.93155 15.9644 6.91098 16.4793 7.21583 16.7842C7.52068 17.089 8.03559 17.0684 8.36587 16.7382L12 13.104L15.6341 16.7382C15.9644 17.0685 16.4793 17.089 16.7842 16.7842C17.089 16.4793 17.0685 15.9644 16.7382 15.6341L13.104 12L16.7382 8.36587C17.0684 8.03559 17.089 7.52068 16.7842 7.21583Z" fill="var(--icon-primary)"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button class="add-cluster-button" id="addClusterBtn">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M11.25 4.75C11.25 4.33578 11.5858 4 12 4C12.4142 4 12.75 4.33578 12.75 4.75V11.25H19.25C19.6642 11.25 20 11.5858 20 12C20 12.4142 19.6642 12.75 19.25 12.75H12.75V19.25C12.75 19.6642 12.4142 20 12 20C11.5858 20 11.25 19.6642 11.25 19.25V12.75H4.75C4.33582 12.75 4 12.4142 4 12C4 11.5858 4.33582 11.25 4.75 11.25H11.25V4.75Z"/>
+                                        </svg>
+                                        Add Working Environment
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Clusters Table -->
+                            <div class="data-table">
+                                <div class="table-header-row">
+                                    <div class="table-header-cell" style="flex: 0 0 60px;">
+                                        <div class="header-label">
+                                            <span>Select</span>
+                                        </div>
+                                    </div>
+                                    <div class="table-header-cell" style="flex: 1 0 200px;">
                                     <div class="header-label">
                                         <span>Cluster Name</span>
                                     </div>
@@ -298,6 +315,7 @@ See demo/README.md for complete documentation.
                         </div>
                     </div>
                 </section>
+                </div>
             </div>
 
             <!-- NetApp ONTAP Provisioning Assistant -->
@@ -485,6 +503,7 @@ See demo/README.md for complete documentation.
     <script src="js/components/ChatbotAssistant.js"></script>
     <script src="js/components/ExportPolicyModal.js"></script>
     <script src="js/components/ProvisioningPanel.js"></script>
+    <script src="js/components/StorageClassProvisioningPanel.js"></script>
     <script src="js/components/app-initialization.js"></script>
     
     <!-- Main Application -->

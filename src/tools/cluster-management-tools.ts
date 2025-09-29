@@ -186,7 +186,7 @@ export function createClusterListVolumesToolDefinition(): Tool {
 
 // ===== TOOL HANDLERS =====
 
-export async function handleGetClusterInfo(args: any): Promise<any> {
+export async function handleGetClusterInfo(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const { cluster_ip, username, password } = GetClusterInfoSchema.parse(args);
   const client = new OntapApiClient(cluster_ip, username, password);
   const info = await client.getClusterInfo();
@@ -199,7 +199,7 @@ export async function handleGetClusterInfo(args: any): Promise<any> {
   };
 }
 
-export async function handleListSvms(args: any): Promise<any> {
+export async function handleListSvms(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const { cluster_ip, username, password } = ListSvmsSchema.parse(args);
   const client = new OntapApiClient(cluster_ip, username, password);
   const svms = await client.listSvms();
@@ -216,7 +216,7 @@ export async function handleListSvms(args: any): Promise<any> {
   };
 }
 
-export async function handleListAggregates(args: any): Promise<any> {
+export async function handleListAggregates(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const { cluster_ip, username, password } = ListAggregatesSchema.parse(args);
   const client = new OntapApiClient(cluster_ip, username, password);
   const aggregates = await client.listAggregates();

@@ -1569,7 +1569,7 @@ class ChatbotAssistant {
                 'add_export_rule',
                 'create_cifs_share',
                 'list_snapshot_policies',
-                'get_volume_stats'
+                'cluster_get_volume_stats'
             ];
             this.toolDefinitions = []; // Empty cache for fallback
         }

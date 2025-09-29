@@ -9,7 +9,7 @@ echo "=== ONTAP MCP Tool Discovery Test ==="
 echo ""
 
 # Expected tool count
-EXPECTED_TOOL_COUNT=55
+EXPECTED_TOOL_COUNT=47
 
 # Test 1: REST API Tool Discovery
 echo "🌐 Testing REST API tool discovery..."
@@ -98,7 +98,7 @@ if [[ "$REST_PASS" == "true" && "$FORMAT_PASS" == "true" ]]; then
     echo "🎉 All tests passed!"
     echo ""
     echo "REST API properly implements MCP ListTools specification:"
-    echo "  - Returns correct number of tools ($EXPECTED_TOOLS)"
+    echo "  - Returns correct number of tools ($EXPECTED_TOOL_COUNT)"
     echo "  - Uses proper MCP format: { tools: [{ name, description, inputSchema }] }"
     echo "  - Compatible with STDIO mode for consistent tool discovery"
     exit 0

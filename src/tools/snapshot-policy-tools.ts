@@ -135,15 +135,36 @@ export function createListSnapshotPoliciesToolDefinition(): Tool {
     inputSchema: {
       type: "object",
       properties: {
-        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-        username: { type: "string", description: "Username for authentication" },
-        password: { type: "string", description: "Password for authentication" },
-        cluster_name: { type: "string", description: "Name of the registered cluster" },
-        svm_name: { type: "string", description: "Filter by SVM name" },
-        policy_name_pattern: { type: "string", description: "Filter by policy name pattern" },
-        enabled: { type: "boolean", description: "Filter by enabled status" }
+        cluster_name: {
+          type: "string",
+          description: "Name of the registered cluster"
+        },
+        cluster_ip: {
+          type: "string",
+          description: "IP address or FQDN of the ONTAP cluster"
+        },
+        username: {
+          type: "string",
+          description: "Username for authentication"
+        },
+        password: {
+          type: "string",
+          description: "Password for authentication"
+        },
+        svm_name: {
+          type: "string",
+          description: "Filter by SVM name"
+        },
+        policy_name_pattern: {
+          type: "string",
+          description: "Filter by policy name pattern"
+        },
+        enabled: {
+          type: "boolean",
+          description: "Filter by enabled status"
+        }
       },
-      required: []
+      required: ["cluster_name"]
     }
   };
 }

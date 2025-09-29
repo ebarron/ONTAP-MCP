@@ -393,14 +393,13 @@ async function getQosPolicyTemplate(clusterName, callTool) {
       p.svm && p.svm !== 'Unknown' && p.svm !== 'unknown'
     ) || policies[0]; // Fallback to first policy
     
-    // Return the template with a valid SVM (use discovered SVM if template SVM is invalid)
+    // Return the template with a valid SVM (always use validSvm for creation, not template SVM)
+    // Template SVM might be admin vserver which can't be used for creating new QoS policies
     const finalTemplate = {
       name: (template && template.name) ? template.name : 'default',
       uuid: (template && template.uuid) ? template.uuid : null,
       type: (template && template.type) ? template.type : 'fixed',
-      svm: (template && template.svm && template.svm !== 'Unknown' && template.svm !== 'unknown') 
-            ? template.svm 
-            : validSvm
+      svm: validSvm  // Always use the data SVM, not the template SVM which might be admin vserver
     };
     
     console.log(`🎯 Selected template: ${finalTemplate.name} with SVM: ${finalTemplate.svm}`);

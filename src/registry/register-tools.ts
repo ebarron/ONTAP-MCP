@@ -153,7 +153,10 @@ import {
  * This function is called once at startup to populate the registry
  */
 export function registerAllTools(): void {
-  // Legacy single-cluster tools (backward compatibility)
+  // Legacy single-cluster tools (backward compatibility) - DEPRECATED
+  // These tools have been deprecated in favor of multi-cluster equivalents
+  // Commented out to force migration to cluster_* tools
+  /*
   registerTool({
     name: "get_cluster_info",
     category: ToolCategory.LEGACY_SINGLE_CLUSTER,
@@ -209,6 +212,7 @@ export function registerAllTools(): void {
     definition: createDeleteVolumeToolDefinition,
     handler: handleDeleteVolume
   });
+  */
 
   // Multi-cluster management tools
   registerTool({

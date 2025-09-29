@@ -397,6 +397,199 @@ input, textarea {
     /* Remove border-radius and box-shadow for grey background */
 }
 
+/* View Container Styles */
+.view-container {
+    width: 100%;
+    min-height: 400px;
+}
+
+.view-container:not([style*="display: block"]):not([style*="display: none"]) {
+    display: block; /* Default display for containers without explicit style */
+}
+
+/* Storage Classes Section */
+.storage-classes-section {
+    margin-bottom: 40px;
+}
+
+.storage-classes-section .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding: 0 20px;
+}
+
+.storage-classes-section .section-title {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.storage-classes-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 0 20px;
+    align-items: flex-start;
+}
+
+.storage-class-card {
+    background-color: var(--content-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 280px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.storage-class-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-color: var(--primary);
+}
+
+.storage-class-card-header {
+    padding: 20px 20px 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.storage-class-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.storage-class-policies {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.storage-class-policy {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.storage-class-policy-label {
+    font-weight: 600;
+    min-width: 50px;
+}
+
+.storage-class-card-body {
+    padding: 16px 20px 20px 20px;
+}
+
+.storage-class-metrics {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.storage-class-metric {
+    text-align: right;
+    flex: 0 0 auto;
+}
+
+.storage-class-metric:first-child {
+    text-align: left;
+    border-right: 1px solid var(--border);
+    padding-right: 16px;
+    margin-right: 16px;
+}
+
+.storage-class-metric-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.storage-class-metric-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.storage-class-bar-chart {
+    margin-bottom: 16px;
+}
+
+.storage-class-bar {
+    width: 100%;
+    height: 8px;
+    background-color: var(--grey-4);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.storage-class-bar-fill {
+    height: 100%;
+    background-color: var(--primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.storage-class-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.storage-class-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.storage-class-detail-label {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.storage-class-detail-value {
+    color: var(--text-primary);
+}
+
+/* Storage Class Details Display in Provisioning Panel */
+.storage-class-details-display {
+    background-color: var(--background-hover);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 8px;
+}
+
+.storage-class-details-display .detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.storage-class-details-display .detail-row:last-child {
+    margin-bottom: 0;
+}
+
+.storage-class-details-display .detail-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.storage-class-details-display .detail-row span:last-child {
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
 .add-cluster-button {
     display: flex;
     align-items: center;

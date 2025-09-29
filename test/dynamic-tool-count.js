@@ -68,10 +68,10 @@ setTimeout(() => {
       
       // Categorize tools
       const categories = {
-        'Inline Hardcoded': ['get_cluster_info', 'list_svms', 'list_aggregates', 'add_cluster', 'list_registered_clusters', 'get_all_clusters_info', 'cluster_list_svms', 'cluster_list_aggregates'],
+        'Cluster Management': ['add_cluster', 'list_registered_clusters', 'get_all_clusters_info', 'cluster_list_svms', 'cluster_list_aggregates'],
         'Snapshot Policy': tools.filter(t => t.name.includes('snapshot_polic') && !t.name.includes('schedule')).map(t => t.name),
         'Export Policy': tools.filter(t => t.name.includes('export_polic') || t.name.includes('export_rule') || t.name.includes('nfs_access')).map(t => t.name),
-        'Legacy Volume': tools.filter(t => ['list_volumes', 'create_volume', 'get_volume_stats', 'offline_volume', 'delete_volume'].includes(t.name)).map(t => t.name),
+        'Legacy Volume (Deprecated)': tools.filter(t => ['list_volumes', 'create_volume', 'get_volume_stats', 'offline_volume', 'delete_volume'].includes(t.name)).map(t => t.name),
         'Multi-cluster Volume': tools.filter(t => t.name.startsWith('cluster_') && (t.name.includes('volume') || t.name.includes('volume_stats'))).map(t => t.name),
         'Volume Configuration': tools.filter(t => t.name.includes('volume_configuration') || t.name.includes('volume_security') || t.name.includes('resize_volume') || t.name.includes('volume_comment')).map(t => t.name),
         'CIFS Legacy': tools.filter(t => t.name.includes('cifs') && !t.name.startsWith('cluster_')).map(t => t.name),

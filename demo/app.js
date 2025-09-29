@@ -6,12 +6,50 @@ class OntapMcpDemo {
         this.currentCluster = null;
         this.selectedCluster = null;
         
+        // Storage Classes configuration
+        this.storageClasses = [
+            {
+                name: 'Hospital EDR',
+                qosPolicy: 'performance-fixed',
+                snapshotPolicy: 'every-5-minutes',
+                // Dummy metrics data - will be replaced with real data later
+                usedAndReserved: '85.2 GiB',
+                available: '14.8 GiB',
+                usedPercent: 85,
+                dataReduction: '2.4 to 1',
+                logicalUsed: '204 GiB'
+            },
+            {
+                name: 'HR Records',
+                qosPolicy: 'value-fixed',
+                snapshotPolicy: 'default',
+                // Dummy metrics data - will be replaced with real data later
+                usedAndReserved: '42.1 GiB',
+                available: '57.9 GiB',
+                usedPercent: 42,
+                dataReduction: '1.8 to 1',
+                logicalUsed: '76 GiB'
+            },
+            {
+                name: 'Medical Images',
+                qosPolicy: 'extreme-fixed',
+                snapshotPolicy: 'default',
+                // Dummy metrics data - will be replaced with real data later
+                usedAndReserved: '156.7 GiB',
+                available: '43.3 GiB',
+                usedPercent: 78,
+                dataReduction: '1.2 to 1',
+                logicalUsed: '188 GiB'
+            }
+        ];
+        
         // Initialize core services
         this.apiClient = new McpApiClient(this.mcpUrl);
         this.notifications = new ToastNotifications();
         
         // Initialize components
         this.provisioningPanel = new ProvisioningPanel(this);
+        this.storageClassProvisioningPanel = new StorageClassProvisioningPanel(this);
         
         this.init();
     }
@@ -106,6 +144,72 @@ class OntapMcpDemo {
                 this.closeModals();
             }
         });
+    }
+
+    // View switching methods
+    showClustersView() {
+        console.log('Switching to clusters view');
+        
+        // Hide storage classes view
+        const storageClassesView = document.getElementById('storageClassesView');
+        const clustersView = document.getElementById('clustersView');
+        
+        if (storageClassesView) storageClassesView.style.display = 'none';
+        if (clustersView) clustersView.style.display = 'block';
+        
+        // Update tab navigation
+        this.updateTabNavigation('clusters');
+        
+        // Configure chatbot for clusters view
+        if (this.chatbot) {
+            this.chatbot.options = {
+                pageType: 'default',
+                skipWorkingEnvironment: false,
+                useStorageClassProvisioning: false
+            };
+        }
+    }
+
+    showStorageClassesView() {
+        console.log('Switching to storage classes view');
+        
+        // Hide clusters view
+        const storageClassesView = document.getElementById('storageClassesView');
+        const clustersView = document.getElementById('clustersView');
+        
+        if (clustersView) clustersView.style.display = 'none';
+        if (storageClassesView) storageClassesView.style.display = 'block';
+        
+        // Update tab navigation
+        this.updateTabNavigation('storage-classes');
+        
+        // Render storage classes if not already rendered
+        this.renderStorageClasses();
+        
+        // Configure chatbot for storage classes view
+        if (this.chatbot) {
+            this.chatbot.options = {
+                pageType: 'storage-classes',
+                skipWorkingEnvironment: true,
+                useStorageClassProvisioning: true
+            };
+        }
+    }
+
+    updateTabNavigation(activeView) {
+        // Update tab link states
+        const tabLinks = document.querySelectorAll('.tab-link');
+        tabLinks.forEach(link => {
+            link.classList.remove('tab-link-active');
+            link.removeAttribute('aria-current');
+        });
+        
+        // Set active tab
+        const activeTabLink = document.querySelector(`[data-view="${activeView}"]`);
+        if (activeTabLink) {
+            activeTabLink.classList.add('tab-link-active');
+            activeTabLink.setAttribute('aria-current', 'page');
+        }
     }
 
     async loadClusters() {
@@ -239,9 +343,62 @@ class OntapMcpDemo {
     }
 
     updateUI() {
+        this.renderStorageClasses();
         this.renderClustersTable();
         this.updateClusterCount();
         this.updateProvisionButtonState();
+    }
+
+    renderStorageClasses() {
+        const container = document.getElementById('storageClassesContainer');
+        
+        if (!container) {
+            console.warn('Storage classes container not found');
+            return;
+        }
+
+        container.innerHTML = this.storageClasses.map(storageClass => `
+            <div class="storage-class-card">
+                <div class="storage-class-card-header">
+                    <h3 class="storage-class-card-title">${DemoUtils.escapeHtml(storageClass.name)}</h3>
+                    <div class="storage-class-policies">
+                        <div class="storage-class-policy">
+                            <span class="storage-class-policy-label">QoS:</span>
+                            <span>${DemoUtils.escapeHtml(storageClass.qosPolicy)}</span>
+                        </div>
+                        <div class="storage-class-policy">
+                            <span class="storage-class-policy-label">Snapshot:</span>
+                            <span>${DemoUtils.escapeHtml(storageClass.snapshotPolicy)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="storage-class-card-body">
+                    <div class="storage-class-metrics">
+                        <div class="storage-class-metric">
+                            <div class="storage-class-metric-value">${DemoUtils.escapeHtml(storageClass.usedAndReserved)}</div>
+                            <div class="storage-class-metric-label">Used and Reserved</div>
+                        </div>
+                        <div class="storage-class-metric">
+                            <div class="storage-class-metric-value">${DemoUtils.escapeHtml(storageClass.available)}</div>
+                            <div class="storage-class-metric-label">Available</div>
+                        </div>
+                    </div>
+                    <div class="storage-class-bar-chart">
+                        <div class="storage-class-bar">
+                            <div class="storage-class-bar-fill" style="width: ${storageClass.usedPercent}%"></div>
+                        </div>
+                    </div>
+                    <div class="storage-class-details">
+                        <div class="storage-class-detail">
+                            <span class="storage-class-detail-label">${DemoUtils.escapeHtml(storageClass.dataReduction)} data reduction</span>
+                        </div>
+                        <div class="storage-class-detail">
+                            <span class="storage-class-detail-label">${DemoUtils.escapeHtml(storageClass.logicalUsed)} logical used</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
     renderClustersTable() {
@@ -334,6 +491,11 @@ class OntapMcpDemo {
     // Alias for chatbot compatibility
     openProvisionStorage() {
         this.provisioningPanel.show();
+    }
+
+    // Open storage class provisioning panel
+    openStorageClassProvisioning() {
+        this.storageClassProvisioningPanel.show();
     }
 
     // Service button handlers
@@ -490,6 +652,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize chatbot after app is ready
     setTimeout(() => {
         chatbot = new ChatbotAssistant(app);
+        // Store reference to chatbot in app for view switching
+        app.chatbot = chatbot;
     }, 1000);
 });
 

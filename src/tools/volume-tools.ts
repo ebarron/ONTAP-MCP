@@ -326,7 +326,7 @@ export function createListVolumesToolDefinition(): Tool {
   };
 }
 
-export async function handleListVolumes(args: any): Promise<any> {
+export async function handleListVolumes(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ListVolumesSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
@@ -415,7 +415,7 @@ export function createCreateVolumeToolDefinition(): Tool {
   };
 }
 
-export async function handleCreateVolume(args: any): Promise<any> {
+export async function handleCreateVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = CreateVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
@@ -479,7 +479,7 @@ export function createGetVolumeStatsToolDefinition(): Tool {
   };
 }
 
-export async function handleGetVolumeStats(args: any): Promise<any> {
+export async function handleGetVolumeStats(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = GetVolumeStatsSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
@@ -509,7 +509,7 @@ export function createOfflineVolumeToolDefinition(): Tool {
   };
 }
 
-export async function handleOfflineVolume(args: any): Promise<any> {
+export async function handleOfflineVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = OfflineVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
@@ -542,7 +542,7 @@ export function createDeleteVolumeToolDefinition(): Tool {
   };
 }
 
-export async function handleDeleteVolume(args: any): Promise<any> {
+export async function handleDeleteVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = DeleteVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
@@ -1054,7 +1054,7 @@ export function createUpdateVolumeToolDefinition(): Tool {
   };
 }
 
-export async function handleUpdateVolume(args: any): Promise<any> {
+export async function handleUpdateVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = UpdateVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   

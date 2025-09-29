@@ -11,40 +11,29 @@ class ProvisioningPanel {
 
     // Main entry point to show the provisioning panel
     show() {
-        console.log('showProvisioningPanel called, selectedCluster:', this.demo.selectedCluster);
         if (!this.demo.selectedCluster) {
-            console.log('No cluster selected, showing error');
             this.notifications.showError('Please select a cluster first');
             return;
         }
 
-        console.log('Creating/showing provisioning panel...');
+        console.log('Showing provisioning panel for cluster:', this.demo.selectedCluster.name);
         // Create or show the right-side expansion panel
         let panel = document.getElementById('provisioningPanel');
         if (!panel) {
-            console.log('Creating new provisioning panel');
             panel = this.createPanel();
-            console.log('Panel created, appending to body...');
             document.body.appendChild(panel);
-            console.log('Panel appended. svmSelect exists?', !!document.getElementById('svmSelect'));
-        } else {
-            console.log('Using existing provisioning panel');
-            console.log('Existing panel svmSelect exists?', !!document.getElementById('svmSelect'));
         }
         
         // Trigger the expansion animation
-        console.log('Making panel visible');
         panel.classList.add('visible');
         document.body.classList.add('panel-open');
         
         // Load data for the selected cluster
-        console.log('Loading provisioning data for cluster:', this.demo.selectedCluster);
         this.loadData();
     }
 
     // Create the HTML structure for the provisioning panel
     createPanel() {
-        console.log('createProvisioningPanel called with selectedCluster:', this.demo.selectedCluster);
         const panel = document.createElement('div');
         panel.id = 'provisioningPanel';
         panel.className = 'right-panel';
@@ -118,11 +107,11 @@ class ProvisioningPanel {
                             <label>Access Protocol</label>
                             <div class="radio-group">
                                 <label>
-                                    <input type="radio" name="protocol" id="protocolNfs" value="nfs" checked onchange="provisioningPanel.handleProtocolChange()">
+                                    <input type="radio" name="protocol" id="protocolNfs" value="nfs" checked onchange="app.provisioningPanel.handleProtocolChange()">
                                     NFS
                                 </label>
                                 <label>
-                                    <input type="radio" name="protocol" id="protocolCifs" value="cifs" onchange="provisioningPanel.handleProtocolChange()">
+                                    <input type="radio" name="protocol" id="protocolCifs" value="cifs" onchange="app.provisioningPanel.handleProtocolChange()">
                                     CIFS/SMB
                                 </label>
                             </div>
@@ -304,37 +293,51 @@ class ProvisioningPanel {
     async loadSnapshotPoliciesForSvm(svmName) {
         try {
             const policySelect = document.getElementById('snapshotPolicy');
+            this.setDropdownLoading('snapshotPolicy', 'Loading snapshot policies...');
             
-            // Create SVM-specific snapshot policy mappings based on typical ONTAP configurations
-            // Different SVMs often have different snapshot policies applied
-            let svmSpecificPolicies = ['default']; // Always include default
-            
-            // Map realistic policies per SVM based on common enterprise patterns
-            if (svmName === 'vs123') {
-                svmSpecificPolicies = ['default', 'none', 'default-1weekly'];
-            } else if (svmName === 'svm143') {
-                svmSpecificPolicies = ['default', 'new_policy', 'none'];
-            } else if (svmName.includes('prod')) {
-                svmSpecificPolicies = ['default', 'default-1weekly', 'hourly-backup'];
-            } else if (svmName.includes('dev') || svmName.includes('test')) {
-                svmSpecificPolicies = ['default', 'none', 'weekly-only'];
-            } else {
-                // Generic SVM gets basic policies
-                svmSpecificPolicies = ['default', 'none'];
-            }
+            // Call the real MCP API to get actual snapshot policies from the cluster
+            console.log('Loading snapshot policies from cluster:', this.demo.selectedCluster.name);
+            const response = await this.apiClient.callMcp('list_snapshot_policies', {
+                cluster_name: this.demo.selectedCluster.name
+                // Note: snapshot policies are cluster-wide, not SVM-specific
+            });
 
-            // Add cluster-specific policies if they exist
-            if (this.demo.selectedCluster.name === 'karan-ontap-1') {
-                // Add known policies from this cluster that haven't been added yet
-                if (svmName === 'svm143' && !svmSpecificPolicies.includes('new_policy')) {
-                    svmSpecificPolicies.push('new_policy');
+            // Parse the response to extract policy names
+            let policyOptions = [];
+            
+            // Extract the actual data from the MCP response
+            let responseText = '';
+            if (response && response.success && response.data) {
+                responseText = response.data;
+            } else if (typeof response === 'string') {
+                responseText = response;
+            }
+            
+            if (responseText) {
+                // Parse the formatted response to extract policy names
+                const lines = responseText.split('\n');
+                
+                // Extract policy names from format: **1. policy-name**
+                const policyMatches = responseText.match(/\*\*\d+\.\s+([^*\n]+)\*\*/g);
+                
+                if (policyMatches && policyMatches.length > 0) {
+                    policyOptions = policyMatches.map(match => {
+                        const name = match.replace(/\*\*\d+\.\s+/, '').replace(/\*\*/, '').trim();
+                        return { name: name };
+                    });
+                    console.log('Loaded snapshot policies:', policyOptions.map(p => p.name));
+                } else {
+                    console.warn('Could not parse snapshot policies from response');
+                    // Fallback to default policies
+                    policyOptions = [{ name: 'default' }, { name: 'none' }];
                 }
+            } else {
+                console.warn('No snapshot policy data received');
+                // Fallback to default policies
+                policyOptions = [{ name: 'default' }, { name: 'none' }];
             }
 
-            const policyOptions = svmSpecificPolicies.map(policyName => ({
-                name: policyName
-            }));
-
+            // Populate the dropdown with actual policies from the cluster
             policySelect.innerHTML = '<option value="">Select snapshot policy...</option>' + 
                 policyOptions.map(policy => 
                     `<option value="${policy.name}">${policy.name}</option>`
@@ -342,11 +345,12 @@ class ProvisioningPanel {
             policySelect.disabled = false;
             
             this.setDropdownReady('snapshotPolicy');
+            console.log('Snapshot policies loaded successfully:', policyOptions.length, 'policies');
 
         } catch (error) {
             console.error('Error loading snapshot policies for SVM:', error);
             const policySelect = document.getElementById('snapshotPolicy');
-            policySelect.innerHTML = '<option value="default">default</option>';
+            policySelect.innerHTML = '<option value="">Error loading policies</option><option value="default">default</option>';
             policySelect.disabled = false;
             this.setDropdownReady('snapshotPolicy');
         }
