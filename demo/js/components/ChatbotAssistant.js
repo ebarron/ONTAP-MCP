@@ -198,12 +198,12 @@ Available tools: {{TOOLS_COUNT}}`;
         
         if (!message || this.isThinking) return;
 
-        // Reset tool call statistics and conversation thread for new conversation
+        // Reset tool call statistics for fresh ONTAP data, but preserve conversation history
         this.toolCallFrequency = {};
         this.toolCallHistory = [];
         this.toolCallSignatures = new Map(); // Reset duplicate detection
-        this.conversationThread = []; // Reset conversation thread for new message
-        console.log('🔄 Reset tool call statistics and conversation thread for new message');
+        // Keep conversationThread to maintain context for follow-up questions
+        console.log('🔄 Reset tool call statistics but preserved conversation history for follow-up context');
 
         // Add user message to both UI and conversation thread
         this.addMessage('user', message);
@@ -266,13 +266,23 @@ Available tools: {{TOOLS_COUNT}}`;
 
         // Auto-detect provisioning recommendations and populate form
         if (this.isProvisioningIntent(response)) {
+            console.log('🔍 PROVISIONING INTENT DETECTED');
             const recommendations = this.extractProvisioningRecommendations(response);
+            console.log('🔍 EXTRACTED RECOMMENDATIONS:', recommendations);
             if (recommendations) {
                 // Automatically populate the form with the recommendations
+                console.log('🔍 SCHEDULING AUTO-POPULATE in 1000ms');
                 setTimeout(() => {
-                    this.autoPopulateForm(recommendations);
+                    console.log('🔍 EXECUTING SCHEDULED AUTO-POPULATE');
+                    this.autoPopulateForm(recommendations).catch(error => {
+                        console.error('🚨 ERROR in autoPopulateForm:', error);
+                    });
                 }, 1000);
+            } else {
+                console.log('🔍 NO RECOMMENDATIONS EXTRACTED');
             }
+        } else {
+            console.log('🔍 NO PROVISIONING INTENT DETECTED');
         }
 
         return { text, actions };
@@ -339,23 +349,27 @@ Available tools: {{TOOLS_COUNT}}`;
         // Build tools for ChatGPT function calling (newer format)
         const tools = this.buildMCPTools();
 
+        const payload = JSON.stringify({
+            model: this.config.model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                ...conversationHistory,
+                { role: 'user', content: message }
+            ],
+            max_completion_tokens: this.config.max_completion_tokens,
+            tools: tools,
+            tool_choice: 'auto' // Let ChatGPT decide when to use tools
+        });
+        
+        console.log(`📏 ChatGPT payload size: ${payload.length} characters`);
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.config.api_key}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model: this.config.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...conversationHistory,
-                    { role: 'user', content: message }
-                ],
-                max_completion_tokens: this.config.max_completion_tokens,
-                tools: tools,
-                tool_choice: 'auto' // Let ChatGPT decide when to use tools
-            })
+            body: payload
         });
 
         if (!response.ok) {
@@ -513,11 +527,7 @@ Available tools: {{TOOLS_COUNT}}`;
         // but still maintain delays between ChatGPT API calls
         const toolPromises = toolCalls.map(async (toolCall, index) => {
             try {
-                // Add staggered delays for MCP tool calls to prevent overwhelming the server
-                if (index > 0 && toolCalls.length > 3) {
-                    const delay = Math.min(index * 200, 1000); // Stagger by 200ms each, max 1s
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
+                // Note: Removed staggered delays - relying on actual rate limit error handling instead
                 
                 const result = await this.executeMCPTool(toolCall);
                 return {
@@ -553,17 +563,12 @@ Available tools: {{TOOLS_COUNT}}`;
             this.addToConversationThread(result);
         });
 
-        // Add a smart exponential backoff delay with 5s cap before making the ChatGPT API call to prevent rate limiting
-        if (recursionDepth > 0) {
-            // Smart backoff: starts at 2s, grows logarithmically, caps at 5s
-            // Depth 1: 2s, Depth 2: 3s, Depth 3: 4s, Depth 4+: 5s
-            const delayMs = Math.min(2000 + Math.floor(Math.log2(recursionDepth) * 1000), 5000);
-            console.log(`Adding ${delayMs}ms smart backoff delay before ChatGPT API call (depth ${recursionDepth}) to prevent rate limiting...`);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-
         // Send results back to ChatGPT with retry logic for rate limiting
-        return await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth + 1);
+        const chatGptStart = Date.now();
+        console.log('⏱️ Starting ChatGPT API call...');
+        const result = await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth + 1);
+        console.log(`⏱️ ChatGPT API completed in ${Date.now() - chatGptStart}ms`);
+        return result;
     }
 
     async getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth = 0, retryCount = 0) {
@@ -661,16 +666,7 @@ Available tools: {{TOOLS_COUNT}}`;
     }
 
     async enforceGlobalRateLimit() {
-        const minTimeBetweenCalls = 3000; // Minimum 3 seconds between ChatGPT API calls (reduced from 4s)
-        const now = Date.now();
-        const timeSinceLastCall = now - this.lastChatGPTCallTime;
-        
-        if (timeSinceLastCall < minTimeBetweenCalls) {
-            const waitTime = minTimeBetweenCalls - timeSinceLastCall;
-            console.log(`Global rate limit: waiting ${waitTime}ms since last ChatGPT call...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-        
+        // Track last call time for rate limit error analysis (no preemptive delays)
         this.lastChatGPTCallTime = Date.now();
     }
 
@@ -695,19 +691,23 @@ Available tools: {{TOOLS_COUNT}}`;
             ...toolResults
         ];
 
+        const payload = JSON.stringify({
+            model: this.config.model,
+            messages: messages,
+            max_completion_tokens: this.config.max_completion_tokens,
+            tools: tools,
+            tool_choice: recursionDepth >= 20 ? 'none' : 'auto' // Allow tools until depth 20, then force completion
+        });
+        
+        console.log(`📏 ChatGPT payload size: ${payload.length} characters`);
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.config.api_key}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model: this.config.model,
-                messages: messages,
-                max_completion_tokens: this.config.max_completion_tokens,
-                tools: tools,
-                tool_choice: recursionDepth >= 20 ? 'none' : 'auto' // Allow tools until depth 20, then force completion
-            })
+            body: payload
         });
 
         if (!response.ok) {
@@ -844,17 +844,18 @@ Available tools: {{TOOLS_COUNT}}`;
             const recommendations = {};
             console.log('Found structured recommendation block:', recommendationBlock);
             
-            // Extract structured fields - handle both with and without bullet point prefix
-            const clusterMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Cluster\*\*:\s*([^\n]+)/im);
+            // Extract structured fields - handle both formats: "- Field:" and "**Field**:"
+            const clusterMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Cluster(?:\*\*)?:\s*([^\n]+)/im);
+            console.log('🔍 Cluster match attempt:', clusterMatch);
             if (clusterMatch) recommendations.cluster = clusterMatch[1].trim();
             
-            const svmMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*SVM\*\*:\s*([^\n]+)/im);
+            const svmMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?SVM(?:\*\*)?:\s*([^\n]+)/im);
             if (svmMatch) recommendations.svm = svmMatch[1].trim();
             
-            const aggregateMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Aggregate\*\*:\s*([^\n]+)/im);
+            const aggregateMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Aggregate(?:\*\*)?:\s*([^\n]+)/im);
             if (aggregateMatch) recommendations.aggregate = aggregateMatch[1].trim();
             
-            const sizeMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Size\*\*:\s*([^\n]+)/im);
+            const sizeMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Size(?:\*\*)?:\s*([^\n]+)/im);
             if (sizeMatch) {
                 const sizeText = sizeMatch[1].trim();
                 const sizeParts = sizeText.match(/(\d+)\s*(MB|GB|TB)/i);
@@ -864,20 +865,20 @@ Available tools: {{TOOLS_COUNT}}`;
                 }
             }
             
-            const protocolMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Protocol\*\*:\s*([^\n]+)/im);
+            const protocolMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Protocol(?:\*\*)?:\s*([^\n]+)/im);
             if (protocolMatch) recommendations.protocol = protocolMatch[1].trim().toLowerCase();
             
             // New storage class support
-            const storageClassMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Storage_Class\*\*:\s*([^\n]+)/im);
+            const storageClassMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Storage_Class(?:\*\*)?:\s*([^\n]+)/im);
             if (storageClassMatch) recommendations.storageClass = storageClassMatch[1].trim();
             
-            const qosMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*QoS_Policy\*\*:\s*([^\n]+)/im);
+            const qosMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?QoS_Policy(?:\*\*)?:\s*([^\n]+)/im);
             if (qosMatch) recommendations.qosPolicy = qosMatch[1].trim();
             
-            const snapshotMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Snapshot_Policy\*\*:\s*([^\n]+)/im);
+            const snapshotMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Snapshot_Policy(?:\*\*)?:\s*([^\n]+)/im);
             if (snapshotMatch) recommendations.snapshotPolicy = snapshotMatch[1].trim();
             
-            const exportMatch = recommendationBlock.match(/(?:^-?\s*)?\*\*Export_Policy\*\*:\s*([^\n]+)/im);
+            const exportMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Export_Policy(?:\*\*)?:\s*([^\n]+)/im);
             if (exportMatch) recommendations.exportPolicy = exportMatch[1].trim();
             
             console.log('Structured recommendations extracted:', recommendations);
@@ -975,8 +976,21 @@ Available tools: {{TOOLS_COUNT}}`;
     async autoPopulateForm(recommendations) {
         console.log('Auto-populating form with recommendations:', recommendations);
         
-        // Handle storage classes page differently
-        if (this.options.pageType === 'storage-classes' && this.options.useStorageClassProvisioning) {
+        // Smart provisioning panel selection based on recommendation content
+        const hasStorageClass = recommendations.storageClass && recommendations.storageClass.trim() !== '';
+        const shouldUseStorageClassProvisioning = hasStorageClass;
+        
+        console.log('🧠 SMART PROVISIONING LOGIC:');
+        console.log('  - Has storage class:', hasStorageClass);
+        console.log('  - Storage class value:', recommendations.storageClass);
+        console.log('  - Will use storage class provisioning:', shouldUseStorageClassProvisioning);
+        
+        // Use storage class provisioning if recommendation contains a storage class
+        if (shouldUseStorageClassProvisioning) {
+            // Switch to storage classes view if we're not already there
+            console.log('🔄 Switching to storage classes view for storage class provisioning...');
+            this.demo.showStorageClassesView();
+            
             // Open storage class provisioning panel
             this.demo.openStorageClassProvisioning();
             
@@ -1098,48 +1112,53 @@ Available tools: {{TOOLS_COUNT}}`;
             return;
         }
         
-        // Original working environment logic
+        // Regular cluster-based provisioning logic (when no storage class is specified)
         // Ensure correct cluster is selected
-        if (recommendations.cluster && !this.options.skipWorkingEnvironment) {
+        if (recommendations.cluster) {
             const clusterObj = this.demo.clusters.find(c => c.name === recommendations.cluster);
             if (clusterObj) {
                 const previousCluster = this.demo.selectedCluster?.name;
                 this.demo.selectedCluster = clusterObj;
-                console.log('Cluster object found and set:', clusterObj);
+                console.log('✅ Cluster object found and set:', clusterObj);
                 
-                // Also update the radio button selection
+                // Also update the radio button selection (may not exist if we're on storage classes page)
                 const radio = document.querySelector(`input[name="selectedCluster"][value="${recommendations.cluster}"]`);
                 if (radio) {
                     radio.checked = true;
-                    console.log('Radio button selected for cluster:', recommendations.cluster);
+                    console.log('✅ Radio button selected for cluster:', recommendations.cluster);
+                } else {
+                    console.log('ℹ️ Cluster radio button not found (might be on different page)');
                 }
                 
                 // If we switched clusters, wait for UI update
                 if (previousCluster !== recommendations.cluster) {
-                    console.log('Cluster switched - waiting for UI update');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    console.log('🔄 Cluster switched - waiting for UI update');
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
+            } else {
+                console.log('❌ Cluster not found:', recommendations.cluster);
             }
         }
         
-        // Open the provisioning panel
-        if (!this.options.skipWorkingEnvironment && !this.demo.selectedCluster) {
-            this.addMessage('assistant', '⚠️ Cannot open provisioning form - no cluster is selected.');
+        // Check if we have a selected cluster or can proceed without one
+        if (!this.demo.selectedCluster && recommendations.cluster) {
+            this.addMessage('assistant', '⚠️ Cannot open provisioning form - recommended cluster not found.');
             return;
         }
         
-        // Open appropriate provisioning panel
-        if (this.options.useStorageClassProvisioning) {
-            this.demo.openStorageClassProvisioning();
-        } else {
-            this.demo.openProvisionStorage();
-        }
+        // Switch to clusters view if we're not already there
+        console.log('🔄 Switching to clusters view for regular provisioning...');
+        this.demo.showClustersView();
+        
+        // Open the regular cluster-based provisioning panel
+        console.log('🔧 Opening regular cluster-based provisioning panel...');
+        this.demo.openProvisionStorage();
         
         try {
             // Wait for provisioning panel to open
             console.log('Waiting for provisioning panel...');
             await this.waitForElement('provisioningPanel', 3000);
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 250));
             
             // Wait for SVM select dropdown
             await this.waitForElement('svmSelect', 5000);
@@ -1289,18 +1308,22 @@ Available tools: {{TOOLS_COUNT}}`;
             }, 500);
         }
 
-        // Populate snapshot policy
+        // Populate snapshot policy (wait for dropdown to be populated first)
         if (recommendations.snapshotPolicy) {
-            console.log('=== SNAPSHOT POLICY DEBUGGING ===');
-            console.log('Attempting to populate snapshot policy:', recommendations.snapshotPolicy);
-            console.log('Looking for element ID: snapshotPolicy');
-            
-            const snapshotSelect = document.getElementById('snapshotPolicy');
-            console.log('Element found:', !!snapshotSelect);
-            
-            if (snapshotSelect) {
-                console.log('Element type:', snapshotSelect.tagName);
-                console.log('Element options count:', snapshotSelect.options.length);
+            setTimeout(async () => {
+                console.log('=== SNAPSHOT POLICY DEBUGGING ===');
+                console.log('Attempting to populate snapshot policy:', recommendations.snapshotPolicy);
+                console.log('Waiting for snapshot policy dropdown to load...');
+                
+                // Wait for the dropdown to be populated with real options
+                await this.waitForDropdownOptions('snapshotPolicy', 5000);
+                
+                const snapshotSelect = document.getElementById('snapshotPolicy');
+                console.log('Element found:', !!snapshotSelect);
+                
+                if (snapshotSelect) {
+                    console.log('Element type:', snapshotSelect.tagName);
+                    console.log('Element options count:', snapshotSelect.options.length);
                 
                 if (snapshotSelect.options.length > 0) {
                     console.log('Available options in dropdown:');
@@ -1347,6 +1370,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 allElements.forEach(el => console.log(`  Found element: ${el.id}`));
             }
             console.log('=== END SNAPSHOT POLICY DEBUGGING ===');
+            }, 500); // Wait 500ms for snapshot policies to load
         }
 
         // Populate export policy for NFS

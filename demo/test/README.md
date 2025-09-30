@@ -2,7 +2,32 @@
 
 This directory contains tests specific to the NetApp ONTAP MCP Demo interface functionality.
 
-## Test Files
+## ChatGPT Performance Testing
+
+### `test-chatgpt-curl.js`
+Tests ChatGPT API response times with different payload sizes using direct curl calls.
+
+**Usage:**
+```bash
+cd demo/test
+node test-chatgpt-curl.js
+```
+
+### `test-chatgpt-performance.js` 
+Tests ChatGPT API performance using native fetch calls with various conversation sizes.
+
+**Security Notes:**
+- No API keys are embedded in test files
+- All scripts read API key from `../chatgpt-config.json`
+- Tests validate API key presence before running
+
+### Performance Debugging
+The main ChatbotAssistant now logs payload sizes for all ChatGPT API calls:
+- `📏 ChatGPT payload size: XXXX characters`
+- `⏱️ Starting ChatGPT API call...` 
+- `⏱️ ChatGPT API completed in XXXXms`
+
+## Other Test Files
 
 ### JavaScript Tests
 
