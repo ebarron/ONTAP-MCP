@@ -218,22 +218,18 @@ Available tools: {{TOOLS_COUNT}}`;
         this.addMessage('assistant', welcomeMsg);
     }
 
-    async sendMessage(message = null, isProvisioningWorkflow = false) {
+    async sendMessage(message = null) {
         const input = document.getElementById('chatbotInput');
         const userMessage = message || input.value.trim();
         
         if (!userMessage || this.isThinking) return;
 
-        // Reset tool call statistics for fresh ONTAP data, but preserve conversation history
+        // Reset tool call statistics for fresh ONTAP data, preserve all conversation history
         this.toolCallFrequency = {};
         this.toolCallHistory = [];
         this.toolCallSignatures = new Map(); // Reset duplicate detection
         
-        if (isProvisioningWorkflow) {
-            console.log('🔄 Reset tool call statistics and cleaned tool artifacts for provisioning workflow');
-        } else {
-            console.log('🔄 Reset tool call statistics but preserved conversation history for follow-up context');
-        }
+        console.log('🔄 Reset tool call statistics but preserved conversation history for follow-up context');
 
         // Add user message to both UI and conversation thread
         this.addMessage('user', userMessage);
@@ -249,7 +245,7 @@ Available tools: {{TOOLS_COUNT}}`;
             if (this.mockMode) {
                 response = await this.getMockResponse(userMessage);
             } else {
-                response = await this.getChatGPTResponse(userMessage, isProvisioningWorkflow);
+                response = await this.getChatGPTResponse(userMessage);
             }
             
             this.hideThinking();
@@ -389,12 +385,12 @@ Available tools: {{TOOLS_COUNT}}`;
         return Object.keys(recommendations).length > 0 ? recommendations : null;
     }
 
-    async getChatGPTResponse(message, isProvisioningWorkflow = false) {
+    async getChatGPTResponse(message) {
         // Enforce global rate limiting
         await this.enforceGlobalRateLimit();
         
         const systemPrompt = this.buildSystemPrompt();
-        const conversationHistory = this.buildConversationHistory(isProvisioningWorkflow);
+        const conversationHistory = this.buildConversationHistory();
 
         // Build tools for ChatGPT function calling (newer format)
         const tools = this.buildMCPTools();
@@ -445,7 +441,7 @@ Available tools: {{TOOLS_COUNT}}`;
         // Handle tool calls (newer format)
         if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
             console.log('Tool calls detected:', choice.message.tool_calls);
-            return await this.handleToolCalls(message, choice.message.tool_calls, 0, isProvisioningWorkflow);
+            return await this.handleToolCalls(message, choice.message.tool_calls, 0);
         }
 
         const aiResponse = choice.message?.content;
@@ -526,7 +522,7 @@ Available tools: {{TOOLS_COUNT}}`;
         return mcpTools;
     }
 
-    async handleToolCalls(originalMessage, toolCalls, recursionDepth = 0, isProvisioningWorkflow = false) {
+    async handleToolCalls(originalMessage, toolCalls, recursionDepth = 0) {
         const MAX_RECURSION_DEPTH = 25; // Allow 25 rounds of tool calls for very complex operations with many dependencies
         
         // Add call frequency tracking and pattern detection
@@ -617,16 +613,16 @@ Available tools: {{TOOLS_COUNT}}`;
         // Send results back to ChatGPT with retry logic for rate limiting
         const chatGptStart = Date.now();
         console.log('⏱️ Starting ChatGPT API call...');
-        const result = await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth + 1, 0, isProvisioningWorkflow);
+        const result = await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth + 1, 0);
         console.log(`⏱️ ChatGPT API completed in ${Date.now() - chatGptStart}ms`);
         return result;
     }
 
-    async getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth = 0, retryCount = 0, isProvisioningWorkflow = false) {
+    async getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth = 0, retryCount = 0) {
         const maxRetries = 3; // Allow up to 3 retries for rate limit errors
         
         try {
-            return await this.getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth, isProvisioningWorkflow);
+            return await this.getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth);
         } catch (error) {
             // If it's a rate limit error and we haven't exceeded max retries, wait and retry
             if (error.message.includes('Rate limit exceeded') && retryCount < maxRetries) {
@@ -634,7 +630,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 const retryDelay = 3000 + (retryCount * 2000);
                 console.log(`Rate limit hit, waiting ${retryDelay}ms before retry ${retryCount + 1}/${maxRetries}...`);
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
-                return await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth, retryCount + 1, isProvisioningWorkflow);
+                return await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth, retryCount + 1);
             }
             
             // If it's not a rate limit error or we've exceeded retries, rethrow
@@ -752,12 +748,12 @@ Available tools: {{TOOLS_COUNT}}`;
         this.lastChatGPTCallTime = Date.now();
     }
 
-    async getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth = 0, isProvisioningWorkflow = false) {
+    async getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth = 0) {
         // Enforce global rate limiting
         await this.enforceGlobalRateLimit();
         
         const systemPrompt = this.buildSystemPrompt();
-        const conversationHistory = this.buildConversationHistory(isProvisioningWorkflow); // Only clean during provisioning workflows
+        const conversationHistory = this.buildConversationHistory(); // Simple accumulation, no cleaning
         const tools = this.buildMCPTools();
 
         // Build the messages including the tool calls and results
@@ -811,7 +807,7 @@ Available tools: {{TOOLS_COUNT}}`;
         // Handle potential additional tool calls (multi-step workflows) only if not at max depth
         if (choice.message?.tool_calls && choice.message.tool_calls.length > 0 && recursionDepth < 25) {
             console.log(`Additional tool calls detected at depth ${recursionDepth}, continuing workflow...`);
-            return await this.handleToolCalls(originalMessage, choice.message.tool_calls, recursionDepth, isProvisioningWorkflow);
+            return await this.handleToolCalls(originalMessage, choice.message.tool_calls, recursionDepth);
         }
 
         // Log final tool call statistics
@@ -834,7 +830,7 @@ Available tools: {{TOOLS_COUNT}}`;
             console.log('🔍 USAGE INFO:', JSON.stringify(data.usage, null, 2));
             
             // Pass 2: Force answer generation with tools disabled
-            return await this.generateFinalAnswer(originalMessage, isProvisioningWorkflow);
+            return await this.generateFinalAnswer(originalMessage);
         }
 
         console.log('Final ChatGPT response:', aiResponse);
@@ -844,14 +840,14 @@ Available tools: {{TOOLS_COUNT}}`;
 
 
 
-    async generateFinalAnswer(originalMessage, isProvisioningWorkflow = false) {
+    async generateFinalAnswer(originalMessage) {
         // Pass 2: Generate final answer with tools disabled and full token budget
         console.log('🎯 Pass 2: Generating final answer with tools disabled...');
         
         await this.enforceGlobalRateLimit();
         
         const systemPrompt = this.buildSystemPrompt();
-        const conversationHistory = this.buildConversationHistory(isProvisioningWorkflow); // Only clean during provisioning workflows
+        const conversationHistory = this.buildConversationHistory(); // Simple accumulation, no cleaning
         
         // Add explicit instruction to generate answer
         const finalizationPrompt = "You have gathered all necessary information from the ONTAP clusters. Now provide your specific provisioning recommendation using the required structured format. Do not call any more tools - analyze the data you have and make a decision.";
@@ -908,26 +904,10 @@ Available tools: {{TOOLS_COUNT}}`;
         return this.parseResponseActions(aiResponse);
     }
 
-    buildConversationHistory(cleanToolArtifacts = false) {
-        let history = this.conversationThread.filter(msg => msg.role !== 'system');
-        
-        // Clean tool artifacts if explicitly requested (for provisioning workflows)
-        if (cleanToolArtifacts) {
-            // Remove tool artifacts that can cause API errors
-            history = history.filter(msg => {
-                // Keep user messages
-                if (msg.role === 'user') return true;
-                
-                // Keep assistant messages without tool_calls (final responses)
-                if (msg.role === 'assistant' && !msg.tool_calls) return true;
-                
-                // Remove assistant messages with tool_calls and tool messages
-                return false;
-            });
-            console.log('🧹 Cleaned conversation history: removed tool artifacts to prevent API errors');
-        }
-        
-        return history.slice(-20); // Keep more context since tool results can be large
+    buildConversationHistory() {
+        // Simple accumulation: return all conversation history without any cleaning
+        // Filter out system messages (those are added separately)
+        return this.conversationThread.filter(msg => msg.role !== 'system');
     }
 
 
@@ -1154,6 +1134,10 @@ Available tools: {{TOOLS_COUNT}}`;
         const hasStorageClass = recommendations.storageClass && 
                                recommendations.storageClass.trim() !== '' && 
                                !recommendations.storageClass.includes('**') && // Avoid capturing next field
+                               !recommendations.storageClass.includes('(none specified)') && // Ignore placeholder values
+                               !recommendations.storageClass.includes('(not specified)') && // Ignore other placeholder variants
+                               !recommendations.storageClass.includes('none specified') && // Ignore other placeholder variants
+                               !recommendations.storageClass.includes('not specified') && // Ignore other placeholder variants
                                recommendations.storageClass.length > 0;
         const shouldUseStorageClassProvisioning = hasStorageClass;
         
