@@ -206,13 +206,13 @@ Available tools: {{TOOLS_COUNT}}`;
         if (this.options.pageType === 'storage-classes') {
             // Storage classes page welcome message
             welcomeMsg = this.mockMode 
-                ? "👋 Hello! I'm your NetApp ONTAP storage class assistant (running in demo mode). I can help you provision storage using your predefined storage classes: Hospital EDR, HR Records, and Medical Images.\n\nTry asking me: \"Provision 50GB of Hospital EDR storage for patient records\""
-                : "👋 Hello! I'm your NetApp ONTAP storage class assistant. I can help you provision storage using your predefined storage classes: Hospital EDR, HR Records, and Medical Images.\n\nTry asking me: \"Provision 50GB of Hospital EDR storage for patient records\"";
+                ? "👋 Hello! I'm your NetApp ONTAP storage class assistant (running in demo mode). I can help you provision storage using your predefined storage classes: Hospital EDR, HR Records, and Medical Images."
+                : "👋 Hello! I'm your NetApp ONTAP storage class assistant. I can help you provision storage using your predefined storage classes: Hospital EDR, HR Records, and Medical Images.";
         } else {
             // Default page welcome message
             welcomeMsg = this.mockMode 
-                ? "👋 Hello! I'm your NetApp ONTAP provisioning assistant (running in demo mode). I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100mb NFS volume for a database workload\""
-                : "👋 Hello! I'm your NetApp ONTAP provisioning assistant. I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.\n\nTry asking me: \"Provision a 100mb NFS volume for a database workload\"";
+                ? "👋 Hello! I'm your NetApp ONTAP provisioning assistant (running in demo mode). I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices."
+                : "👋 Hello! I'm your NetApp ONTAP provisioning assistant. I can help you find the best storage locations across your ONTAP clusters based on available capacity and best practices.";
         }
 
         this.addMessage('assistant', welcomeMsg);

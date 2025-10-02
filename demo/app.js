@@ -62,7 +62,8 @@ class OntapMcpDemo {
 
     bindEvents() {
         // Add cluster button
-        document.getElementById('addClusterBtn').addEventListener('click', () => {
+        document.getElementById('addClusterBtn').addEventListener('click', (e) => {
+            e.preventDefault();
             this.openAddClusterModal();
         });
 
@@ -88,6 +89,15 @@ class OntapMcpDemo {
             e.preventDefault();
             this.handleAddCluster();
         });
+        
+        // Cancel button in Add Cluster modal
+        const cancelAddBtn = document.getElementById('cancelAdd');
+        if (cancelAddBtn) {
+            cancelAddBtn.addEventListener('click', () => {
+                this.closeModals();
+                document.getElementById('addClusterForm').reset();
+            });
+        }
 
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -177,8 +187,14 @@ class OntapMcpDemo {
         const storageClassesView = document.getElementById('storageClassesView');
         const clustersView = document.getElementById('clustersView');
         
+        console.log('storageClassesView element:', storageClassesView);
+        console.log('clustersView element:', clustersView);
+        
         if (clustersView) clustersView.style.display = 'none';
-        if (storageClassesView) storageClassesView.style.display = 'block';
+        if (storageClassesView) {
+            storageClassesView.style.display = 'block';
+            console.log('Storage classes view is now visible');
+        }
         
         // Update tab navigation
         this.updateTabNavigation('storage-classes');
@@ -320,8 +336,16 @@ class OntapMcpDemo {
     }
 
     closeModals() {
-        document.getElementById('addClusterModal').style.display = 'none';
-        document.getElementById('clusterFlyout').style.display = 'none';
+        const addClusterModal = document.getElementById('addClusterModal');
+        const clusterFlyout = document.getElementById('clusterFlyout');
+        
+        if (addClusterModal) {
+            addClusterModal.style.display = 'none';
+        }
+        if (clusterFlyout) {
+            clusterFlyout.style.display = 'none';
+        }
+        
         this.currentCluster = null;
     }
 
@@ -350,14 +374,16 @@ class OntapMcpDemo {
     }
 
     renderStorageClasses() {
+        console.log('renderStorageClasses called, storage classes:', this.storageClasses.length);
         const container = document.getElementById('storageClassesContainer');
         
         if (!container) {
-            console.warn('Storage classes container not found');
+            console.error('Storage classes container not found!');
             return;
         }
 
-        container.innerHTML = this.storageClasses.map(storageClass => `
+        console.log('Container found, rendering', this.storageClasses.length, 'storage classes');
+        const html = this.storageClasses.map(storageClass => `
             <div class="storage-class-card">
                 <div class="storage-class-card-header">
                     <h3 class="storage-class-card-title">${DemoUtils.escapeHtml(storageClass.name)}</h3>
@@ -369,6 +395,10 @@ class OntapMcpDemo {
                         <div class="storage-class-policy">
                             <span class="storage-class-policy-label">Snapshot:</span>
                             <span>${DemoUtils.escapeHtml(storageClass.snapshotPolicy)}</span>
+                        </div>
+                        <div class="storage-class-policy">
+                            <span class="storage-class-policy-label">Security:</span>
+                            <span>Ransomware Protection Active</span>
                         </div>
                     </div>
                 </div>
@@ -399,6 +429,8 @@ class OntapMcpDemo {
                 </div>
             </div>
         `).join('');
+        
+        container.innerHTML = html;
     }
 
     renderClustersTable() {
