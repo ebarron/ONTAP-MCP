@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 
 /**
- * Test snapshot policy creation API formats
- * This will help us understand what ONTAP expects
+ * Test snapshot policy creation API formats using MCP client
+ * Uses unique timestamped policy names to avoid conflicts
  */
+
+import { McpTestClient } from './mcp-test-client.js';
+
+// Generate unique test names with timestamp to avoid conflicts
+const TEST_RUN_ID = Date.now();
 
 const TEST_FORMATS = [
   {
-    name: "Simple format",
+    name: "Valid format (should succeed)",
+    shouldFail: false,
     data: {
-      name: "test-policy-1", 
+      cluster_name: 'karan-ontap-1',
+      policy_name: `test_snap_policy_${TEST_RUN_ID}_1`, 
       enabled: true,
       comment: "Test policy format 1",
-      svm: { name: "vs123" },
+      svm_name: "vs123",
       copies: [
         { count: 6, schedule: { name: "hourly" } },
         { count: 2, schedule: { name: "daily" } }
@@ -20,67 +27,130 @@ const TEST_FORMATS = [
     }
   },
   {
-    name: "Alternative format",
+    name: "Invalid format - schedule as string (should fail validation)",
+    shouldFail: true,
+    expectedError: "Expected object, received string",
     data: {
-      name: "test-policy-2",
-      enabled: true, 
-      comment: "Test policy format 2",
-      svm: { name: "vs123" },
-      copy: {
-        policy: { name: "default" }
-      }
-    }
-  }
-];
-
-async function testPolicyFormat(format) {
-  try {
-    const response = await fetch('http://localhost:3000/api/tools/create_snapshot_policy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cluster_name: 'karan-ontap-1',
-        policy_name: format.data.name,
-        comment: format.data.comment,
-        enabled: format.data.enabled,
-        svm_name: 'vs123',
-        copies: format.data.copies
-      })
-    });
-    
-    const result = await response.json();
-    const text = result.content?.[0]?.text || '';
-    
-    console.log(`${format.name}: ${text.includes('❌') ? 'FAILED' : 'SUCCESS'}`);
-    if (text.includes('❌')) {
-      console.log(`   Error: ${text.substring(0, 200)}...\n`);
-    }
-    
-  } catch (error) {
-    console.log(`${format.name}: ERROR - ${error.message}`);
-  }
-}
-
-async function runFormatTests() {
-  console.log('🧪 Testing Snapshot Policy Creation Formats\n');
-  
-  // Test original failing case first
-  console.log('Testing original failing format...');
-  await testPolicyFormat({
-    name: "Original failing format",
-    data: {
-      name: "mcp-test-policy",
+      cluster_name: 'karan-ontap-1',
+      policy_name: `test_snap_policy_${TEST_RUN_ID}_2`,
+      svm_name: "vs123",
       copies: [
-        {count: 6, schedule: "hourly"}, 
+        {count: 6, schedule: "hourly"},  // Wrong: string instead of object
         {count: 2, schedule: "daily"}, 
         {count: 2, schedule: "weekly"}
       ]
     }
-  });
+  }
+];
+
+async function testPolicyFormat(client, format) {
+  try {
+    const result = await client.callTool('create_snapshot_policy', format.data);
+    const text = client.parseContent(result);
+    
+    if (format.shouldFail) {
+      // Negative test: Should have failed but didn't
+      console.log(`${format.name}: ❌ UNEXPECTED SUCCESS (should have failed validation)`);
+      return { passed: false, policyName: format.data.policy_name };
+    } else {
+      // Positive test: Should succeed
+      if (text.includes('❌')) {
+        console.log(`${format.name}: ❌ FAILED`);
+        console.log(`   Error: ${text.substring(0, 200)}...\n`);
+        return { passed: false, policyName: format.data.policy_name };
+      } else {
+        console.log(`${format.name}: ✅ SUCCESS`);
+        return { passed: true, policyName: format.data.policy_name };
+      }
+    }
+  } catch (error) {
+    if (format.shouldFail) {
+      // Negative test: Expected to fail, check if it's the right error
+      const errorMsg = error.message;
+      if (format.expectedError && errorMsg.includes(format.expectedError)) {
+        console.log(`${format.name}: ✅ CORRECTLY REJECTED`);
+        console.log(`   Expected error found: "${format.expectedError}"`);
+        return { passed: true, policyName: null }; // No policy created
+      } else {
+        console.log(`${format.name}: ❌ FAILED (wrong error)`);
+        console.log(`   Expected: "${format.expectedError}"`);
+        console.log(`   Got: ${errorMsg.substring(0, 100)}...\n`);
+        return { passed: false, policyName: null };
+      }
+    } else {
+      // Positive test: Unexpected error
+      console.log(`${format.name}: ❌ ERROR - ${error.message}`);
+      return { passed: false, policyName: format.data.policy_name };
+    }
+  }
+}
+
+async function runFormatTests() {
+  console.log('🧪 Testing Snapshot Policy Creation Formats (MCP)\n');
+  console.log('📝 Includes both positive and negative validation tests\n');
   
-  console.log('\nTesting alternative formats...');
-  for (const format of TEST_FORMATS) {
-    await testPolicyFormat(format);
+  const client = new McpTestClient('http://localhost:3000');
+  const createdPolicies = []; // Track only policies WE created
+  
+  try {
+    await client.initialize();
+    console.log('✅ MCP client initialized\n');
+    
+    let passCount = 0;
+    
+    for (const format of TEST_FORMATS) {
+      const result = await testPolicyFormat(client, format);
+      if (result.passed) {
+        passCount++;
+        if (result.policyName) {
+          createdPolicies.push(result.policyName);
+        }
+      }
+    }
+    
+    console.log(`\n✅ Passed: ${passCount}/${TEST_FORMATS.length}`);
+    
+    // Clean up ONLY the policies we successfully created in this test run
+    if (createdPolicies.length > 0) {
+      console.log(`\n🧹 Cleaning up ${createdPolicies.length} policies created by this test...`);
+      for (const policyName of createdPolicies) {
+        try {
+          await client.callTool('delete_snapshot_policy', {
+            cluster_name: 'karan-ontap-1',
+            policy_name: policyName,
+            svm_name: 'vs123'
+          });
+          console.log(`   ✅ Deleted: ${policyName}`);
+        } catch (error) {
+          console.log(`   ⚠️ Could not delete ${policyName}: ${error.message}`);
+        }
+      }
+    }
+    
+    await client.close();
+    
+    process.exit(passCount === TEST_FORMATS.length ? 0 : 1);
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+    
+    // Clean up on error too
+    if (createdPolicies.length > 0) {
+      console.log(`\n🧹 Emergency cleanup of ${createdPolicies.length} policies...`);
+      for (const policyName of createdPolicies) {
+        try {
+          await client.callTool('delete_snapshot_policy', {
+            cluster_name: 'karan-ontap-1',
+            policy_name: policyName,
+            svm_name: 'vs123'
+          });
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+    }
+    
+    await client.close();
+    process.exit(1);
   }
 }
 

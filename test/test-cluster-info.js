@@ -1,57 +1,22 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { McpTestClient } from './mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// MCP JSON-RPC 2.0 helper function
-async function callMcpTool(toolName, args, httpPort = 3000) {
-  const url = `http://localhost:${httpPort}/mcp`;
-  
-  const jsonrpcRequest = {
-    jsonrpc: '2.0',
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: args
-    },
-    id: Date.now()
-  };
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(jsonrpcRequest),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HTTP ${response.status}: ${error}`);
-  }
-
-  const jsonrpcResponse = await response.json();
-  
-  // Handle JSON-RPC errors
-  if (jsonrpcResponse.error) {
-    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
-  }
-
-  // Return the result in the same format as REST API for compatibility
-  return jsonrpcResponse.result;
-}
 
 /**
  * Test the cluster information tools (get_all_clusters_info and list_registered_clusters)
  * in both STDIO and HTTP modes to ensure they work consistently.
  */
 class ClusterInfoTester {
-  constructor(mode = 'stdio') {
+  constructor(mode = 'stdio', serverAlreadyRunning = false) {
     this.mode = mode;
     this.serverProcess = null;
     this.requestId = 1;
+    this.serverAlreadyRunning = serverAlreadyRunning;
+    this.mcpClient = null;
   }
 
   async callTool(toolName, params) {
@@ -147,7 +112,13 @@ class ClusterInfoTester {
   }
 
   async callToolRest(toolName, params) {
-    const result = await callMcpTool(toolName, params);
+    // Initialize MCP client if not already done
+    if (!this.mcpClient) {
+      this.mcpClient = new McpTestClient('http://localhost:3000');
+      await this.mcpClient.initialize();
+    }
+    
+    const result = await this.mcpClient.callTool(toolName, params);
     
     // Extract text content from MCP response structure
     return result.content
@@ -157,6 +128,11 @@ class ClusterInfoTester {
   }
 
   async startHttpServer() {
+    if (this.serverAlreadyRunning) {
+      console.log('🔧 Using pre-started HTTP server');
+      return;
+    }
+    
     return new Promise((resolve, reject) => {
       const buildPath = path.join(__dirname, '..', 'build', 'index.js');
       this.serverProcess = spawn('node', [buildPath, '--http=3000'], {
@@ -198,7 +174,18 @@ class ClusterInfoTester {
   }
 
   async stopServer() {
-    if (this.serverProcess) {
+    // Cleanup MCP client
+    if (this.mcpClient) {
+      try {
+        await this.mcpClient.close();
+      } catch (error) {
+        console.error(`⚠️ Error closing MCP client: ${error.message}`);
+      }
+      this.mcpClient = null;
+    }
+    
+    // Stop server process (only if we started it)
+    if (!this.serverAlreadyRunning && this.serverProcess) {
       this.serverProcess.kill('SIGTERM');
       
       // Wait for process to exit
@@ -208,7 +195,9 @@ class ClusterInfoTester {
       });
     }
 
-    console.log('🔌 Server stopped');
+    if (!this.serverAlreadyRunning) {
+      console.log('🔌 Server stopped');
+    }
   }
 
   async runTests() {
@@ -303,16 +292,21 @@ class ClusterInfoTester {
 
 // Main execution
 async function main() {
-  const mode = process.argv[2] || 'stdio';
+  const args = process.argv.slice(2);
+  const mode = args.find(arg => !arg.startsWith('--')) || 'stdio';
+  const serverAlreadyRunning = args.includes('--server-running');
   
   if (!['stdio', 'http'].includes(mode)) {
-    console.error('Usage: node test-cluster-info.js [stdio|http]');
+    console.error('Usage: node test-cluster-info.js [stdio|http] [--server-running]');
     process.exit(1);
   }
   
   console.log(`🧪 Testing cluster info tools in ${mode.toUpperCase()} mode...\n`);
+  if (serverAlreadyRunning) {
+    console.log('🔧 Server Already Running: true\n');
+  }
   
-  const tester = new ClusterInfoTester(mode);
+  const tester = new ClusterInfoTester(mode, serverAlreadyRunning);
   const results = await tester.runTests();
   
   // Summary

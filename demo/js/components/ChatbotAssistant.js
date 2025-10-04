@@ -164,27 +164,23 @@ Available tools: {{TOOLS_COUNT}}`;
         try {
             this.updateStatus('Discovering available ONTAP tools...');
             
-            // Call the MCP server's tools endpoint to get the real list
-            const response = await fetch(`${this.demo.mcpUrl}/api/tools`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
+            // Use MCP protocol to list tools
+            const tools = await this.demo.apiClient.listTools();
             
-            const data = await response.json();
-            if (data.tools && Array.isArray(data.tools)) {
+            if (tools && Array.isArray(tools) && tools.length > 0) {
                 // Cache ALL tool definitions for potential future use
-                this.allToolDefinitions = data.tools;
+                this.allToolDefinitions = tools;
                 
                 // But start with just essential tools to reduce ChatGPT payload
-                this.toolDefinitions = data.tools.filter(tool => 
+                this.toolDefinitions = tools.filter(tool => 
                     essentialTools.includes(tool.name)
                 );
                 this.availableTools = essentialTools;
                 
-                console.log(`Discovered ${data.tools.length} total ONTAP tools, using ${this.availableTools.length} essential tools for ChatGPT`);
-                console.log(`Payload reduction: ${Math.round((1 - this.availableTools.length / data.tools.length) * 100)}% smaller`);
+                console.log(`Discovered ${tools.length} total ONTAP tools, using ${this.availableTools.length} essential tools for ChatGPT`);
+                console.log(`Payload reduction: ${Math.round((1 - this.availableTools.length / tools.length) * 100)}% smaller`);
             } else {
-                throw new Error('Invalid response format from tools endpoint');
+                throw new Error('Invalid response format from MCP listTools()');
             }
         } catch (error) {
             console.error('Tool discovery failed, using fallback essential tools:', error);
@@ -642,8 +638,6 @@ Available tools: {{TOOLS_COUNT}}`;
         const { function: func } = toolCall;
         const { name, arguments: args } = func;
 
-
-
         try {
             const parsedArgs = JSON.parse(args);
             
@@ -654,13 +648,13 @@ Available tools: {{TOOLS_COUNT}}`;
             if (this.toolCallSignatures.has(toolSignature)) {
                 const count = this.toolCallSignatures.get(toolSignature) + 1;
                 this.toolCallSignatures.set(toolSignature, count);
-                console.log(`� DUPLICATE TOOL CALL [${count}x]: ${name} with args`, parsedArgs);
+                console.log(`🔁 DUPLICATE TOOL CALL [${count}x]: ${name} with args`, parsedArgs);
                 console.log(`🔧 TOOL SIGNATURE: ${toolSignature}`);
             } else {
                 this.toolCallSignatures.set(toolSignature, 1);
             }
             
-            // �🔍 DIAGNOSTIC: Log parameters for problematic tools
+            // 🔍 DIAGNOSTIC: Log parameters for problematic tools
             const problematicTools = ['cluster_list_aggregates', 'cluster_list_svms', 'list_snapshot_policies', 'cluster_list_qos_policies'];
             if (problematicTools.includes(name)) {
                 console.log(`🔧 DIAGNOSTIC [${name}]:`, {
@@ -673,39 +667,32 @@ Available tools: {{TOOLS_COUNT}}`;
                 });
             }
             
-            const response = await fetch(`${this.demo.mcpUrl}/api/tools/${name}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(parsedArgs)
-            });
+            // Use the demo's MCP client (SSE protocol)
+            const result = await this.demo.apiClient.callMcp(name, parsedArgs);
 
-            if (!response.ok) {
+            if (!result.success) {
                 // 🔍 DIAGNOSTIC: Capture error details for problematic tools
-                if (name === 'cluster_list_aggregates' || name === 'cluster_list_svms') {
-                    try {
-                        const errorData = await response.text();
-                        console.log(`🚨 DIAGNOSTIC ERROR [${name}]:`, {
-                            status: response.status,
-                            statusText: response.statusText,
-                            errorData: errorData,
-                            sentParams: parsedArgs
-                        });
-                    } catch (logError) {
-                        console.log(`🚨 DIAGNOSTIC ERROR [${name}]: Failed to read error response`, logError);
-                    }
+                if (problematicTools.includes(name)) {
+                    console.log(`🚨 DIAGNOSTIC ERROR [${name}]:`, {
+                        error: result.error,
+                        sentParams: parsedArgs
+                    });
                 }
-                throw new Error(`MCP API error: ${response.status}`);
+                throw new Error(result.error || 'MCP call failed');
             }
 
-            const data = await response.json();
-
-            // Extract text content from MCP response
-            const textContent = data.content
-                .filter(item => item.type === 'text')
-                .map(item => item.text)
-                .join('');
+            // Extract text content from parsed data
+            // The McpApiClient already parsed the response, so result.data contains the parsed content
+            let textContent;
+            if (typeof result.data === 'string') {
+                textContent = result.data;
+            } else if (Array.isArray(result.data)) {
+                textContent = JSON.stringify(result.data, null, 2);
+            } else if (typeof result.data === 'object') {
+                textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                textContent = String(result.data);
+            }
 
             return textContent;
         } catch (error) {
