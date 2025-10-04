@@ -1,18 +1,15 @@
 # NetApp ONTAP MCP Server
 
-A Model Context Protocol (MCP) server that provides comprehensive access to NetApp ONTAP storage systems via HTTP transport. Supports both single-cluster and multi-cluster management with comp## ✅ Migration Completeete volume lifecyc## ✅ Architecture
+A Model Context Protocol (MCP) server that provides comprehensive access to NetApp ONTAP storage systems. Supports both STDIO and HTTP transports with multi-cluster management, complete volume lifecycle operations, data protection policies, and NFS/CIFS access control.
+
+## 🏗️ Architecture
 
 This MCP server uses a modern multi-cluster architecture with centralized credential management and unified tool interfaces. All tools operate through registered cluster configurations rather than requiring credentials for each API call, providing enhanced security and simplified multi-cluster workflows.
 
-### Completed Migrations
-- **Legacy single-cluster tools removed**: Consolidated 8 redundant tools into their multi-cluster equivalents
-- **Unified API surface**: All 47 tools use consistent cluster-name-based interfaces
-- **Enhanced security**: Centralized credential management with no credential passing in API calls
-- **Improved performance**: Connection reuse and caching across tool operations
-
-## 📄 License
-
-[Your License Here] data protection policies, and NFS/CIFS access control.
+### MCP JSON-RPC 2.0 Protocol
+- **STDIO Transport**: JSON-RPC over stdin/stdout for VS Code and AI assistants
+- **HTTP/SSE Transport**: Server-Sent Events for browser and web applications
+- **Dual Mode**: All 55 tools available in both transports with identical behavior
 
 ## 🚀 Quick Start
 
@@ -36,7 +33,7 @@ cp test/clusters.json.example test/clusters.json
 
 ### 3. Quick Start Options
 
-#### Option A: VS Code MCP Integration
+#### Option A: VS Code MCP Integration (STDIO)
 ```bash
 # Add to your MCP configuration:
 {
@@ -53,7 +50,7 @@ cp test/clusters.json.example test/clusters.json
 }
 ```
 
-#### Option B: HTTP Transport
+#### Option B: HTTP/SSE Transport (Browser/Web Apps)
 ```bash
 # Set cluster configuration
 export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"password"}]'
@@ -61,69 +58,85 @@ export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"a
 # Start HTTP server
 node build/index.js --http=3000
 
-# Test API
-curl http://localhost:3000/api/tools/list_registered_clusters
+# MCP endpoints available at:
+# GET http://localhost:3000/mcp (SSE stream)
+# POST http://localhost:3000/messages?sessionId=xxx (JSON-RPC requests)
 ```
 
-## 🛠️ MCP Capabilities
+## 🛠️ MCP Tools (55 Total)
 
-### 47 Storage Management Tools
-
-#### Core Volume Operations (18 tools)
+### Core Volume Operations (18 tools)
 - Complete volume lifecycle: create, read, update, delete, resize
 - Comprehensive volume updates (multiple properties in single operation)  
-- QoS policy-group and snapshot policy assignment and updates
+- QoS policy and snapshot policy assignment
 - NFS access control with export policies
 - Safe deletion workflow (offline → delete)
 - Volume configuration and statistics
 
-#### Data Protection (8 tools)  
+### Data Protection (8 tools)  
 - Snapshot policies with flexible scheduling
 - Snapshot schedules (cron and interval-based)
 - Policy application to volumes
 - Automated backup configuration
 
-#### CIFS/SMB Integration (8 tools)
+### CIFS/SMB Integration (8 tools)
 - Complete CIFS share management
 - Access control lists with user/group permissions
 - Share properties and security configuration
 - Integration with volume provisioning
 
-#### NFS Export Policy Management (9 tools)
+### NFS Export Policy Management (9 tools)
 - Export policy creation and management
 - Export rule configuration and updates
 - Client access control and security
 - Volume-to-policy association
 
-#### Performance Management (5 tools)
-- QoS policy-group management (create, list, get, update, delete)
+### Performance Management (5 tools)
+- QoS policy group management (create, list, get, update, delete)
 - Fixed QoS policies with IOPS/bandwidth limits
 - Adaptive QoS policies with dynamic scaling
 - Performance allocation per workload/volume
 
-#### Multi-Cluster Management (4 tools)
+### Multi-Cluster Management (4 tools)
 - Cluster registration and discovery
 - Cross-cluster volume operations
 - Centralized management interface
 
-### Transport Modes
-- **STDIO**: Direct integration with VS Code MCP and AI assistants
-- **HTTP Transport**: Web applications, testing, and external integrations
-- **Dual Mode**: All 47 tools available in both transports
+### Additional Management (3 tools)
+- Cluster information and health
+- SVM and aggregate discovery
+- Infrastructure health assessment
+
+## 🌐 Transport Modes
+
+### STDIO Transport
+- Direct integration with VS Code MCP extension
+- JSON-RPC 2.0 over stdin/stdout
+- Automatic initialization handshake
+- Perfect for AI assistants and IDE integration
+
+### HTTP/SSE Transport  
+- Server-Sent Events (SSE) for real-time communication
+- Browser-native EventSource API support
+- Session-based JSON-RPC messaging
+- Ideal for web applications and demos
+
+**Note**: All 55 tools work identically in both transport modes.
 
 ## 📚 Documentation
 
 ### Quick Access
 - **Demo Interface**: See `demo/README.md` for web interface guide
-- **Testing**: See `test/README.md` for comprehensive testing framework
-- **HTTP Configuration**: See `HTTP_CONFIG.md` for HTTP transport examples
+- **Testing**: See `test/README.md` for comprehensive testing framework (19 tests, 100% passing)
 - **Development**: See `.github/copilot-instructions.md` for architecture details
 
 ### Key Features
+- **MCP JSON-RPC 2.0**: Full protocol compliance with STDIO and HTTP/SSE transports
 - **Multi-cluster management** with dynamic registration
 - **Complete volume provisioning** with NFS and CIFS support
 - **Data protection policies** with automated snapshots
 - **Safe deletion workflows** with offline-first requirements
+- **Dynamic resource discovery** (no hardcoded aggregates or SVMs)
 
 ## 🔧 Development
 
@@ -137,9 +150,21 @@ npm run start:http         # Test HTTP mode
 
 ## 🖥️ Demo Interface
 
-A complete web-based demonstration interface is available that showcases all MCP capabilities through an authentic NetApp BlueXP-style interface. The demo provides end-to-end volume provisioning workflows including NFS/CIFS configuration, data protection policies, and real-time API validation.
+A complete web-based demonstration interface showcases all MCP capabilities through an authentic NetApp BlueXP-style interface. The demo uses the MCP SSE protocol and provides:
 
-See `demo/README.md` for setup instructions and detailed features.
+- End-to-end volume provisioning workflows
+- NFS/CIFS configuration with export policies and access control
+- Data protection policy management
+- Real-time MCP API validation
+- AI-powered provisioning assistant (optional ChatGPT integration)
+
+Start the demo:
+```bash
+./start-demo.sh  # Starts both MCP server (port 3000) and demo UI (port 8080)
+# Access at: http://localhost:8080
+```
+
+See `demo/README.md` for detailed features and configuration.
 
 ### Project Structure
 ```
@@ -178,9 +203,11 @@ test/                      # Comprehensive testing framework
 
 ## 📦 Examples
 
-### Create Volume with CIFS Share
+### MCP Tool Usage (STDIO/HTTP)
+
+#### Create Volume with CIFS Share
 ```javascript
-// Via MCP tools
+// Works in both STDIO and HTTP/SSE modes
 const result = await callTool('cluster_create_volume', {
   cluster_name: 'prod-cluster',
   svm_name: 'data-svm',
@@ -196,10 +223,12 @@ const result = await callTool('cluster_create_volume', {
 });
 ```
 
-### Apply Data Protection
+#### Apply Data Protection
 ```javascript
-// Create snapshot policy and apply to volume
+// Create snapshot policy
 await callTool('create_snapshot_policy', {
+  cluster_name: 'prod-cluster',
+  svm_name: 'data-svm',
   policy_name: 'finance_backup',
   copies: [
     { count: 24, schedule: { name: 'hourly' } },
@@ -207,53 +236,47 @@ await callTool('create_snapshot_policy', {
   ]
 });
 
-await callTool('apply_snapshot_policy_to_volume', {
-  volume_uuid: 'volume-uuid',
-  policy_name: 'finance_backup'
+// Apply policy to volume
+await callTool('cluster_update_volume', {
+  cluster_name: 'prod-cluster',
+  volume_uuid: 'volume-uuid-here',
+  snapshot_policy: 'finance_backup'
 });
+```
+
+#### Multi-Cluster Operations
+```javascript
+// Register a new cluster
+await callTool('add_cluster', {
+  name: 'dr-cluster',
+  cluster_ip: '10.2.2.2',
+  username: 'admin',
+  password: 'password',
+  description: 'Disaster Recovery Cluster'
+});
+
+// List all registered clusters
+const clusters = await callTool('list_registered_clusters', {});
 ```
 
 ## 🤝 Contributing
 
 This project follows NetApp's development standards with comprehensive testing and authentic demo interfaces. See the detailed architecture documentation in `.github/copilot-instructions.md` for development patterns and guidelines.
 
-## � TODO: Legacy Tool Migration
+### Development Workflow
+```bash
+npm run build              # Compile TypeScript
+npm start                  # Test STDIO mode
+npm run start:http         # Test HTTP/SSE mode
+./test/run-all-tests.sh    # Run all 19 tests (requires real ONTAP cluster)
+```
 
-### Modern Architecture
-This MCP server now uses a unified multi-cluster architecture. All 8 legacy single-cluster tools have been successfully removed and consolidated into their multi-cluster equivalents, providing enhanced security and simplified workflows.
+### Testing Requirements
+- All tests require access to a real NetApp ONTAP cluster
+- Configure `test/clusters.json` with your cluster details
+- Tests use dynamic resource discovery (no hardcoded aggregates/SVMs)
+- 100% test coverage requirement: all 19 tests must pass
 
-### Benefits Achieved
-- **Enhanced security** - Centralized credential management eliminates credential passing in API calls
-- **Multi-cluster workflows** - Seamless operations across multiple ONTAP systems  
-- **Simplified API** - Unified interface using cluster names instead of raw credentials
-- **Better performance** - Connection reuse and caching across tool operations
-
-### Completed Tool Consolidation
-
-| Removed Legacy Tool | Current Multi-Cluster Tool | Status |
-|---------------------|---------------------------|--------|
-| `get_cluster_info` | `get_all_clusters_info` | ✅ **Migrated** |
-| `list_svms` | `cluster_list_svms` | ✅ **Migrated** |
-| `list_aggregates` | `cluster_list_aggregates` | ✅ **Migrated** |
-| `list_volumes` | `cluster_list_volumes` | ✅ **Migrated** |
-| `create_volume` | `cluster_create_volume` | ✅ **Migrated** |
-| `get_volume_stats` | `cluster_get_volume_stats` | ✅ **Migrated** |
-| `offline_volume` | `cluster_offline_volume` | ✅ **Migrated** |
-| `delete_volume` | `cluster_delete_volume` | ✅ **Migrated** |
-
-**Result**: Reduced from 55 tools to 47 tools while maintaining full functionality.
-
-### Migration Action Items
-1. **Phase 1**: Update demo interface to use multi-cluster tools exclusively
-2. **Phase 2**: Add deprecation warnings to legacy tool responses  
-3. **Phase 3**: Update documentation to promote multi-cluster tools
-4. **Phase 4**: Remove legacy tools after sufficient deprecation period
-
-### Notes
-- All legacy tools currently have working multi-cluster equivalents
-- Migration primarily involves updating client code to use cluster names instead of credentials
-- Legacy tools will be maintained during transition period for backward compatibility
-
-## �📄 License
+## 📄 License
 
 [Your License Here]

@@ -60,19 +60,41 @@ log "Building project first..."
 npm run build
 
 echo ""
+log "=== Starting Shared HTTP Server for Test Suite ==="
+export ONTAP_CLUSTERS="$(cat test/clusters.json)"
+node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
+SERVER_PID=$!
+log "Server started with PID: $SERVER_PID"
+
+# Wait for server to be healthy (up to 20 seconds)
+log "Waiting for server to be ready..."
+for i in {1..40}; do
+    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+        success "HTTP server is ready on port 3000"
+        break
+    fi
+    if [ $i -eq 40 ]; then
+        error "Server failed to start within 20 seconds"
+        kill $SERVER_PID 2>/dev/null || true
+        exit 1
+    fi
+    sleep 0.5
+done
+
+echo ""
 log "=== Running All Tests ==="
 
 # Test 1: Volume Lifecycle (STDIO Mode)
 run_test "Volume Lifecycle (STDIO Mode)" "node test/test-volume-lifecycle.js stdio"
 
 # Test 2: Volume Lifecycle (HTTP Mode) 
-run_test "Volume Lifecycle (HTTP Mode)" "node test/test-volume-lifecycle.js http"
+run_test "Volume Lifecycle (HTTP Mode)" "node test/test-volume-lifecycle.js http --server-running"
 
 # Test 3: Export Policy Lifecycle (STDIO Mode)
 run_test "Export Policy Lifecycle (STDIO Mode)" "node test/test-export-policy-lifecycle.js stdio"
 
 # Test 4: Export Policy Lifecycle (HTTP Mode)
-run_test "Export Policy Lifecycle (HTTP Mode)" "node test/test-export-policy-lifecycle.js http"
+run_test "Export Policy Lifecycle (HTTP Mode)" "node test/test-export-policy-lifecycle.js http --server-running"
 
 # Test 5: Tool Discovery (STDIO vs HTTP)
 run_test "Tool Discovery (STDIO vs HTTP)" "bash test/test-tool-discovery.sh"
@@ -83,50 +105,48 @@ run_test "Tool Count Verification (Legacy)" "bash test/verify-tool-count.sh"
 # Test 7: Tool Count Verification (Dynamic)
 run_test "Tool Count Verification (Dynamic)" "node test/dynamic-tool-count.js"
 
-# Test 8: API Fields Test
-run_test "API Fields Test" "node test/test-api-fields.js"
-
-# Test 9: API Fixes Test
-run_test "API Fixes Test" "node test/test-api-fixes.js"
-
-# Test 10: Parameter Filtering Test
+# Test 8: Parameter Filtering Test
 run_test "Parameter Filtering Test" "node test/test-param-filtering.js"
 
-# Test 11: Snapshot Policy Formats
-run_test "Snapshot Policy Formats" "node test/test-snapshot-policy-formats.js"
+# Test 9: Snapshot Policy Formats (MCP)
+run_test "Snapshot Policy Formats (MCP)" "node test/test-snapshot-policy-formats.js"
 
-# Test 12: Comprehensive Test Suite
+# Test 10: Comprehensive Test Suite
 run_test "Comprehensive Test Suite" "node test/test-comprehensive.js"
 
-# Test 13: Policy Management (Shell)
+# Test 11: Policy Management (Shell)
 run_test "Policy Management (Shell)" "bash test/test-policy-management.sh"
 
-# Test 14: Volume Lifecycle Test (Shell Version) - Similar to MCP JS test but uses shell/curl
-run_test "Volume Lifecycle (Shell)" "bash test/test-volume-lifecycle.sh"
-
-# Test 15: CIFS ACL Creation Test
+# Test 12: CIFS ACL Creation Test
 run_test "CIFS ACL Creation Test" "node test/test-cifs-creation-acl.js"
 
-# Test 16: User Scenario Test (Original CIFS Workflow)
+# Test 13: User Scenario Test (Original CIFS Workflow)
 run_test "User Scenario Test" "node test/test-user-scenario.js"
 
-# Test 17: CIFS Lifecycle Test (STDIO Mode)
+# Test 14: CIFS Lifecycle Test (STDIO Mode)
 run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
 
-# Test 18: CIFS Lifecycle Test (HTTP Mode) - Now fully working with JSON-RPC support!
-run_test "CIFS Lifecycle (HTTP Mode)" "node test/test-cifs-lifecycle.js http"
+# Test 15: CIFS Lifecycle Test (HTTP Mode) - Now fully working with JSON-RPC support!
+run_test "CIFS Lifecycle (HTTP Mode)" "node test/test-cifs-lifecycle.js http --server-running"
 
-# Test 19: Cluster Info Test (STDIO Mode)
+# Test 16: Cluster Info Test (STDIO Mode)
 run_test "Cluster Info Test (STDIO Mode)" "node test/test-cluster-info.js stdio"
 
-# Test 20: Cluster Info Test (HTTP Mode)
-run_test "Cluster Info Test (HTTP Mode)" "node test/test-cluster-info.js http"
+# Test 17: Cluster Info Test (HTTP Mode)
+run_test "Cluster Info Test (HTTP Mode)" "node test/test-cluster-info.js http --server-running"
 
-# Test 21: QoS Policy Lifecycle Test (STDIO Mode)
+# Test 18: QoS Policy Lifecycle Test (STDIO Mode)
 run_test "QoS Policy Lifecycle (STDIO Mode)" "node test/test-qos-lifecycle.js stdio"
 
-# Test 22: QoS Policy Lifecycle Test (HTTP Mode)
-run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/test-qos-lifecycle.js http"
+# Test 19: QoS Policy Lifecycle Test (HTTP Mode)
+run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/test-qos-lifecycle.js http --server-running"
+
+echo ""
+log "=== Stopping Shared HTTP Server ==="
+if [ ! -z "$SERVER_PID" ]; then
+    kill $SERVER_PID 2>/dev/null || true
+    log "Server stopped (PID: $SERVER_PID)"
+fi
 
 echo ""
 log "=== Test Summary ==="

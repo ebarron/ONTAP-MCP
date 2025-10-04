@@ -1,14 +1,169 @@
 /**
  * NetApp ONTAP MCP API Client
  * 
- * Handles all communication with the MCP server, including:
- * - HTTP requests to MCP tools
+ * Handles all communication with the MCP server using MCP JSON-RPC 2.0 over SSE:
+ * - Establishes SSE connection to /mcp endpoint
+ * - Sends JSON-RPC requests via POST /messages
  * - Response parsing and error handling
  * - Cluster-specific data parsing
  */
 class McpApiClient {
     constructor(mcpUrl = 'http://localhost:3000') {
         this.mcpUrl = mcpUrl;
+        this.sessionId = null;
+        this.requestId = 1;
+        this.initialized = false;
+        this.eventSource = null;
+        this.pendingRequests = new Map(); // Track pending JSON-RPC requests
+    }
+
+    /**
+     * Initialize MCP session via SSE
+     * Establishes SSE stream and extracts session ID from endpoint event
+     */
+    async initialize() {
+        if (this.initialized) return;
+
+        try {
+            console.log('🔌 Establishing MCP SSE connection...');
+            
+            // Establish SSE stream
+            this.eventSource = new EventSource(`${this.mcpUrl}/mcp`);
+            
+            // Wait for 'endpoint' event to get session ID
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('SSE connection timeout'));
+                }, 10000);
+
+                this.eventSource.addEventListener('endpoint', (event) => {
+                    clearTimeout(timeout);
+                    try {
+                        // Endpoint event data is just the endpoint string: "/messages?sessionId=ABC123"
+                        const endpoint = event.data.trim();
+                        console.log(`📡 Received endpoint: ${endpoint}`);
+                        
+                        // Extract sessionId from endpoint URL
+                        const match = endpoint.match(/sessionId=([^&\s]+)/);
+                        if (!match) {
+                            reject(new Error('No sessionId in endpoint event'));
+                            return;
+                        }
+                        
+                        this.sessionId = match[1];
+                        console.log(`✅ SSE session established: ${this.sessionId}`);
+                        resolve();
+                    } catch (error) {
+                        reject(new Error(`Failed to parse endpoint event: ${error.message}`));
+                    }
+                });
+
+                this.eventSource.addEventListener('error', (event) => {
+                    clearTimeout(timeout);
+                    reject(new Error('SSE connection error'));
+                });
+
+                // Set up message handler for JSON-RPC responses
+                this.eventSource.addEventListener('message', (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('📨 Received SSE message:', data);
+                        
+                        // Check if this is a JSON-RPC response
+                        if (data.jsonrpc === '2.0' && data.id !== undefined) {
+                            const pending = this.pendingRequests.get(data.id);
+                            if (pending) {
+                                if (data.error) {
+                                    console.error('❌ JSON-RPC error:', data.error);
+                                    pending.reject(new Error(data.error.message || 'MCP call failed'));
+                                } else {
+                                    console.log('✅ JSON-RPC result:', data.result);
+                                    pending.resolve(data.result);
+                                }
+                                this.pendingRequests.delete(data.id);
+                            } else {
+                                console.warn('⚠️ Received response for unknown request ID:', data.id);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to parse SSE message:', error, 'Data:', event.data);
+                    }
+                });
+            });
+
+            // Send initialize request
+            await this.sendJsonRpcRequest('initialize', {
+                protocolVersion: '2024-11-05',
+                capabilities: {},
+                clientInfo: {
+                    name: 'ontap-mcp-demo',
+                    version: '1.0.0'
+                }
+            });
+
+            this.initialized = true;
+            console.log('✅ MCP client initialized');
+
+        } catch (error) {
+            console.error('❌ MCP initialization failed:', error);
+            this.close();
+            throw error;
+        }
+    }
+
+    /**
+     * Send JSON-RPC request via POST /messages
+     * @param {string} method - JSON-RPC method (e.g., 'tools/call')
+     * @param {object} params - Method parameters
+     * @returns {Promise<any>} JSON-RPC result
+     */
+    async sendJsonRpcRequest(method, params) {
+        if (!this.sessionId) {
+            throw new Error('MCP session not initialized');
+        }
+
+        const requestId = this.requestId++;
+        const request = {
+            jsonrpc: '2.0',
+            id: requestId,
+            method: method,
+            params: params
+        };
+
+        console.log(`📤 Sending JSON-RPC request #${requestId}:`, method, params);
+
+        // Create promise for response
+        const responsePromise = new Promise((resolve, reject) => {
+            this.pendingRequests.set(requestId, { resolve, reject });
+            
+            // Timeout after 30 seconds
+            setTimeout(() => {
+                if (this.pendingRequests.has(requestId)) {
+                    this.pendingRequests.delete(requestId);
+                    reject(new Error('Request timeout'));
+                }
+            }, 30000);
+        });
+
+        // Send request
+        try {
+            const response = await fetch(`${this.mcpUrl}/messages?sessionId=${this.sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            this.pendingRequests.delete(requestId);
+            throw error;
+        }
+
+        return responsePromise;
     }
 
     /**
@@ -19,27 +174,20 @@ class McpApiClient {
      */
     async callMcp(toolName, params = {}) {
         try {
-            const response = await fetch(`${this.mcpUrl}/api/tools/${toolName}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(params)
+            // Ensure we're initialized
+            if (!this.initialized) {
+                await this.initialize();
+            }
+
+            // Send tools/call request
+            const result = await this.sendJsonRpcRequest('tools/call', {
+                name: toolName,
+                arguments: params
             });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            
-            if (data.error) {
-                throw new Error(data.error.message || 'MCP call failed');
-            }
 
             return {
                 success: true,
-                data: this.parseMcpResponse(data.content)
+                data: this.parseMcpResponse(result.content)
             };
         } catch (error) {
             console.error('MCP call failed:', error);
@@ -48,6 +196,39 @@ class McpApiClient {
                 error: error.message
             };
         }
+    }
+
+    /**
+     * List available MCP tools
+     * @returns {Promise<array>} Array of tool definitions
+     */
+    async listTools() {
+        try {
+            if (!this.initialized) {
+                await this.initialize();
+            }
+
+            // Send tools/list request (MCP protocol method)
+            const result = await this.sendJsonRpcRequest('tools/list', {});
+
+            return result.tools || [];
+        } catch (error) {
+            console.error('Failed to list tools:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Close the MCP session
+     */
+    close() {
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+        }
+        this.sessionId = null;
+        this.initialized = false;
+        this.pendingRequests.clear();
     }
 
     /**

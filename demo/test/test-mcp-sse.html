@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP SSE Client Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0067C5;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #0067C5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005299;
+        }
+        .output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #0067C5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 MCP SSE Client Test</h1>
+        
+        <div>
+            <button onclick="testInitialize()">1. Initialize MCP Client</button>
+            <button onclick="testListClusters()">2. List Clusters</button>
+            <button onclick="testListSVMs()">3. List SVMs</button>
+            <button onclick="testListVolumes()">4. List Volumes</button>
+            <button onclick="testClose()">5. Close Connection</button>
+        </div>
+
+        <div class="output" id="output">
+Ready to test MCP SSE connection...
+        </div>
+    </div>
+
+    <script src="../js/core/McpApiClient.js"></script>
+    <script>
+        let client = null;
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            output.innerHTML += `\n<span class="${className}">[${timestamp}] ${message}</span>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function testInitialize() {
+            try {
+                log('🔌 Creating MCP client...', 'info');
+                client = new McpApiClient('http://localhost:3000');
+                
+                log('⚙️ Initializing SSE connection...', 'info');
+                await client.initialize();
+                
+                log('✅ MCP client initialized successfully!', 'success');
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testListClusters() {
+            if (!client) {
+                log('❌ Client not initialized. Run step 1 first.', 'error');
+                return;
+            }
+
+            try {
+                log('📡 Calling list_registered_clusters...', 'info');
+                const result = await client.callMcp('list_registered_clusters', {});
+                
+                if (result.success) {
+                    log('✅ Clusters retrieved:', 'success');
+                    log(JSON.stringify(result.data, null, 2), 'info');
+                } else {
+                    log(`❌ Call failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testListSVMs() {
+            if (!client) {
+                log('❌ Client not initialized. Run step 1 first.', 'error');
+                return;
+            }
+
+            try {
+                log('📡 Calling cluster_list_svms...', 'info');
+                const result = await client.callMcp('cluster_list_svms', {
+                    cluster_name: 'karan-ontap-1'
+                });
+                
+                if (result.success) {
+                    log('✅ SVMs retrieved:', 'success');
+                    log(JSON.stringify(result.data, null, 2), 'info');
+                } else {
+                    log(`❌ Call failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testListVolumes() {
+            if (!client) {
+                log('❌ Client not initialized. Run step 1 first.', 'error');
+                return;
+            }
+
+            try {
+                log('📡 Calling cluster_list_volumes...', 'info');
+                const result = await client.callMcp('cluster_list_volumes', {
+                    cluster_name: 'karan-ontap-1'
+                });
+                
+                if (result.success) {
+                    log('✅ Volumes retrieved:', 'success');
+                    log(JSON.stringify(result.data, null, 2), 'info');
+                } else {
+                    log(`❌ Call failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function testClose() {
+            if (!client) {
+                log('❌ Client not initialized.', 'error');
+                return;
+            }
+
+            client.close();
+            log('✅ Connection closed', 'success');
+            client = null;
+        }
+    </script>
+</body>
+</html>

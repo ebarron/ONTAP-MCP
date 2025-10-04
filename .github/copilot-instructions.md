@@ -37,20 +37,13 @@ src/tools/
 ## Critical Development Patterns
 
 ### MCP Tool Registration (Most Common Issue)
-**Problem**: Tool works in VS Code but fails HTTP mode with 500 error
-**Root Cause**: Missing registration in HTTP handler switch statement
+**Problem**: Tool works in VS Code but fails HTTP mode with undefined/not found error
+**Root Cause**: Missing registration in tool registry or transport handlers
 
-**Required Registration Points** (all in `src/index.ts`):
-1. Import tool functions (~line 89)
-2. Register in STDIO MCP handler (~line 868)  
-3. Register in HTTP REST API handler (~line 1192)
-
-```typescript
-// Example fix for new tool:
-case 'new_tool_name':
-  result = await handleNewTool(args, clusterManager);
-  break;
-```
+**Required Registration Points** (all in appropriate files):
+1. Tool implementation in `src/tools/*.ts`
+2. Import and register in `src/registry/register-tools.ts`
+3. Verify both STDIO and HTTP transports recognize the tool
 
 ### MCP Tool Creation Pattern
 ```typescript
@@ -82,17 +75,17 @@ export async function handleTool(args: any, clusterManager: OntapClusterManager)
 ```bash
 npm run build          # TypeScript compilation to build/
 npm start              # STDIO mode testing  
-npm run start:http     # HTTP mode testing
+npm run start:http     # HTTP/SSE mode testing
 ./test/setup-test-env.sh   # Interactive cluster config
-node test/test-volume-lifecycle.js stdio  # Core STDIO test
-node test/test-volume-lifecycle.js rest   # Core HTTP test
+./test/run-all-tests.sh    # Run all 19 tests (100% passing required)
 ```
 
 ### Test Architecture
-- **test/clusters.json**: Cluster configurations
-- **test/test-volume-lifecycle.js**: Dual-transport volume CRUD test  
-- **test/test-volume-lifecycle.sh**: Bash REST API test
-- **test/check-aggregates.js**: Cross-cluster verification
+- **test/clusters.json**: Cluster configurations (required for all tests)
+- **test/mcp-test-client.js**: MCP SSE client for HTTP mode testing
+- **test/run-all-tests.sh**: Master test suite (19 tests, all must pass)
+- **Dynamic discovery**: Tests query ONTAP for aggregates/SVMs (no hardcoding)
+- **Safe cleanup**: Tests only delete resources they create (timestamped names)
 - All tests require real ONTAP clusters (no mocking)
 
 ## Integration Points
@@ -113,11 +106,15 @@ node test/test-volume-lifecycle.js rest   # Core HTTP test
 }
 ```
 
-### HTTP Mode Startup
+### HTTP/SSE Mode Startup
 Environment-based cluster loading in HTTP mode:
 ```bash
 export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1",...}]'
 node build/index.js --http=3000
+
+# MCP JSON-RPC 2.0 endpoints:
+# GET http://localhost:3000/mcp (SSE stream)
+# POST http://localhost:3000/messages?sessionId=xxx (JSON-RPC requests)
 ```
 
 ## Git/Version Control Guidelines
@@ -140,7 +137,7 @@ node build/index.js --http=3000
 ## Demo Web Interface Development
 
 ### Demo Architecture (demo/ directory)
-The project includes a complete NetApp BlueXP-style demo interface for MCP REST API validation:
+The project includes a complete NetApp BlueXP-style demo interface using MCP SSE protocol:
 
 ```
 demo/
@@ -157,7 +154,7 @@ demo/
 │   │   ├── ExportPolicyModal.js     # NFS export policy management
 │   │   └── app-initialization.js    # App initialization logic
 │   ├── core/
-│   │   ├── McpApiClient.js          # HTTP transport layer
+│   │   ├── McpApiClient.js          # MCP SSE transport layer
 │   │   └── utils.js                 # Utility functions
 │   └── ui/
 │       └── ToastNotifications.js    # User feedback system
@@ -208,23 +205,15 @@ Access-Control-Allow-Headers: Content-Type, Authorization
 
 ### MCP API Integration Pattern
 ```javascript
-// Standard MCP API call pattern used in demo
-async function callMcp(toolName, params = {}) {
-  const response = await fetch(`http://localhost:3000/api/tools/${toolName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params)
-  });
+// MCP SSE protocol used in demo (via McpApiClient)
+async function callMcpTool(toolName, params = {}) {
+  // McpApiClient handles:
+  // 1. SSE connection to GET /mcp
+  // 2. Session ID extraction from 'endpoint' event
+  // 3. JSON-RPC 2.0 request via POST /messages?sessionId=xxx
+  // 4. Response matching via SSE 'message' events
   
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  
-  const data = await response.json();
-  
-  // Extract text content from MCP response structure
-  return data.content
-    .filter(item => item.type === 'text')
-    .map(item => item.text)
-    .join('');
+  return await apiClient.callMcp(toolName, params);
 }
 ```
 
@@ -299,36 +288,36 @@ function parseClusterList(textContent) {
 
 ### Demo Debugging Lessons Learned
 
-#### HTTP REST API Handler Issues
-**Critical Pattern**: MCP tools work in VS Code (STDIO mode) but fail via browser (HTTP mode) with 500 errors.
+#### MCP Tool Registration Issues
+**Critical Pattern**: MCP tools work in VS Code (STDIO mode) but fail via browser (HTTP mode) with errors.
 
-**Root Cause**: HTTP REST API handler (`src/index.ts` line ~1172) uses a switch statement that must explicitly register each tool. Missing tools cause 500 Internal Server Error.
+**Root Cause**: Tool not properly registered in tool registry (`src/registry/register-tools.ts`).
 
 **Example Issues Encountered**:
-```javascript
-// ❌ BROKEN: HTTP handler calling client directly
-case 'cluster_create_volume':
-  const createClient = clusterManager.getClient(args.cluster_name);
-  const createResult = await createClient.createVolume({...});
+```typescript
+// ❌ BROKEN: Tool function exists but not registered
+// src/tools/export-policy-tools.ts has handleListExportPolicies()
+// But missing from register-tools.ts
 
-// ✅ FIXED: HTTP handler using proper tool function  
-case 'cluster_create_volume':
-  result = await handleClusterCreateVolume(args, clusterManager);
-  break;
+// ✅ FIXED: Tool properly registered
+// src/registry/register-tools.ts:
+registry.registerTool({
+  name: 'list_export_policies',
+  handler: async (args: any) => await handleListExportPolicies(args, clusterManager)
+});
 ```
 
 **Debugging Process**:
-1. **Symptom**: `POST http://localhost:3000/api/tools/list_export_policies 500 (Internal Server Error)`
+1. **Symptom**: Tool call fails with "Tool not found" error in browser
 2. **Check**: Tool works via VS Code MCP → confirms tool logic is correct
-3. **Root Cause**: Missing case in HTTP REST API switch statement
-4. **Fix**: Add tool to switch statement: `case 'list_export_policies': result = await handleListExportPolicies(args, clusterManager); break;`
+3. **Root Cause**: Missing registration in tool registry
+4. **Fix**: Add tool to `src/registry/register-tools.ts`
 5. **Verify**: `npm run build` → restart server → test in browser
 
 **Prevention Checklist**:
-- [ ] Tool imports exist in `src/index.ts` (around line 89)
-- [ ] Tool registered in MCP handler (around line 868)  
-- [ ] Tool registered in HTTP REST API handler (around line 1192)
-- [ ] Both handlers use same tool function (not client directly)
+- [ ] Tool implementation exists in `src/tools/*.ts`
+- [ ] Tool imported in `src/registry/register-tools.ts`
+- [ ] Tool registered with correct name and handler
 - [ ] Build and restart server after changes
 - [ ] Test both VS Code MCP and browser HTTP modes
 
@@ -397,12 +386,13 @@ demo/js/
 ```
 
 ## Key Files to Reference
-- `src/index.ts`: Transport detection and tool registration
+- `src/index.ts`: Transport detection and server initialization
+- `src/registry/register-tools.ts`: Central tool registration (all 55 tools)
+- `src/registry/tool-registry.ts`: Tool registry implementation
 - `src/ontap-client.ts`: ONTAP API communication and cluster management  
 - `src/tools/cifs-share-tools.ts`: CIFS share management tools
 - `src/types/cifs-types.ts`: CIFS type definitions
 - `test/test-volume-lifecycle.js`: Example of dual-transport testing
-- `test/test-cifs-simple.js`: CIFS tools registration verification
-- `HTTP_CONFIG.md`: HTTP mode configuration examples
+- `test/mcp-test-client.js`: MCP SSE client for HTTP mode testing
 - `demo/CHATBOT_README.md`: AI assistant setup and configuration
 - `demo/CHATBOT_STRUCTURED_FORMAT.md`: Chatbot integration specifications

@@ -3,51 +3,14 @@
 /**
  * NetApp ONTAP CIFS Share Lifecycle Test
  * Tests create → configure → delete workflow for CIFS shares
- * Supports both STDIO and REST API modes
+ * Supports both STDIO and HTTP (MCP JSON-RPC 2.0) modes
  */
 
 import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-
-// MCP JSON-RPC 2.0 helper function
-async function callMcpTool(toolName, args, httpPort = 3000) {
-  const url = `http://localhost:${httpPort}/mcp`;
-  
-  const jsonrpcRequest = {
-    jsonrpc: '2.0',
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: args
-    },
-    id: Date.now()
-  };
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(jsonrpcRequest),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HTTP ${response.status}: ${error}`);
-  }
-
-  const jsonrpcResponse = await response.json();
-  
-  // Handle JSON-RPC errors
-  if (jsonrpcResponse.error) {
-    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
-  }
-
-  // Return the result in the same format as REST API for compatibility
-  return jsonrpcResponse.result;
-}
+import { McpTestClient } from './mcp-test-client.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -71,6 +34,10 @@ function loadClusters() {
 // Get clusters from the MCP server via HTTP API
 async function getClustersFromServer(httpPort = 3000) {
   try {
+    // Initialize MCP client
+    const mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
+    await mcpClient.initialize();
+    
     // Add retry mechanism for server startup
     let result;
     let attempts = 0;
@@ -78,7 +45,7 @@ async function getClustersFromServer(httpPort = 3000) {
     
     while (!result && attempts < maxAttempts) {
       try {
-        result = await callMcpTool('list_registered_clusters', {}, httpPort);
+        result = await mcpClient.callTool('list_registered_clusters', {});
         if (result) break;
       } catch (error) {
         console.log(`DEBUG: Attempt ${attempts + 1} failed:`, error.message);
@@ -87,6 +54,13 @@ async function getClustersFromServer(httpPort = 3000) {
       if (attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
       }
+    }
+    
+    // Cleanup
+    try {
+      await mcpClient.close();
+    } catch (e) {
+      // Ignore cleanup errors
     }
     
     if (!result) {
@@ -183,10 +157,12 @@ async function getTestConfig(mode = 'stdio', httpPort = 3000) {
 
 // Main test class
 class CifsShareLifecycleTest {
-  constructor(mode = 'stdio') {
+  constructor(mode = 'stdio', serverAlreadyRunning = false) {
     this.mode = mode; // 'stdio' or 'http'
     this.httpPort = 3000; // Standard port - tests run sequentially so no conflicts
     this.serverProcess = null; // For managing HTTP server process
+    this.serverAlreadyRunning = serverAlreadyRunning;
+    this.mcpClient = null; // MCP client for HTTP mode
   }
 
   // STDIO Mode: Call MCP tools directly via server process
@@ -268,35 +244,57 @@ class CifsShareLifecycleTest {
   }
 
   // REST Mode: Call tools via HTTP API
-  async callRestTool(toolName, args) {
-    const response = await fetch(`http://localhost:${this.httpPort}/api/tools/${toolName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(args)
-    });
-
-    // Response handling now done by callMcpTool
-  if (false) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  async callHttpTool(toolName, args) {
+    // Initialize MCP client if not already done
+    if (!this.mcpClient) {
+      this.mcpClient = new McpTestClient(`http://localhost:${this.httpPort}`);
+      await this.mcpClient.initialize();
     }
 
-    const result = response;
+    // Call tool and return result
+    const result = await this.mcpClient.callTool(toolName, args);
     return result;
   }
 
-  // Call appropriate tool based on mode
   async callTool(toolName, args) {
     if (this.mode === 'stdio') {
       return await this.callStdioTool(toolName, args);
     } else {
-      return await this.callRestTool(toolName, args);
+      return await this.callHttpTool(toolName, args);
+    }
+  }
+
+  // Helper to extract text from result (handles both STDIO and HTTP/MCP formats)
+  extractText(result) {
+    if (this.mode === 'stdio') {
+      // STDIO returns direct result with content array
+      return result.content && result.content[0] ? result.content[0].text : '';
+    } else {
+      // HTTP/MCP returns result with content array
+      if (this.mcpClient) {
+        return this.mcpClient.parseContent(result);
+      }
+      return result.content && result.content[0] ? result.content[0].text : '';
     }
   }
 
   // Start HTTP server for HTTP mode testing
   async startHttpServer() {
+    if (this.serverAlreadyRunning) {
+      console.log('Using pre-started HTTP server');
+      // Verify server is responsive
+      try {
+        const response = await fetch(`http://localhost:${this.httpPort}/health`);
+        if (!response.ok) {
+          throw new Error(`Server health check failed: ${response.status}`);
+        }
+        console.log('✅ Server health check passed');
+      } catch (error) {
+        throw new Error(`Server not responsive: ${error.message}`);
+      }
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       // Load cluster configuration from external file
       let clustersConfig;
@@ -334,17 +332,22 @@ class CifsShareLifecycleTest {
         reject(new Error(`Failed to start HTTP server: ${error.message}`));
       });
 
-      // Timeout after 5 seconds
+      // Timeout after 10 seconds
       setTimeout(() => {
         if (!started) {
-          reject(new Error('HTTP server failed to start within 5 seconds'));
+          reject(new Error('HTTP server failed to start within 10 seconds'));
         }
-      }, 5000);
+      }, 10000);
     });
   }
 
   // Stop HTTP server
   async stopHttpServer() {
+    if (this.serverAlreadyRunning) {
+      console.log('Leaving pre-started server running for next test');
+      return;
+    }
+
     if (this.serverProcess) {
       this.serverProcess.kill();
       this.serverProcess = null;
@@ -605,7 +608,13 @@ class CifsShareLifecycleTest {
       console.error(`\\n❌ Test failed: ${error.message}\\n`);
       throw error;
     } finally {
-      // Always stop HTTP server if running
+      // Close MCP client if we used it
+      if (this.mcpClient) {
+        await this.mcpClient.close();
+        this.mcpClient = null;
+      }
+
+      // Always stop HTTP server if running and we started it
       if (this.mode === 'http') {
         await this.stopHttpServer();
       }
@@ -616,13 +625,14 @@ class CifsShareLifecycleTest {
 // Main execution
 async function main() {
   const mode = process.argv[2] || 'stdio'; // Default to stdio mode
+  const serverAlreadyRunning = process.argv.includes('--server-running');
   
   if (!['stdio', 'http'].includes(mode)) {
-    console.error('Usage: node test-cifs-lifecycle.js [stdio|http]');
+    console.error('Usage: node test-cifs-lifecycle.js [stdio|http] [--server-running]');
     process.exit(1);
   }
 
-  const test = new CifsShareLifecycleTest(mode);
+  const test = new CifsShareLifecycleTest(mode, serverAlreadyRunning);
   
   try {
     await test.runTest();

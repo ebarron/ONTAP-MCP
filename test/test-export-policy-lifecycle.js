@@ -3,57 +3,14 @@
 /**
  * NetApp ONTAP Export Policy Lifecycle Test
  * Tests create → add_rule → get → delete workflow
- * Supports both STDIO and REST API modes
+ * Supports both STDIO and HTTP (MCP JSON-RPC 2.0) modes
  */
 
 import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-
-// MCP JSON-RPC 2.0 helper function
-async function callMcpTool(toolName, args, httpPort = 3000) {
-  const url = `http://localhost:${httpPort}/mcp`;
-  
-  const jsonrpcRequest = {
-    jsonrpc: '2.0',
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: args
-    },
-    id: Date.now()
-  };
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(jsonrpcRequest),
-  });
-
-  // Response handling now done by callMcpTool
-  if (false) {
-    const error = await response.text();
-    throw new Error(`HTTP ${response.status}: ${error}`);
-  }
-
-  const jsonrpcResponse = response;
-  
-  // Handle JSON-RPC errors
-  if (jsonrpcResponse.error) {
-    throw new Error(`JSON-RPC Error ${jsonrpcResponse.error.code}: ${jsonrpcResponse.error.message}${jsonrpcResponse.error.data ? ` - ${jsonrpcResponse.error.data}` : ''}`);
-  }
-
-  // Return the result in the same format as REST API for compatibility
-  return jsonrpcResponse.result;
-}
-
-// Polyfill fetch for older Node.js versions
-if (!globalThis.fetch) {
-  globalThis.fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-}
+import { McpTestClient } from './mcp-test-client.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -297,20 +254,29 @@ async function testStdioMode(cluster) {
 }
 
 // REST mode: communicate with MCP server via HTTP API
-async function testRestMode(cluster, httpPort = 3000) {
+async function testRestMode(cluster, httpPort = 3000, serverAlreadyRunning = false) {
   console.log(`\n🌐 Testing REST Mode with cluster: ${cluster.name} (${cluster.cluster_ip})`);
   
-  // Start HTTP server for testing
-  const serverProcess = spawn('node', ['build/index.js', '--http=3000'], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      ONTAP_CLUSTERS: JSON.stringify([cluster])
-    }
-  });
+  let serverProcess = null;
+  let mcpClient = null;
   
-  // Wait for server to start
-  await sleep(3000);
+  // Start HTTP server for testing (unless already running)
+  if (!serverAlreadyRunning) {
+    serverProcess = spawn('node', ['build/index.js', '--http=3000'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        ONTAP_CLUSTERS: JSON.stringify([cluster])
+      }
+    });
+    
+    // Wait for server to start
+    await sleep(3000);
+  }
+  
+  // Initialize MCP client
+  mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
+  await mcpClient.initialize();
   
   const timestamp = Date.now();
   const policyName = `test-policy-rest-${timestamp}`;
@@ -318,82 +284,42 @@ async function testRestMode(cluster, httpPort = 3000) {
   try {
     // Test 1: Create Export Policy
     console.log(`📋 Creating export policy: ${policyName}`);
-    const createResponse = await fetch(`http://localhost:${httpPort}/api/tools/create_export_policy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cluster_name: cluster.name,
-        policy_name: policyName,
-        svm_name: "svm143"
-      })
+    const createResult = await mcpClient.callTool('create_export_policy', {
+      cluster_name: cluster.name,
+      policy_name: policyName,
+      svm_name: "svm143"
     });
-    
-    if (!createResponse.ok) {
-      throw new Error(`Create policy failed: HTTP ${createResponse.status}`);
-    }
-    
-    const createResult = await createResponse.json();
     console.log('✅ Create policy response received');
     
     // Test 2: Add Export Rule
     console.log(`📏 Adding export rule to policy: ${policyName}`);
-    const addRuleResponse = await fetch(`http://localhost:${httpPort}/api/tools/add_export_rule`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cluster_name: cluster.name,
-        policy_name: policyName,
-        svm_name: "svm143",
-        clients: [{ match: "192.168.1.0/24" }],
-        ro_rule: ["sys"],
-        rw_rule: ["sys"],
-        superuser: ["none"],
-        protocols: ["nfs"]
-      })
+    const addRuleResult = await mcpClient.callTool('add_export_rule', {
+      cluster_name: cluster.name,
+      policy_name: policyName,
+      svm_name: "svm143",
+      clients: [{ match: "192.168.1.0/24" }],
+      ro_rule: ["sys"],
+      rw_rule: ["sys"],
+      superuser: ["none"],
+      protocols: ["nfs"]
     });
-    
-    if (!addRuleResponse.ok) {
-      throw new Error(`Add rule failed: HTTP ${addRuleResponse.status}`);
-    }
-    
-    const addRuleResult = await addRuleResponse.json();
     console.log('✅ Add rule response received');
     
     // Test 3: Get Export Policy
     console.log(`📖 Getting export policy: ${policyName}`);
-    const getResponse = await fetch(`http://localhost:${httpPort}/api/tools/get_export_policy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cluster_name: cluster.name,
-        policy_name: policyName,
-        svm_name: "svm143"
-      })
+    const getResult = await mcpClient.callTool('get_export_policy', {
+      cluster_name: cluster.name,
+      policy_name: policyName,
+      svm_name: "svm143"
     });
-    
-    if (!getResponse.ok) {
-      throw new Error(`Get policy failed: HTTP ${getResponse.status}`);
-    }
-    
-    const getResult = await getResponse.json();
     console.log('✅ Get policy response received');
     
     // Test 4: List Export Policies (verify our policy appears)
     console.log(`📋 Listing export policies to verify ${policyName} exists`);
-    const listResponse = await fetch(`http://localhost:${httpPort}/api/tools/list_export_policies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cluster_name: cluster.name,
-        svm_name: "svm143"
-      })
+    const listResult = await mcpClient.callTool('list_export_policies', {
+      cluster_name: cluster.name,
+      svm_name: "svm143"
     });
-    
-    if (!listResponse.ok) {
-      throw new Error(`List policies failed: HTTP ${listResponse.status}`);
-    }
-    
-    const listResult = await listResponse.json();
     console.log('✅ List policies response received');
     
     // Validate response format
@@ -411,21 +337,11 @@ async function testRestMode(cluster, httpPort = 3000) {
     
     // Test 5: Delete Export Policy
     console.log(`🗑️ Deleting export policy: ${policyName}`);
-    const deleteResponse = await fetch(`http://localhost:${httpPort}/api/tools/delete_export_policy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cluster_name: cluster.name,
-        policy_name: policyName,
-        svm_name: "svm143"
-      })
+    const deleteResult = await mcpClient.callTool('delete_export_policy', {
+      cluster_name: cluster.name,
+      policy_name: policyName,
+      svm_name: "svm143"
     });
-    
-    if (!deleteResponse.ok) {
-      throw new Error(`Delete policy failed: HTTP ${deleteResponse.status}`);
-    }
-    
-    const deleteResult = await deleteResponse.json();
     console.log('✅ Delete policy response received');
     
     console.log('✅ REST Mode: All export policy operations completed successfully');
@@ -435,8 +351,17 @@ async function testRestMode(cluster, httpPort = 3000) {
     console.error(`❌ REST Mode failed: ${error.message}`);
     return false;
   } finally {
-    // Always cleanup the server process
-    if (serverProcess && !serverProcess.killed) {
+    // Cleanup MCP client
+    if (mcpClient) {
+      try {
+        await mcpClient.close();
+      } catch (error) {
+        console.error(`⚠️ Error closing MCP client: ${error.message}`);
+      }
+    }
+    
+    // Always cleanup the server process (if we started it)
+    if (!serverAlreadyRunning && serverProcess && !serverProcess.killed) {
       serverProcess.kill('SIGTERM');
       await sleep(1000);
       if (!serverProcess.killed) {
@@ -448,10 +373,14 @@ async function testRestMode(cluster, httpPort = 3000) {
 
 async function main() {
   const args = process.argv.slice(2);
-  const mode = args[0] || 'both'; // 'stdio', 'rest', or 'both'
+  const mode = args.find(arg => !arg.startsWith('--')) || 'both'; // 'stdio', 'http', or 'both'
+  const serverAlreadyRunning = args.includes('--server-running');
   
   console.log('🚀 NetApp ONTAP Export Policy Lifecycle Test');
   console.log(`📋 Testing Mode: ${mode}`);
+  if (serverAlreadyRunning) {
+    console.log('🔧 Server Already Running: true');
+  }
   
   try {
     // Load cluster configuration
@@ -496,7 +425,7 @@ async function main() {
     
     if (mode === 'http' || mode === 'both') {
       try {
-        restSuccess = await testRestMode(testCluster);
+        restSuccess = await testRestMode(testCluster, 3000, serverAlreadyRunning);
       } catch (error) {
         console.error(`❌ REST test failed: ${error.message}`);
         restSuccess = false;

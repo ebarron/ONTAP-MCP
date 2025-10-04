@@ -1,10 +1,18 @@
 /**
  * HTTP Transport Implementation
- * Handles both REST API (legacy) and JSON-RPC over HTTP
+ * Handles MCP JSON-RPC 2.0 over Server-Sent Events (SSE)
+ * Also maintains legacy REST API for backward compatibility
  */
 
 import express from "express";
 import cors from "cors";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import {
+  CallToolRequestSchema,
+  InitializeRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import { BaseTransport } from "./base-transport.js";
 import { OntapClusterManager } from "../ontap-client.js";
 import { loadClusters } from "../config/cluster-config.js";
@@ -18,16 +26,103 @@ export class HttpTransport implements BaseTransport {
   private app: express.Application;
   private clusterManager: OntapClusterManager;
   private server: any;
+  private transports: Map<string, SSEServerTransport> = new Map();
 
   constructor() {
     this.app = express();
     this.clusterManager = new OntapClusterManager();
+    
     this.setupMiddleware();
     this.setupRoutes();
   }
 
+  /**
+   * Create a new MCP Server instance for each SSE connection
+   * This follows the SDK's example pattern
+   */
+  private createMcpServer(): Server {
+    const mcpServer = new Server(
+      {
+        name: "netapp-ontap-mcp",
+        version: "2.0.0",
+      },
+      {
+        capabilities: {
+          resources: {},
+          tools: {},
+        },
+      }
+    );
+
+    // Initialize handler
+    mcpServer.setRequestHandler(InitializeRequestSchema, async (request) => {
+      console.error("MCP Server initializing via HTTP/SSE...");
+      
+      // Load clusters from initialization options
+      loadClusters(this.clusterManager, request.params.initializationOptions);
+      
+      // Tools are already registered in start() - don't re-register them
+      
+      return {
+        protocolVersion: "2024-11-05",
+        capabilities: {
+          resources: {},
+          tools: {},
+        },
+        serverInfo: {
+          name: "netapp-ontap-mcp",
+          version: "2.0.0",
+        },
+      };
+    });
+
+    // List tools handler
+    mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+      return {
+        tools: getAllToolDefinitions()
+      };
+    });
+
+    // Call tool handler
+    mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name: toolName, arguments: args } = request.params;
+      
+      console.error(`=== MCP JSON-RPC - ${toolName} called ===`);
+      
+      const handler = getToolHandler(toolName);
+      if (!handler) {
+        throw new Error(`Unknown tool: ${toolName}`);
+      }
+
+      try {
+        const result = await handler(args || {}, this.clusterManager);
+        
+        // Wrap result in MCP content format
+        // Tools return strings - wrap them in content array
+        return {
+          content: [
+            {
+              type: 'text',
+              text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        console.error(`Error in ${toolName}:`, error);
+        throw error;
+      }
+    });
+
+    return mcpServer;
+  }
+
   private setupMiddleware(): void {
-    this.app.use(cors());
+    // Configure CORS with exposed headers for MCP session management
+    this.app.use(cors({
+      origin: '*',
+      exposedHeaders: ['Mcp-Session-Id', 'Mcp-Protocol-Version'],
+      allowedHeaders: ['Content-Type', 'Mcp-Protocol-Version', 'Mcp-Session-Id']
+    }));
     this.app.use(express.json({ limit: '10mb' }));
   }
 
@@ -45,169 +140,69 @@ export class HttpTransport implements BaseTransport {
       });
     });
 
-    // MCP tools list endpoint (REST API equivalent)
-    this.app.get('/api/tools', async (req, res) => {
-      try {
-        const tools = getAllToolDefinitions();
-        res.json({
-          tools: tools
-        });
-      } catch (error) {
-        console.error('Failed to list tools:', error);
-        res.status(500).json({
-          error: 'Failed to retrieve tool list',
-          message: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-
-    // RESTful API endpoint for tool execution
-    this.app.post('/api/tools/:toolName', async (req, res) => {
-      try {
-        const { toolName } = req.params;
-        const args = req.body;
-        
-        console.error(`=== HTTP API - ${toolName} called ===`);
-        
-        const handler = getToolHandler(toolName);
-        if (!handler) {
-          return res.status(404).json({
-            error: `Tool '${toolName}' not found`
-          });
-        }
-
-        const result = await handler(args, this.clusterManager);
-        res.json(result);
-        
-      } catch (error) {
-        console.error(`Error in ${req.params.toolName}:`, error);
-        res.status(500).json({
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-
-    // MCP JSON-RPC 2.0 endpoint
-    console.error('Registering MCP JSON-RPC 2.0 endpoint at /mcp');
-    this.app.post('/mcp', async (req, res) => {
-      console.error('MCP endpoint hit with request:', req.method, req.path);
-      let requestId = null;
+    // MCP JSON-RPC 2.0 over Server-Sent Events (SSE) - Official MCP Protocol
+    // GET endpoint establishes SSE stream
+    console.error('Registering MCP SSE endpoint at GET /mcp');
+    this.app.get('/mcp', async (req, res) => {
+      console.error('MCP SSE stream request received');
       
       try {
-        const { jsonrpc, method, params, id } = req.body;
-        requestId = id;
+        // Create SSE transport (messages will be posted to /messages)
+        const transport = new SSEServerTransport('/messages', res);
         
-        // Validate JSON-RPC 2.0 format
-        if (jsonrpc !== '2.0') {
-          return res.json({
-            jsonrpc: '2.0',
-            id: requestId,
-            error: {
-              code: -32600,
-              message: 'Invalid Request',
-              data: 'JSON-RPC version must be 2.0'
-            }
-          });
-        }
+        // Store transport by session ID for message routing
+        const sessionId = transport.sessionId;
+        this.transports.set(sessionId, transport);
+        console.error(`Created SSE transport with session ID: ${sessionId}`);
         
-        let result: any;
+        // Set up cleanup handler
+        transport.onclose = () => {
+          console.error(`SSE transport closed for session ${sessionId}`);
+          this.transports.delete(sessionId);
+        };
         
-        // Handle MCP methods
-        switch (method) {
-          case 'tools/list':
-            result = {
-              tools: getAllToolDefinitions()
-            };
-            break;
-            
-          case 'tools/call':
-            const toolName = params?.name;
-            const toolArgs = params?.arguments || {};
-            
-            if (!toolName) {
-              return res.json({
-                jsonrpc: '2.0',
-                id: requestId,
-                error: {
-                  code: -32602,
-                  message: 'Invalid params',
-                  data: 'Tool name is required'
-                }
-              });
-            }
-            
-            console.error(`=== MCP JSON-RPC - ${toolName} called ===`);
-            
-            const handler = getToolHandler(toolName);
-            if (!handler) {
-              return res.json({
-                jsonrpc: '2.0',
-                id: requestId,
-                error: {
-                  code: -32601,
-                  message: 'Method not found',
-                  data: `Tool '${toolName}' not found`
-                }
-              });
-            }
-            
-            try {
-              const toolResult = await handler(toolArgs, this.clusterManager);
-              
-              // Ensure result is in MCP format (tools should return { content: [...] })
-              if (typeof toolResult === 'string') {
-                result = {
-                  content: [{
-                    type: 'text',
-                    text: toolResult
-                  }]
-                };
-              } else {
-                result = toolResult;
-              }
-            } catch (toolError) {
-              return res.json({
-                jsonrpc: '2.0',
-                id: requestId,
-                error: {
-                  code: -32603,
-                  message: 'Internal error',
-                  data: toolError instanceof Error ? toolError.message : 'Tool execution failed'
-                }
-              });
-            }
-            break;
-            
-          default:
-            return res.json({
-              jsonrpc: '2.0',
-              id: requestId,
-              error: {
-                code: -32601,
-                message: 'Method not found',
-                data: `Method '${method}' not supported`
-              }
-            });
-        }
+        // Create a new MCP server instance for this connection
+        const mcpServer = this.createMcpServer();
         
-        // Return successful JSON-RPC 2.0 response
-        res.json({
-          jsonrpc: '2.0',
-          id: requestId,
-          result
-        });
+        // Connect MCP server to transport
+        await mcpServer.connect(transport);
+        console.error(`MCP server connected via SSE for session ${sessionId}`);
         
       } catch (error) {
-        console.error('MCP JSON-RPC error:', error);
-        res.json({
-          jsonrpc: '2.0',
-          id: requestId,
-          error: {
-            code: -32603,
-            message: 'Internal error',
-            data: error instanceof Error ? error.message : 'Unknown error'
-          }
-        });
+        console.error('Error establishing SSE stream:', error);
+        if (!res.headersSent) {
+          res.status(500).send('Error establishing SSE stream');
+        }
+      }
+    });
+    
+    // POST endpoint receives JSON-RPC messages
+    console.error('Registering MCP message endpoint at POST /messages');
+    this.app.post('/messages', async (req, res) => {
+      console.error('MCP message received');
+      
+      // Extract session ID from query parameter (added by client based on SSE endpoint event)
+      const sessionId = req.query.sessionId as string;
+      
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Missing sessionId parameter' });
+      }
+      
+      // Get the transport for this session
+      const transport = this.transports.get(sessionId);
+      
+      if (!transport) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      
+      try {
+        // Handle the POST message with the transport
+        await transport.handlePostMessage(req, res, req.body);
+      } catch (error) {
+        console.error('Error handling MCP message:', error);
+        if (!res.headersSent) {
+          res.status(500).send('Error handling request');
+        }
       }
     });
   }
@@ -216,21 +211,40 @@ export class HttpTransport implements BaseTransport {
     // Load clusters from environment
     loadClusters(this.clusterManager);
     
-    // Register all tools
-    registerAllTools();
+    // Register all tools (only if not already registered)
+    try {
+      registerAllTools();
+    } catch (error) {
+      // Tools may already be registered - that's okay
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('already registered')) {
+        throw error;
+      }
+    }
     
     return new Promise((resolve) => {
       this.server = this.app.listen(port, () => {
         console.error(`NetApp ONTAP MCP Server running on HTTP port ${port}`);
         console.error(`Health check: http://localhost:${port}/health`);
-        console.error(`MCP JSON-RPC 2.0: http://localhost:${port}/mcp`);
-        console.error(`Legacy REST API: http://localhost:${port}/api/tools`);
+        console.error(`MCP JSON-RPC 2.0 (SSE): GET http://localhost:${port}/mcp`);
+        console.error(`MCP Messages endpoint: POST http://localhost:${port}/messages`);
         resolve();
       });
     });
   }
 
   async stop(): Promise<void> {
+    // Close all active SSE transports
+    for (const [sessionId, transport] of this.transports.entries()) {
+      try {
+        console.error(`Closing transport for session ${sessionId}`);
+        await transport.close();
+      } catch (error) {
+        console.error(`Error closing transport for session ${sessionId}:`, error);
+      }
+    }
+    this.transports.clear();
+    
     if (this.server) {
       return new Promise((resolve) => {
         this.server.close(() => {

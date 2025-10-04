@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { McpTestClient } from './mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,7 +20,7 @@ const __dirname = path.dirname(__filename);
  */
 
 // Initialize test based on transport mode
-async function initializeTest(mode) {
+async function initializeTest(mode, serverAlreadyRunning = false) {
   const clustersPath = path.join(__dirname, 'clusters.json');
   
   if (!fs.existsSync(clustersPath)) {
@@ -56,7 +57,7 @@ async function initializeTest(mode) {
   if (mode === 'stdio') {
     callTool = await initializeStdioMode(clustersData);
   } else if (mode === 'http' || mode === 'rest') {
-    callTool = await initializeHttpMode(clustersData);
+    callTool = await initializeHttpMode(clustersData, serverAlreadyRunning);
   } else {
     throw new Error(`Unsupported mode: ${mode}. Use 'stdio' or 'http'.`);
   }
@@ -89,48 +90,60 @@ async function initializeStdioMode(clustersData) {
 }
 
 // Initialize HTTP mode with API calls
-async function initializeHttpMode(clustersData) {
+async function initializeHttpMode(clustersData, serverAlreadyRunning = false) {
   const baseUrl = 'http://localhost:3000';
+  let serverProcess = null;
   
-  // Start HTTP server for testing
-  console.log('🚀 Starting HTTP server for testing...');
-  const serverProcess = spawn('node', ['build/index.js', '--http=3000'], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      ONTAP_CLUSTERS: JSON.stringify(clustersData)
-    },
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-
-  // Wait for server to start
-  await new Promise((resolve, reject) => {
-    let started = false;
-
-    serverProcess.stderr.on('data', (data) => {
-      const output = data.toString();
-      if (output.includes('NetApp ONTAP MCP Server running on HTTP port 3000') && !started) {
-        started = true;
-        setTimeout(() => resolve(), 1000); // Wait for full initialization
-      }
+  // Start HTTP server for testing (unless already running)
+  if (!serverAlreadyRunning) {
+    console.log('🚀 Starting HTTP server for testing...');
+    serverProcess = spawn('node', ['build/index.js', '--http=3000'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ONTAP_CLUSTERS: JSON.stringify(clustersData)
+      },
+      stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    serverProcess.on('error', (error) => {
-      reject(new Error(`Failed to start HTTP server: ${error.message}`));
+    // Wait for server to start
+    await new Promise((resolve, reject) => {
+      let started = false;
+
+      serverProcess.stderr.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('NetApp ONTAP MCP Server running on HTTP port 3000') && !started) {
+          started = true;
+          setTimeout(() => resolve(), 1000); // Wait for full initialization
+        }
+      });
+
+      serverProcess.on('error', (error) => {
+        reject(new Error(`Failed to start HTTP server: ${error.message}`));
+      });
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!started) {
+          reject(new Error('HTTP server startup timeout'));
+        }
+      }, 10000);
     });
 
-    // Timeout after 10 seconds
-    setTimeout(() => {
-      if (!started) {
-        reject(new Error('HTTP server startup timeout'));
-      }
-    }, 10000);
-  });
+    // Store server process for cleanup
+    global.httpServerProcess = serverProcess;
+    console.log('✅ HTTP server started successfully');
+  } else {
+    console.log('🔧 Using pre-started HTTP server');
+  }
 
-  // Store server process for cleanup
-  global.httpServerProcess = serverProcess;
-  console.log('✅ HTTP server started successfully');
-
+  // Initialize MCP client
+  const mcpClient = new McpTestClient(baseUrl);
+  await mcpClient.initialize();
+  
+  // Store MCP client for cleanup
+  global.mcpClient = mcpClient;
+  
   // Test server connectivity
   try {
     const response = await fetch(`${baseUrl}/health`);
@@ -144,7 +157,12 @@ async function initializeHttpMode(clustersData) {
   
   // Return tool calling function
   return async (toolName, params = {}) => {
-    return callHttpTool(baseUrl, toolName, params);
+    const result = await mcpClient.callTool(toolName, params);
+    // Extract text content from MCP response
+    return result.content
+      .filter(item => item.type === 'text')
+      .map(item => item.text)
+      .join('');
   };
 }
 
@@ -411,10 +429,10 @@ async function getQosPolicyTemplate(clusterName, callTool) {
 }
 
 // Main test function
-async function testQosLifecycle(mode = 'stdio') {
+async function testQosLifecycle(mode = 'stdio', serverAlreadyRunning = false) {
   console.log(`\n🧪 Starting QoS Policy Lifecycle Test with Template Values (${mode.toUpperCase()})`);
   
-  const { clusterName, callTool } = await initializeTest(mode);
+  const { clusterName, callTool } = await initializeTest(mode, serverAlreadyRunning);
   
   // Step 1: Get existing QoS policies as templates
   console.log('\n📡 Step 1: Getting existing QoS policies as templates...');
@@ -524,14 +542,24 @@ async function testQosLifecycle(mode = 'stdio') {
   console.log(`✅ Full operations successful: CREATE ✓ LIST ✓ GET ✓ UPDATE ✓ DELETE ✓`);
   console.log(`✅ Both STDIO and HTTP JSON-RPC should work with this approach`);
 
-  // Clean up server processes
+  // Clean up MCP client
+  if (global.mcpClient) {
+    console.log('\n🧹 Cleaning up MCP client...');
+    try {
+      await global.mcpClient.close();
+    } catch (error) {
+      console.error(`⚠️ Error closing MCP client: ${error.message}`);
+    }
+  }
+
+  // Clean up server processes (only if we started them)
   if (mode === 'stdio' && global.mcpServerProcess) {
     console.log('\n🧹 Cleaning up MCP server process...');
     global.mcpServerProcess.kill('SIGTERM');
     // Give it a moment to terminate gracefully
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('✅ Server process terminated');
-  } else if (mode === 'http' && global.httpServerProcess) {
+  } else if (mode === 'http' && !serverAlreadyRunning && global.httpServerProcess) {
     console.log('\n🧹 Cleaning up HTTP server process...');
     global.httpServerProcess.kill('SIGTERM');
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -540,9 +568,9 @@ async function testQosLifecycle(mode = 'stdio') {
 }
 
 // Run the test
-async function runQosLifecycleTest(mode) {
+async function runQosLifecycleTest(mode, serverAlreadyRunning = false) {
   try {
-    await testQosLifecycle(mode);
+    await testQosLifecycle(mode, serverAlreadyRunning);
   } catch (error) {
     console.error(`\n❌ QoS Policy Lifecycle Test (${mode.toUpperCase()}) FAILED`);
     console.error(`Error: ${error.message}`);
@@ -550,11 +578,21 @@ async function runQosLifecycleTest(mode) {
       console.error(`Stack: ${error.stack}`);
     }
     
-    // Clean up server processes
+    // Clean up MCP client
+    if (global.mcpClient) {
+      console.log('\n🧹 Cleaning up MCP client...');
+      try {
+        await global.mcpClient.close();
+      } catch (e) {
+        console.error(`⚠️ Error closing MCP client: ${e.message}`);
+      }
+    }
+    
+    // Clean up server processes (only if we started them)
     if (mode === 'stdio' && global.mcpServerProcess) {
       console.log('\n🧹 Cleaning up MCP server process after error...');
       global.mcpServerProcess.kill('SIGTERM');
-    } else if (mode === 'http' && global.httpServerProcess) {
+    } else if (mode === 'http' && !serverAlreadyRunning && global.httpServerProcess) {
       console.log('\n🧹 Cleaning up HTTP server process after error...');
       global.httpServerProcess.kill('SIGTERM');
     }
@@ -564,8 +602,15 @@ async function runQosLifecycleTest(mode) {
 }
 
 // Main execution
-const mode = process.argv[2] || 'stdio';
-runQosLifecycleTest(mode).catch(error => {
+const args = process.argv.slice(2);
+const mode = args.find(arg => !arg.startsWith('--')) || 'stdio';
+const serverAlreadyRunning = args.includes('--server-running');
+
+if (serverAlreadyRunning) {
+  console.log('🔧 Server Already Running: true');
+}
+
+runQosLifecycleTest(mode, serverAlreadyRunning).catch(error => {
   console.error('❌ Test runner error:', error.message);
   process.exit(1);
 });
