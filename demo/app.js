@@ -389,7 +389,7 @@ class OntapMcpDemo {
                     <h3 class="storage-class-card-title">${DemoUtils.escapeHtml(storageClass.name)}</h3>
                     <div class="storage-class-policies">
                         <div class="storage-class-policy">
-                            <span class="storage-class-policy-label">QoS:</span>
+                            <span class="storage-class-policy-label">Performance:</span>
                             <span>${DemoUtils.escapeHtml(storageClass.qosPolicy)}</span>
                         </div>
                         <div class="storage-class-policy">
@@ -397,8 +397,8 @@ class OntapMcpDemo {
                             <span>${DemoUtils.escapeHtml(storageClass.snapshotPolicy)}</span>
                         </div>
                         <div class="storage-class-policy">
-                            <span class="storage-class-policy-label">Security:</span>
-                            <span>Ransomware Protection Active</span>
+                            <span class="storage-class-policy-label">Ransomware Protection:</span>
+                            <span>Active</span>
                         </div>
                     </div>
                 </div>
