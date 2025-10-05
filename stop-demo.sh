@@ -22,6 +22,17 @@ print_success() {
 
 print_status "Stopping NetApp ONTAP MCP Demo servers..."
 
+# Stop any lingering start-demo.sh processes first
+START_DEMO_PIDS=$(pgrep -f "start-demo.sh" 2>/dev/null || true)
+if [[ -n "$START_DEMO_PIDS" ]]; then
+    print_status "Stopping start-demo.sh monitoring processes..."
+    pkill -f "start-demo.sh"
+    sleep 1
+    print_success "start-demo.sh processes stopped"
+else
+    print_status "No start-demo.sh processes running"
+fi
+
 # Stop MCP server
 MCP_PIDS=$(pgrep -f "node build/index.js" 2>/dev/null || true)
 if [[ -n "$MCP_PIDS" ]]; then

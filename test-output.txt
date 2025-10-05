@@ -1,0 +1,14 @@
+[0;34m[2025-10-05 13:58:54] 🚀 Starting Comprehensive Regression Test Suite[0m
+[0;34m[2025-10-05 13:58:54] Building project first...[0m
+
+> ontap-mcp@1.0.0 build
+> tsc
+
+
+[0;34m[2025-10-05 13:58:55] === Starting Shared HTTP Server for Test Suite ===[0m
+[0;34m[2025-10-05 13:58:55] Server started with PID: 35710[0m
+[0;34m[2025-10-05 13:58:55] Waiting for server to be ready...[0m
+[0;32m✅ HTTP server is ready on port 3000[0m
+
+[0;34m[2025-10-05 13:58:55] === Running All Tests ===[0m
+[0;34m[2025-10-05 13:58:55] Running Test 1: Volume Lifecycle (STDIO Mode)[0m

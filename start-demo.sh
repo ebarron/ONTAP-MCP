@@ -11,6 +11,33 @@
 
 set -e  # Exit on any error
 
+# If not already backgrounded, relaunch in background with nohup
+if [[ -z "$START_DEMO_BACKGROUNDED" ]]; then
+    export START_DEMO_BACKGROUNDED=1
+    echo "🚀 Launching demo in background..."
+    nohup "$0" "$@" > start-demo.log 2>&1 &
+    BG_PID=$!
+    echo "✅ Demo started in background (PID: $BG_PID)"
+    echo "📋 Logs: start-demo.log"
+    echo "🛑 To stop: ./stop-demo.sh"
+    echo ""
+    echo "Demo will be available at:"
+    echo "  http://localhost:8080"
+    echo ""
+    echo "Waiting for servers to start..."
+    sleep 5
+    
+    # Show initial status
+    if ps -p $BG_PID > /dev/null 2>&1; then
+        echo "✅ Demo is running"
+        tail -20 start-demo.log
+    else
+        echo "❌ Demo failed to start. Check start-demo.log for details"
+        exit 1
+    fi
+    exit 0
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,16 +62,20 @@ print_error() {
     echo -e "${RED}[DEMO]${NC} $1"
 }
 
-# Function to cleanup background processes on exit
+# Function to cleanup background processes on exit (only if Ctrl+C in foreground)
 cleanup() {
+    # Only cleanup if we receive an interrupt signal
+    # Don't cleanup on normal exit (EXIT trap) to keep servers running
     print_status "Shutting down demo servers..."
     pkill -f "node build/index.js" 2>/dev/null || true
     pkill -f "python3 -m http.server" 2>/dev/null || true
+    pkill -f "start-demo.sh" 2>/dev/null || true  # Kill monitoring loops
     print_success "Demo servers stopped"
+    exit 0
 }
 
-# Set up cleanup on script exit
-trap cleanup EXIT INT TERM
+# Set up cleanup only on interrupt signals, not EXIT
+trap cleanup INT TERM
 
 # Check if we're in the right directory
 if [[ ! -f "package.json" ]] || [[ ! -d "demo" ]] || [[ ! -d "test" ]]; then
@@ -141,6 +172,7 @@ fi
 # Step 4: Start MCP HTTP server with all clusters
 print_status "Starting MCP HTTP server on port 3000..."
 export ONTAP_CLUSTERS="$CLUSTERS_JSON"
+export HARVEST_TSDB_URL="http://10.193.49.74:9090"
 nohup node build/index.js --http=3000 > mcp-server.log 2>&1 &
 MCP_PID=$!
 

@@ -148,6 +148,40 @@ import {
   handleClusterDeleteQosPolicy
 } from "../tools/qos-policy-tools.js";
 
+// Import Harvest metrics tools
+import {
+  handleMetricsQuery,
+  handleMetricsRangeQuery,
+  handleListMetrics,
+  handleListLabelValues,
+  handleListAllLabelNames,
+  handleGetActiveAlerts,
+  handleInfrastructureHealth,
+  handleGetMetricDescription,
+  handleSearchMetrics,
+  createMetricsQueryToolDefinition,
+  createMetricsRangeQueryToolDefinition,
+  createListMetricsToolDefinition,
+  createListLabelValuesToolDefinition,
+  createListAllLabelNamesToolDefinition,
+  createGetActiveAlertsToolDefinition,
+  createInfrastructureHealthToolDefinition,
+  createGetMetricDescriptionToolDefinition,
+  createSearchMetricsToolDefinition
+} from "../tools/harvest-metrics-tools.js";
+
+import {
+  QueryArgsSchema,
+  RangeQueryArgsSchema,
+  ListMetricsArgsSchema,
+  ListLabelValuesArgsSchema,
+  InfrastructureHealthArgsSchema,
+  GetMetricDescriptionArgsSchema,
+  SearchMetricsArgsSchema
+} from "../types/harvest-types.js";
+
+import { getHarvestConfig } from "../config/harvest-config.js";
+
 /**
  * Register all tools in the central registry
  * This function is called once at startup to populate the registry
@@ -551,4 +585,101 @@ export function registerAllTools(): void {
     definition: createClusterDeleteQosPolicyToolDefinition,
     handler: handleClusterDeleteQosPolicy
   });
+
+  // Harvest Metrics Tools (feature-gated by HARVEST_TSDB_URL)
+  const harvestConfig = getHarvestConfig();
+  
+  if (harvestConfig.enabled) {
+    console.log(`Harvest metrics tools enabled (TSDB URL: ${harvestConfig.url})`);
+    
+    registerTool({
+      name: "metrics_query",
+      category: ToolCategory.METRICS,
+      definition: createMetricsQueryToolDefinition,
+      handler: async (args: any) => {
+        const validated = QueryArgsSchema.parse(args);
+        return await handleMetricsQuery(validated, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "metrics_range_query",
+      category: ToolCategory.METRICS,
+      definition: createMetricsRangeQueryToolDefinition,
+      handler: async (args: any) => {
+        const validated = RangeQueryArgsSchema.parse(args);
+        return await handleMetricsRangeQuery(validated, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "list_metrics",
+      category: ToolCategory.METRICS,
+      definition: createListMetricsToolDefinition,
+      handler: async (args: any) => {
+        const validated = ListMetricsArgsSchema.parse(args);
+        return await handleListMetrics(validated, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "list_label_values",
+      category: ToolCategory.METRICS,
+      definition: createListLabelValuesToolDefinition,
+      handler: async (args: any) => {
+        const validated = ListLabelValuesArgsSchema.parse(args);
+        return await handleListLabelValues(validated, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "list_all_label_names",
+      category: ToolCategory.METRICS,
+      definition: createListAllLabelNamesToolDefinition,
+      handler: async (args: any) => {
+        return await handleListAllLabelNames(args, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "get_active_alerts",
+      category: ToolCategory.METRICS,
+      definition: createGetActiveAlertsToolDefinition,
+      handler: async (args: any) => {
+        return await handleGetActiveAlerts(args, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "infrastructure_health",
+      category: ToolCategory.METRICS,
+      definition: createInfrastructureHealthToolDefinition,
+      handler: async (args: any) => {
+        const validated = InfrastructureHealthArgsSchema.parse(args);
+        return await handleInfrastructureHealth(validated, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "get_metric_description",
+      category: ToolCategory.METRICS,
+      definition: createGetMetricDescriptionToolDefinition,
+      handler: async (args: any) => {
+        const validated = GetMetricDescriptionArgsSchema.parse(args);
+        return await handleGetMetricDescription(validated, harvestConfig);
+      }
+    });
+
+    registerTool({
+      name: "search_metrics",
+      category: ToolCategory.METRICS,
+      definition: createSearchMetricsToolDefinition,
+      handler: async (args: any) => {
+        const validated = SearchMetricsArgsSchema.parse(args);
+        return await handleSearchMetrics(validated, harvestConfig);
+      }
+    });
+  } else {
+    console.log('Harvest metrics tools disabled (HARVEST_TSDB_URL not set)');
+  }
 }

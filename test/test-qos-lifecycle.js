@@ -183,30 +183,42 @@ function initializeMcpServer(serverProcess) {
     let response = '';
     const handleData = (data) => {
       response += data.toString();
-      if (response.includes('\n')) {
-        try {
-          const parsed = JSON.parse(response.trim());
-          if (parsed.id === 0) {
-            serverProcess.stdout.removeListener('data', handleData);
-            resolve(serverProcess);
+      // Look for complete JSON-RPC response (ends with newline)
+      const lines = response.split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const parsed = JSON.parse(line.trim());
+            if (parsed.id === 0 && parsed.result) {
+              serverProcess.stdout.removeListener('data', handleData);
+              clearTimeout(timeoutHandle);
+              resolve(serverProcess);
+              return;
+            }
+          } catch (e) {
+            // Not valid JSON yet, continue
           }
-        } catch (e) {
-          // Continue waiting for complete response
         }
       }
     };
     
     serverProcess.stdout.on('data', handleData);
     serverProcess.stderr.on('data', (data) => {
-      console.error('Server error:', data.toString());
+      // Log server errors but don't fail (normal startup logs go here)
+      const msg = data.toString();
+      if (!msg.includes('Loaded cluster') && !msg.includes('Pre-registered')) {
+        console.error('Server error:', msg);
+      }
     });
     
     serverProcess.stdin.write(JSON.stringify(initRequest) + '\n');
     
-    setTimeout(() => {
+    const timeoutHandle = setTimeout(() => {
       serverProcess.stdout.removeListener('data', handleData);
+      console.error('Timeout waiting for MCP server initialization');
+      console.error('Server may still be loading or responding slowly');
       reject(new Error('MCP server initialization timeout'));
-    }, 5000);
+    }, 30000); // Increased from 10s to 30s for slower systems
   });
 }
 

@@ -97,7 +97,7 @@ run_test "Export Policy Lifecycle (STDIO Mode)" "node test/test-export-policy-li
 run_test "Export Policy Lifecycle (HTTP Mode)" "node test/test-export-policy-lifecycle.js http --server-running"
 
 # Test 5: Tool Discovery (STDIO vs HTTP)
-run_test "Tool Discovery (STDIO vs HTTP)" "bash test/test-tool-discovery.sh"
+run_test "Tool Discovery (STDIO vs HTTP)" "node test/test-tool-discovery.js"
 
 # Test 6: Tool Count Verification (Legacy)  
 run_test "Tool Count Verification (Legacy)" "bash test/verify-tool-count.sh"
