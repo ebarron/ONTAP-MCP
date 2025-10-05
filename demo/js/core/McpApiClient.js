@@ -1,11 +1,11 @@
 /**
- * NetApp ONTAP MCP API Client
+ * Universal MCP API Client
  * 
- * Handles all communication with the MCP server using MCP JSON-RPC 2.0 over SSE:
- * - Establishes SSE connection to /mcp endpoint
- * - Sends JSON-RPC requests via POST /messages
- * - Response parsing and error handling
- * - Cluster-specific data parsing
+ * Supports multiple MCP HTTP transport patterns:
+ * - Pattern 1 (SSE Streaming): GET /mcp → SSE stream → POST /messages
+ * - Pattern 2 (POST-based): Direct POST /mcp with SSE-formatted responses
+ * 
+ * Automatically detects and adapts to server transport pattern.
  */
 class McpApiClient {
     constructor(mcpUrl = 'http://localhost:3000') {
@@ -15,35 +15,57 @@ class McpApiClient {
         this.initialized = false;
         this.eventSource = null;
         this.pendingRequests = new Map(); // Track pending JSON-RPC requests
+        this.transportMode = null; // 'streaming' or 'post-based'
     }
 
     /**
-     * Initialize MCP session via SSE
-     * Establishes SSE stream and extracts session ID from endpoint event
+     * Initialize MCP session - auto-detects transport pattern
      */
     async initialize() {
         if (this.initialized) return;
 
+        console.log('🔌 Detecting MCP transport pattern...');
+        
+        // Try Pattern 1 (SSE Streaming) first
         try {
-            console.log('🔌 Establishing MCP SSE connection...');
-            
-            // Establish SSE stream
-            this.eventSource = new EventSource(`${this.mcpUrl}/mcp`);
-            
-            // Wait for 'endpoint' event to get session ID
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    reject(new Error('SSE connection timeout'));
-                }, 10000);
+            await this.initializeStreamingMode();
+            this.transportMode = 'streaming';
+            console.log('✅ Using SSE streaming transport');
+            return;
+        } catch (error) {
+            console.log('⚠️  SSE streaming failed, trying POST-based transport...');
+        }
 
+        // Fallback to Pattern 2 (POST-based)
+        try {
+            await this.initializePostMode();
+            this.transportMode = 'post-based';
+            console.log('✅ Using POST-based transport');
+        } catch (error) {
+            console.error('❌ All transport patterns failed');
+            throw new Error('Could not establish MCP connection with any transport pattern');
+        }
+    }
+
+    /**
+     * Pattern 1: SSE Streaming Mode (ONTAP MCP style)
+     * GET /mcp → SSE stream → POST /messages
+     */
+    async initializeStreamingMode() {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('SSE connection timeout'));
+            }, 10000);
+
+            try {
+                this.eventSource = new EventSource(`${this.mcpUrl}/mcp`);
+                
                 this.eventSource.addEventListener('endpoint', (event) => {
                     clearTimeout(timeout);
                     try {
-                        // Endpoint event data is just the endpoint string: "/messages?sessionId=ABC123"
                         const endpoint = event.data.trim();
                         console.log(`📡 Received endpoint: ${endpoint}`);
                         
-                        // Extract sessionId from endpoint URL
                         const match = endpoint.match(/sessionId=([^&\s]+)/);
                         if (!match) {
                             reject(new Error('No sessionId in endpoint event'));
@@ -51,10 +73,20 @@ class McpApiClient {
                         }
                         
                         this.sessionId = match[1];
-                        console.log(`✅ SSE session established: ${this.sessionId}`);
-                        resolve();
+                        console.log(`✅ SSE session: ${this.sessionId}`);
+                        
+                        // Send initialize request
+                        this.sendStreamingRequest('initialize', {
+                            protocolVersion: '2024-11-05',
+                            capabilities: {},
+                            clientInfo: { name: 'mcp-demo', version: '1.0.0' }
+                        }).then(() => {
+                            this.initialized = true;
+                            resolve();
+                        }).catch(reject);
+                        
                     } catch (error) {
-                        reject(new Error(`Failed to parse endpoint event: ${error.message}`));
+                        reject(error);
                     }
                 });
 
@@ -67,59 +99,150 @@ class McpApiClient {
                 this.eventSource.addEventListener('message', (event) => {
                     try {
                         const data = JSON.parse(event.data);
-                        console.log('📨 Received SSE message:', data);
+                        console.log('📨 SSE message:', data);
                         
-                        // Check if this is a JSON-RPC response
                         if (data.jsonrpc === '2.0' && data.id !== undefined) {
                             const pending = this.pendingRequests.get(data.id);
                             if (pending) {
                                 if (data.error) {
-                                    console.error('❌ JSON-RPC error:', data.error);
                                     pending.reject(new Error(data.error.message || 'MCP call failed'));
                                 } else {
-                                    console.log('✅ JSON-RPC result:', data.result);
                                     pending.resolve(data.result);
                                 }
                                 this.pendingRequests.delete(data.id);
-                            } else {
-                                console.warn('⚠️ Received response for unknown request ID:', data.id);
                             }
                         }
                     } catch (error) {
-                        console.error('Failed to parse SSE message:', error, 'Data:', event.data);
+                        console.error('Failed to parse SSE message:', error);
                     }
                 });
-            });
+                
+            } catch (error) {
+                clearTimeout(timeout);
+                reject(error);
+            }
+        });
+    }
 
-            // Send initialize request
-            await this.sendJsonRpcRequest('initialize', {
+    /**
+     * Pattern 2: POST-based Mode (Harvest MCP style)
+     * POST /mcp directly with SSE-formatted responses
+     */
+    async initializePostMode() {
+        const requestId = this.requestId++;
+        const request = {
+            jsonrpc: '2.0',
+            id: requestId,
+            method: 'initialize',
+            params: {
                 protocolVersion: '2024-11-05',
                 capabilities: {},
-                clientInfo: {
-                    name: 'ontap-mcp-demo',
-                    version: '1.0.0'
-                }
-            });
+                clientInfo: { name: 'mcp-demo', version: '1.0.0' }
+            }
+        };
 
-            this.initialized = true;
-            console.log('✅ MCP client initialized');
+        const response = await fetch(`${this.mcpUrl}/mcp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request)
+        });
 
-        } catch (error) {
-            console.error('❌ MCP initialization failed:', error);
-            this.close();
-            throw error;
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Debug: Log all response headers
+        console.log('📋 Response headers:');
+        for (const [key, value] of response.headers.entries()) {
+            console.log(`  ${key}: ${value}`);
+        }
+
+        // Extract session ID from response headers (if present)
+        // Try both header name variations due to case sensitivity
+        const sessionId = response.headers.get('Mcp-Session-Id') || 
+                         response.headers.get('mcp-session-id');
+        if (sessionId) {
+            this.sessionId = sessionId;
+            console.log('🔐 POST session ID:', sessionId);
+        } else {
+            this.sessionId = 'post-based'; // Stateless mode
+            console.log('ℹ️  No session ID in response, using stateless mode');
+        }
+
+        const text = await response.text();
+        
+        // Parse SSE-formatted response
+        const lines = text.split('\n');
+        let jsonData = null;
+        
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                jsonData = JSON.parse(line.substring(6));
+                break;
+            }
+        }
+
+        if (!jsonData || !jsonData.result) {
+            throw new Error('Invalid initialize response');
+        }
+
+        console.log('✅ POST-based init:', jsonData.result.serverInfo);
+
+        
+        // Send 'initialized' notification to complete the handshake
+        // This is a notification (no id field) per JSON-RPC 2.0 spec
+        const notification = {
+            jsonrpc: '2.0',
+            method: 'notifications/initialized',
+            params: {}
+        };
+
+        console.log(`📨 POST notification: notifications/initialized`);
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (this.sessionId && this.sessionId !== 'post-based') {
+            headers['Mcp-Session-Id'] = this.sessionId;
+        }
+
+        const notifyResponse = await fetch(`${this.mcpUrl}/mcp`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(notification)
+        });
+
+        if (!notifyResponse.ok) {
+            console.warn(`⚠️  Initialized notification returned ${notifyResponse.status}`);
+        } else {
+            // Wait for and consume the response to ensure server processed it
+            await notifyResponse.text();
+            console.log('✅ Initialized notification acknowledged');
+        }
+
+        // Now mark as fully initialized
+        this.initialized = true;
+    }
+
+    /**
+     * Send JSON-RPC request - routes based on transport mode
+     */
+    async sendJsonRpcRequest(method, params) {
+        if (!this.initialized) {
+            throw new Error('MCP client not initialized');
+        }
+
+        if (this.transportMode === 'streaming') {
+            return await this.sendStreamingRequest(method, params);
+        } else {
+            return await this.sendPostRequest(method, params);
         }
     }
 
     /**
-     * Send JSON-RPC request via POST /messages
-     * @param {string} method - JSON-RPC method (e.g., 'tools/call')
-     * @param {object} params - Method parameters
-     * @returns {Promise<any>} JSON-RPC result
+     * Send request in streaming mode (POST /messages)
      */
-    async sendJsonRpcRequest(method, params) {
+    async sendStreamingRequest(method, params) {
         if (!this.sessionId) {
-            throw new Error('MCP session not initialized');
+            throw new Error('No session ID');
         }
 
         const requestId = this.requestId++;
@@ -130,13 +253,12 @@ class McpApiClient {
             params: params
         };
 
-        console.log(`📤 Sending JSON-RPC request #${requestId}:`, method, params);
+        console.log(`📤 Sending JSON-RPC #${requestId}:`, method, params);
 
         // Create promise for response
         const responsePromise = new Promise((resolve, reject) => {
             this.pendingRequests.set(requestId, { resolve, reject });
             
-            // Timeout after 30 seconds
             setTimeout(() => {
                 if (this.pendingRequests.has(requestId)) {
                     this.pendingRequests.delete(requestId);
@@ -149,9 +271,7 @@ class McpApiClient {
         try {
             const response = await fetch(`${this.mcpUrl}/messages?sessionId=${this.sessionId}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(request)
             });
 
@@ -163,7 +283,61 @@ class McpApiClient {
             throw error;
         }
 
-        return responsePromise;
+        return await responsePromise;
+    }
+
+    /**
+     * Send request in POST mode (direct POST /mcp)
+     */
+    async sendPostRequest(method, params) {
+        const requestId = this.requestId++;
+        const request = {
+            jsonrpc: '2.0',
+            id: requestId,
+            method: method,
+            params: params
+        };
+
+        console.log(`📤 POST request #${requestId}:`, method);
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (this.sessionId && this.sessionId !== 'post-based') {
+            headers['Mcp-Session-Id'] = this.sessionId;
+        }
+
+        const response = await fetch(`${this.mcpUrl}/mcp`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(request)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const text = await response.text();
+        
+        // Parse SSE-formatted response
+        const lines = text.split('\n');
+        let jsonData = null;
+        
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                jsonData = JSON.parse(line.substring(6));
+                break;
+            }
+        }
+
+        if (!jsonData) {
+            throw new Error('Invalid response format');
+        }
+
+        if (jsonData.error) {
+            throw new Error(jsonData.error.message || 'MCP call failed');
+        }
+
+        console.log(`✅ POST result #${requestId}`);
+        return jsonData.result;
     }
 
     /**

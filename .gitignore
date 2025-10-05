@@ -71,5 +71,8 @@ mcp-server.log
 # ChatGPT API configuration (contains sensitive API keys)
 demo/chatgpt-config.json
 
+# MCP server configuration (may contain sensitive endpoints)
+demo/mcp.json
+
 # Reference files - not part of codebase
 

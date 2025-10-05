@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "netapp-ontap": {
+      "type": "http",
+      "url": "http://localhost:3000",
+      "description": "NetApp ONTAP MCP Server",
+      "enabled": true
+    },
+    "harvest-remote": {
+      "type": "http",
+      "url": "http://your-harvest-server:9119",
+      "description": "NetApp Harvest Metrics Server",
+      "enabled": false
+    }
+  }
+}

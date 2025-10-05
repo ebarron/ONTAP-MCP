@@ -131,63 +131,46 @@ Available tools: {{TOOLS_COUNT}}`;
     }
 
     async discoverTools() {
-        // Essential tools that are actually used in the demo (covers 95% of use cases)
-        const essentialTools = [
-            // Core discovery (ChatGPT always starts here)
-            'list_registered_clusters',        // First call in most conversations
-            'cluster_list_svms',               // Required for any provisioning
-            'cluster_list_aggregates',         // Required for capacity checking
-            'cluster_list_volumes',            // Often used for validation
-            
-            // Core provisioning
-            'cluster_create_volume',           // Primary provisioning action
-            
-            // Policy management (frequently needed)
-            'list_snapshot_policies',          // Storage classes reference these
-            'list_export_policies',            // NFS provisioning needs these
-            'cluster_list_qos_policies',       // Performance requirements
-            'cluster_list_cifs_shares',        // SMB/CIFS visibility
-            
-            // Policy creation (ChatGPT creates these when missing)
-            'create_export_policy',            // NFS setup
-            'add_export_rule',                 // NFS access rules
-            'delete_export_policy',            // Cleanup on failure
-            
-            // Volume management
-            'get_volume_configuration',        // Volume analysis
-            'cluster_get_volume_stats',        // Capacity/performance analysis
-            
-            // Cluster management  
-            'add_cluster'                      // Adding new clusters
-        ];
-
         try {
-            this.updateStatus('Discovering available ONTAP tools...');
+            this.updateStatus('Discovering tools from all MCP servers...');
             
-            // Use MCP protocol to list tools
-            const tools = await this.demo.apiClient.listTools();
+            // Use client manager to discover tools from ALL connected servers
+            const allTools = await this.demo.clientManager.listAllTools();
             
-            if (tools && Array.isArray(tools) && tools.length > 0) {
-                // Cache ALL tool definitions for potential future use
-                this.allToolDefinitions = tools;
+            if (allTools && Array.isArray(allTools) && allTools.length > 0) {
+                // Load ALL tools - no filtering
+                this.allToolDefinitions = allTools;
+                this.toolDefinitions = allTools;
+                this.availableTools = allTools.map(t => t.name);
                 
-                // But start with just essential tools to reduce ChatGPT payload
-                this.toolDefinitions = tools.filter(tool => 
-                    essentialTools.includes(tool.name)
-                );
-                this.availableTools = essentialTools;
+                // Log discovery results
+                const stats = this.demo.clientManager.getStats();
+                console.log(`📊 Tool Discovery:`);
+                console.log(`   • Total tools available: ${allTools.length} from ${stats.connectedServers} server(s)`);
+                console.log(`   • All tools loaded into ChatGPT context`);
                 
-                console.log(`Discovered ${tools.length} total ONTAP tools, using ${this.availableTools.length} essential tools for ChatGPT`);
-                console.log(`Payload reduction: ${Math.round((1 - this.availableTools.length / tools.length) * 100)}% smaller`);
+                // Show which servers provide which tools
+                const toolsByServer = {};
+                this.toolDefinitions.forEach(tool => {
+                    tool.servers.forEach(server => {
+                        if (!toolsByServer[server]) toolsByServer[server] = 0;
+                        toolsByServer[server]++;
+                    });
+                });
+                
+                Object.entries(toolsByServer).forEach(([server, count]) => {
+                    console.log(`   • ${server}: ${count} tool(s)`);
+                });
+                
+                console.log(`✅ Multi-server tool discovery complete`);
             } else {
-                throw new Error('Invalid response format from MCP listTools()');
+                throw new Error('Invalid response format from MCP listAllTools()');
             }
         } catch (error) {
-            console.error('Tool discovery failed, using fallback essential tools:', error);
-            // Fallback to essential tools only
-            this.availableTools = essentialTools;
-            this.toolDefinitions = []; // Empty cache for fallback
-            this.allToolDefinitions = []; // No full cache available
+            console.error('Tool discovery failed:', error);
+            this.toolDefinitions = [];
+            this.allToolDefinitions = [];
+            this.availableTools = [];
         }
     }
 
@@ -667,8 +650,8 @@ Available tools: {{TOOLS_COUNT}}`;
                 });
             }
             
-            // Use the demo's MCP client (SSE protocol)
-            const result = await this.demo.apiClient.callMcp(name, parsedArgs);
+            // Use the client manager for automatic routing to correct server
+            const result = await this.demo.clientManager.callTool(name, parsedArgs);
 
             if (!result.success) {
                 // 🔍 DIAGNOSTIC: Capture error details for problematic tools

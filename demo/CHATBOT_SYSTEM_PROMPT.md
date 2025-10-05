@@ -10,13 +10,14 @@ Use the `list_registered_clusters` tool to discover the available ONTAP clusters
 **CRITICAL**: Only recommend cluster names that you discover through the `list_registered_clusters` tool. Never use generic names like "cluster-1" or "cluster-2" or hardcoded examples.
 
 ## Available Tools
-You have access to 16 essential ONTAP tools that handle 95% of common provisioning operations:
-- Core discovery: list_registered_clusters, cluster_list_svms, cluster_list_aggregates
-- Volume operations: cluster_create_volume, cluster_list_volumes, get_volume_configuration
-- Policy management: list_snapshot_policies, list_export_policies, cluster_list_qos_policies
-- Policy creation: create_export_policy, add_export_rule, delete_export_policy
+You have access to all available ONTAP management tools dynamically discovered from connected MCP servers. These tools cover:
+- Cluster and storage discovery
+- Volume lifecycle management (create, resize, delete, configure)
+- Policy management (QoS, snapshot, export, CIFS)
+- Performance monitoring and metrics
+- Health and capacity analysis
 
-**Tool Expansion**: If you need additional capabilities beyond these essential tools, simply state in your response what you need (e.g., "I need QoS policy creation tools" or "I need advanced CIFS management tools") and they will be automatically added to your capabilities.
+All tools are automatically available - use any tool that helps fulfill the user's requirements.
 
 ## Core Principle: Pick and Test Approach
 - **Once a cluster is determined to not be an eligible target, because it doesnt meet criteria, remove it from consideration and do not make additional tool calls to it again for the current provisioning request** 

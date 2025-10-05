@@ -6,6 +6,21 @@
 - NetApp ONTAP MCP server built and configured (see main README.md)
 - Test clusters configured in `test/clusters.json`
 - Python 3 for web server
+- MCP server configuration in `demo/mcp.json` (optional, see MCP_CONFIG_README.md)
+
+### Configuration Files
+
+**MCP Server Configuration (`demo/mcp.json`)**:
+```bash
+# Copy the example configuration
+cd demo
+cp mcp.json.example mcp.json
+
+# Edit mcp.json to configure your MCP server endpoints
+# See MCP_CONFIG_README.md for details
+```
+
+The `mcp.json` file allows you to configure multiple MCP server endpoints without modifying code. If not present, the demo defaults to `http://localhost:3000`.
 
 ### Start Demo
 ```bash

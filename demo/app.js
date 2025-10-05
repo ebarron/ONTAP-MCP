@@ -1,7 +1,8 @@
 // NetApp ONTAP MCP Demo Application
 class OntapMcpDemo {
     constructor() {
-        this.mcpUrl = 'http://localhost:3000';
+        this.mcpConfig = new McpConfig();
+        this.mcpUrl = null; // Will be set after config loads
         this.clusters = [];
         this.currentCluster = null;
         this.selectedCluster = null;
@@ -43,18 +44,48 @@ class OntapMcpDemo {
             }
         ];
         
-        // Initialize core services
-        this.apiClient = new McpApiClient(this.mcpUrl);
+        // Core services will be initialized after config loads
+        this.mcpConfig = new McpConfig();
+        this.clientManager = null;  // Multi-server manager
+        this.apiClient = null;      // Backward compatibility (will be default client)
         this.notifications = new ToastNotifications();
+        
+        // Components will be initialized after config loads
+        this.provisioningPanel = null;
+        this.storageClassProvisioningPanel = null;
+        
+        // Ready promise for components to wait on
+        this.ready = this.init();
+    }
+
+    async init() {
+        // Load MCP configuration first
+        await this.mcpConfig.load();
+        
+        console.log('🚀 Initializing multi-server MCP support...');
+        
+        // Initialize client manager for all enabled servers
+        this.clientManager = new McpClientManager(this.mcpConfig);
+        await this.clientManager.initialize();
+        
+        // Backward compatibility: set apiClient to first connected server
+        const connectedServers = this.clientManager.getConnectedServers();
+        if (connectedServers.length > 0) {
+            this.apiClient = this.clientManager.getClient(connectedServers[0]);
+            console.log(`� Default client set to: ${connectedServers[0]}`);
+        }
+        
+        // Log statistics
+        const stats = this.clientManager.getStats();
+        console.log(`📊 MCP Stats: ${stats.connectedServers} server(s), ${stats.totalTools} tool(s)`);
+        stats.toolsByServer.forEach(s => {
+            console.log(`   • ${s.server}: ${s.toolCount} tools`);
+        });
         
         // Initialize components
         this.provisioningPanel = new ProvisioningPanel(this);
         this.storageClassProvisioningPanel = new StorageClassProvisioningPanel(this);
         
-        this.init();
-    }
-
-    async init() {
         this.bindEvents();
         await this.loadClusters();
         this.updateUI();
