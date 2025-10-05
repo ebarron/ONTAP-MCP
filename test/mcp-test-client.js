@@ -24,14 +24,15 @@
  *   const result = await client.callTool('list_registered_clusters', {});
  */
 export class McpTestClient {
-  constructor(baseUrl = 'http://localhost:3000') {
+  constructor(baseUrl = 'http://localhost:3000', options = {}) {
     this.baseUrl = baseUrl;
-    this.sessionId = null;
+    this.sessionId = options.sessionId || null; // Allow pre-set session ID
     this.requestId = 1;
-    this.initialized = false;
+    this.initialized = false; // Always require initialization to set up SSE stream
     this.sseReader = null; // Keep SSE stream alive
     this.pendingResponses = new Map(); // Track pending requests
     this.readingStream = false;
+    this.reusingSession = !!options.sessionId; // Track if we're reusing an existing session
   }
 
   /**
@@ -91,9 +92,51 @@ export class McpTestClient {
    * 3. Extract sessionId from endpoint URL
    * 4. Send 'initialize' JSON-RPC request
    * 5. Store session ID for subsequent requests
+   * 
+   * When reusing a session (sessionId provided in constructor):
+   * - Establishes SSE stream for receiving responses
+   * - Skips the 'initialize' JSON-RPC call (session already initialized)
+   * - Trusts that the session ID is valid
    */
   async initialize() {
     try {
+      // If reusing a session, establish SSE stream but skip full initialization
+      if (this.reusingSession && this.sessionId) {
+        // Establish SSE stream for this session
+        const response = await fetch(`${this.baseUrl}/mcp`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to establish SSE stream: ${response.status} ${response.statusText}`);
+        }
+
+        // Verify SSE content type
+        const contentType = response.headers.get('Content-Type');
+        if (!contentType || !contentType.includes('text/event-stream')) {
+          throw new Error(`Expected text/event-stream, got ${contentType}`);
+        }
+
+        // Store reader and start reading stream
+        this.sseReader = response.body.getReader();
+        this.startReadingStream();
+        
+        this.initialized = true;
+        
+        // Note: We trust the provided sessionId and don't validate
+        // The session was created by create-shared-session.js and is still active
+        
+        return {
+          sessionId: this.sessionId,
+          reusingSession: true
+        };
+      }
+      
+      // Normal initialization for new sessions
       // Step 1: Establish SSE stream
       const response = await fetch(`${this.baseUrl}/mcp`, {
         method: 'GET',
@@ -327,6 +370,11 @@ export class McpTestClient {
    * Close the client connection
    */
   async close() {
+    // Don't close if we're reusing a shared session
+    if (this.reusingSession) {
+      return;
+    }
+    
     this.readingStream = false;
     
     if (this.sseReader) {
@@ -344,9 +392,105 @@ export class McpTestClient {
   }
 }
 
+/**
+ * Load clusters from clusters.json file
+ */
+async function loadClustersFromFile(filePath = 'test/clusters.json') {
+  const fs = await import('fs');
+  const path = await import('path');
+  
+  const clustersPath = path.resolve(process.cwd(), filePath);
+  const clustersData = JSON.parse(fs.readFileSync(clustersPath, 'utf8'));
+  
+  // Handle both array and object formats
+  if (Array.isArray(clustersData)) {
+    return clustersData;
+  }
+  
+  // Convert object format to array
+  return Object.keys(clustersData).map(name => ({
+    name,
+    ...clustersData[name]
+  }));
+}
+
+/**
+ * Load clusters into an MCP session via add_cluster tool
+ * Returns the number of clusters successfully loaded
+ */
+async function loadClustersIntoSession(mcpClient, clusters = null) {
+  // If no clusters provided, load from clusters.json
+  if (!clusters) {
+    clusters = await loadClustersFromFile();
+  }
+  
+  let successCount = 0;
+  let failCount = 0;
+  
+  for (const cluster of clusters) {
+    try {
+      const result = await mcpClient.callTool('add_cluster', {
+        name: cluster.name,
+        cluster_ip: cluster.cluster_ip,
+        username: cluster.username,
+        password: cluster.password,
+        description: cluster.description || `Loaded from clusters.json`
+      });
+      
+      // Check if successful
+      const text = mcpClient.parseContent(result);
+      if (text.includes('added successfully')) {
+        successCount++;
+      } else {
+        console.error(`Failed to add cluster ${cluster.name}: ${text}`);
+        failCount++;
+      }
+    } catch (error) {
+      console.error(`Failed to add cluster ${cluster.name}:`, error.message);
+      failCount++;
+    }
+  }
+  
+  return { successCount, failCount, total: clusters.length };
+}
+
+/**
+ * Create a test session with clusters pre-loaded
+ * This is used by run-all-tests.sh to create a shared session
+ */
+async function createSessionWithClusters(baseUrl = 'http://localhost:3000') {
+  const client = new McpTestClient(baseUrl);
+  await client.initialize();
+  
+  console.log(`[SESSION] Created session: ${client.sessionId}`);
+  
+  const result = await loadClustersIntoSession(client);
+  console.log(`[SESSION] Loaded ${result.successCount}/${result.total} clusters into session`);
+  
+  if (result.failCount > 0) {
+    console.warn(`[SESSION] Warning: ${result.failCount} clusters failed to load`);
+  }
+  
+  return {
+    sessionId: client.sessionId,
+    client: client,
+    clusters: result
+  };
+}
+
 // Export for CommonJS compatibility
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    McpTestClient
+    McpTestClient,
+    loadClustersFromFile,
+    loadClustersIntoSession,
+    createSessionWithClusters
   };
 }
+
+// Export helper functions for ES modules (McpTestClient already exported as class)
+export {
+  loadClustersFromFile,
+  loadClustersIntoSession,
+  createSessionWithClusters
+};

@@ -270,15 +270,18 @@ async function testRestMode(cluster, httpPort = 3000, serverAlreadyRunning = fal
       }
     });
     
-    // Wait for server to start
-    await sleep(3000);
-  }
-  
-  // Initialize MCP client
-  mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
-  await mcpClient.initialize();
-  
-  const timestamp = Date.now();
+  // Wait for server to start
+  await sleep(3000);
+}
+
+// Initialize MCP client - each test creates its own session
+console.log('🆕 Creating new test session and loading clusters');
+mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
+await mcpClient.initialize();
+
+// Load clusters into session
+const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
   const policyName = `test-policy-rest-${timestamp}`;
   
   try {

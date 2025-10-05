@@ -4,6 +4,7 @@
  */
 
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { OntapClusterManager } from "../ontap-client.js";
 import { 
   SessionMetadata, 
   SessionConfig, 
@@ -28,7 +29,7 @@ export class SessionManager {
   }
 
   /**
-   * Add a new session with SSE transport
+   * Add a new session with SSE transport and its own cluster manager
    */
   add(sessionId: string, transport: SSEServerTransport): void {
     const now = new Date();
@@ -36,9 +37,10 @@ export class SessionManager {
       transport,
       createdAt: now,
       lastActivityAt: now,
-      activityCount: 0
+      activityCount: 0,
+      clusterManager: new OntapClusterManager()  // Per-session cluster isolation
     });
-    console.error(`Session ${sessionId} created. Active sessions: ${this.sessions.size}`);
+    console.error(`Session ${sessionId} created with isolated cluster manager. Active sessions: ${this.sessions.size}`);
   }
 
   /**
@@ -79,6 +81,13 @@ export class SessionManager {
       metadata.lastActivityAt = new Date();
       metadata.activityCount++;
     }
+  }
+
+  /**
+   * Get session's cluster manager
+   */
+  getClusterManager(sessionId: string): OntapClusterManager | undefined {
+    return this.sessions.get(sessionId)?.clusterManager;
   }
 
   /**

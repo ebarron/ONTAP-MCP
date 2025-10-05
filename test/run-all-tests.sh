@@ -61,7 +61,8 @@ npm run build
 
 echo ""
 log "=== Starting Shared HTTP Server for Test Suite ==="
-export ONTAP_CLUSTERS="$(cat test/clusters.json)"
+# Note: HTTP mode no longer loads clusters from ONTAP_CLUSTERS env var
+# Clusters must be loaded via MCP API into each session
 node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
 SERVER_PID=$!
 log "Server started with PID: $SERVER_PID"
@@ -80,6 +81,10 @@ for i in {1..40}; do
     fi
     sleep 0.5
 done
+
+# Note: Session reuse doesn't work with HTTP/SSE architecture.
+# Each test creates its own session and loads clusters independently.
+log "=== HTTP Server Ready for Tests ==="
 
 echo ""
 log "=== Running All Tests ==="
@@ -147,11 +152,41 @@ echo ""
 log "=== Stopping Shared HTTP Server for Session Management Test ==="
 kill $SERVER_PID 2>/dev/null || true
 wait $SERVER_PID 2>/dev/null || true
-log "Server stopped (PID: $SERVER_PID)"
+log "Shared server stopped"
 
 run_test "Session Management (HTTP Mode)" "node test/test-session-management.js"
 
-# Restart shared server for any remaining tests (currently none, but for consistency)
+# Test 21: Session Isolation (HTTP Mode Only)
+# This test validates that sessions cannot access each other's clusters
+echo ""
+log "=== Starting Fresh HTTP Server for Session Isolation Test ==="
+
+# Make sure port 3000 is free
+pkill -f "node build/index.js --http=3000" 2>/dev/null || true
+sleep 2
+
+node build/index.js --http=3000 > /tmp/mcp-isolation-test-server.log 2>&1 &
+SERVER_PID=$!
+log "Server started with PID: $SERVER_PID"
+
+# Wait for server to be ready with health check  
+for i in {1..20}; do
+    if curl -s -f http://localhost:3000/health > /dev/null 2>&1; then
+        success "HTTP server is ready for isolation test"
+        sleep 2  # Give SSE endpoint time to fully initialize
+        break
+    fi
+    sleep 0.5
+done
+
+run_test "Session Isolation (HTTP Mode)" "node test/test-session-isolation.js"
+
+# Stop the isolation test server
+kill $SERVER_PID 2>/dev/null || true
+wait $SERVER_PID 2>/dev/null || true
+log "Isolation test server stopped"
+
+# Restart shared server and session for any remaining tests
 log "=== Restarting Shared HTTP Server ==="
 node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
 SERVER_PID=$!
@@ -160,10 +195,14 @@ sleep 2
 
 echo ""
 log "=== Stopping Shared HTTP Server ==="
+
 if [ ! -z "$SERVER_PID" ]; then
     kill $SERVER_PID 2>/dev/null || true
     log "Server stopped (PID: $SERVER_PID)"
 fi
+
+# Clean up temp files
+rm -f /tmp/test-session.log
 
 echo ""
 log "=== Test Summary ==="

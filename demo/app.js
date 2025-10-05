@@ -87,8 +87,114 @@ class OntapMcpDemo {
         this.storageClassProvisioningPanel = new StorageClassProvisioningPanel(this);
         
         this.bindEvents();
+        
+        // Auto-load clusters from demo/clusters.json into this session
+        await this.loadClustersFromDemoConfig();
+        
+        // Then list clusters from the MCP session
         await this.loadClusters();
         this.updateUI();
+    }
+
+    /**
+     * Load clusters from demo/clusters.json into the MCP session
+     * This provides a seamless demo experience with automatic cluster configuration
+     */
+    async loadClustersFromDemoConfig() {
+        try {
+            console.log('📁 Loading clusters from demo/clusters.json...');
+            
+            // Fetch clusters.json from demo directory
+            const response = await fetch('/clusters.json');
+            
+            if (response.status === 404) {
+                console.warn('⚠️  clusters.json not found - copy clusters.json.example to get started');
+                this.notifications.showInfo(
+                    'No clusters.json found. Copy clusters.json.example or add clusters manually.'
+                );
+                return;
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            let clusterData = await response.json();
+            
+            // Handle both object format (test/clusters.json) and array format
+            let clusters;
+            if (Array.isArray(clusterData)) {
+                // Array format: [{name: "...", cluster_ip: "...", ...}, ...]
+                clusters = clusterData;
+            } else if (typeof clusterData === 'object' && clusterData !== null) {
+                // Object format: {"cluster-name": {cluster_ip: "...", ...}, ...}
+                console.log('📋 Converting object format to array format...');
+                clusters = Object.entries(clusterData).map(([name, config]) => ({
+                    name: name,
+                    ...config
+                }));
+            } else {
+                throw new Error('clusters.json must be an array or object of cluster configurations');
+            }
+            
+            if (clusters.length === 0) {
+                console.warn('⚠️  clusters.json is empty');
+                return;
+            }
+            
+            console.log(`🔄 Adding ${clusters.length} cluster(s) to MCP session...`);
+            
+            // Add each cluster to the MCP session via add_cluster tool
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const cluster of clusters) {
+                try {
+                    // Validate cluster object
+                    if (!cluster.name || !cluster.cluster_ip || !cluster.username || !cluster.password) {
+                        console.error(`  ❌ Invalid cluster config (missing required fields):`, cluster);
+                        failCount++;
+                        continue;
+                    }
+                    
+                    // Add to MCP session
+                    const result = await this.apiClient.callMcp('add_cluster', {
+                        name: cluster.name,
+                        cluster_ip: cluster.cluster_ip,
+                        username: cluster.username,
+                        password: cluster.password,
+                        description: cluster.description || `Auto-loaded from clusters.json`
+                    });
+                    
+                    if (result.success) {
+                        console.log(`  ✅ Added: ${cluster.name} (${cluster.cluster_ip})`);
+                        successCount++;
+                    } else {
+                        console.error(`  ❌ Failed to add ${cluster.name}:`, result.error);
+                        failCount++;
+                    }
+                } catch (error) {
+                    console.error(`  ❌ Failed to add ${cluster.name}:`, error.message);
+                    failCount++;
+                }
+            }
+            
+            // Show success notification if at least one cluster loaded
+            if (successCount > 0) {
+                this.notifications.showSuccess(
+                    `Loaded ${successCount} cluster(s) from demo configuration`
+                );
+                console.log(`✅ Successfully loaded ${successCount} cluster(s) from demo config`);
+            }
+            
+            if (failCount > 0) {
+                console.warn(`⚠️  Failed to load ${failCount} cluster(s) from demo config`);
+            }
+            
+        } catch (error) {
+            console.error('Error loading clusters from demo config:', error);
+            // Non-fatal - demo still works, just needs manual cluster addition
+        }
     }
 
     bindEvents() {

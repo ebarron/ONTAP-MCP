@@ -89,11 +89,18 @@ async function runFormatTests() {
   console.log('🧪 Testing Snapshot Policy Creation Formats (MCP)\n');
   console.log('📝 Includes both positive and negative validation tests\n');
   
+  // Create new session and load clusters
+  console.log('🆕 Creating new test session and loading clusters');
   const client = new McpTestClient('http://localhost:3000');
+  await client.initialize();
+  
+  // Load clusters into session
+  const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+  await loadClustersIntoSession(client);
+  
   const createdPolicies = []; // Track only policies WE created
   
   try {
-    await client.initialize();
     console.log('✅ MCP client initialized\n');
     
     let passCount = 0;

@@ -132,19 +132,22 @@ async function initializeHttpMode(clustersData, serverAlreadyRunning = false) {
 
     // Store server process for cleanup
     global.httpServerProcess = serverProcess;
-    console.log('✅ HTTP server started successfully');
-  } else {
-    console.log('🔧 Using pre-started HTTP server');
-  }
+  console.log('✅ HTTP server started successfully');
+} else {
+  console.log('🔧 Using pre-started HTTP server');
+}
 
-  // Initialize MCP client
-  const mcpClient = new McpTestClient(baseUrl);
-  await mcpClient.initialize();
-  
-  // Store MCP client for cleanup
-  global.mcpClient = mcpClient;
-  
-  // Test server connectivity
+// Initialize MCP client - create new session and load clusters
+console.log('🆕 Creating new test session and loading clusters');
+const mcpClient = new McpTestClient(baseUrl);
+await mcpClient.initialize();
+
+// Load clusters into session
+const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+await loadClustersIntoSession(mcpClient);
+
+// Store MCP client for cleanup
+global.mcpClient = mcpClient;  // Test server connectivity
   try {
     const response = await fetch(`${baseUrl}/health`);
     if (!response.ok) {

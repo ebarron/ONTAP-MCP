@@ -4,6 +4,7 @@
  */
 
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { OntapClusterManager } from "../ontap-client.js";
 
 /**
  * Session metadata for tracking activity and lifecycle
@@ -17,6 +18,8 @@ export interface SessionMetadata {
   lastActivityAt: Date;
   /** Total number of requests processed */
   activityCount: number;
+  /** Session-scoped cluster manager (HTTP mode only) */
+  clusterManager: OntapClusterManager;
 }
 
 /**

@@ -34,8 +34,15 @@ function loadClusters() {
 // Get clusters from the MCP server via HTTP API
 async function getClustersFromServer(httpPort = 3000) {
   try {
+    // Each call creates a new session - HTTP/SSE architecture requires this
     const client = new McpTestClient(`http://localhost:${httpPort}`);
     await client.initialize();
+    console.log(`[${new Date().toISOString()}] 🆕 Created session for cluster discovery`);
+    
+    // Load clusters into the session
+    const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+    const loadResult = await loadClustersIntoSession(client);
+    console.log(`[${new Date().toISOString()}] 📦 Loaded ${loadResult.successCount}/${loadResult.total} clusters`);
     
     const result = await client.callTool('list_registered_clusters', {});
     await client.close();
@@ -88,9 +95,13 @@ async function getTestConfig(httpPort = 3000) {
   // Discover aggregates and SVMs from the cluster
   console.log(`[${new Date().toISOString()}] 🔍 Discovering aggregates and SVMs from cluster...`);
   
-  // Get aggregates
+  // Get aggregates - create fresh session
   const mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
   await mcpClient.initialize();
+  
+  // Load clusters into session
+  const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+  await loadClustersIntoSession(mcpClient);
   
   const aggregateList = await mcpClient.callTool('cluster_list_aggregates', {
     cluster_name: karanCluster.name
@@ -518,8 +529,18 @@ class VolumeLifecycleTest {
   async callHttpTool(toolName, args) {
     // Initialize MCP client if not already done
     if (!this.mcpClient) {
+      // Create new session - session reuse doesn't work with HTTP/SSE architecture
+      // Each SSE connection creates a new session on the server
       this.mcpClient = new McpTestClient(`http://localhost:${this.httpPort}`);
       await this.mcpClient.initialize();
+      await this.log(`🆕 Created new test session: ${this.mcpClient.sessionId}`);
+      
+      // Load clusters into this session
+      if (this.serverAlreadyRunning) {
+        const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+        const result = await loadClustersIntoSession(this.mcpClient);
+        await this.log(`📦 Loaded ${result.successCount}/${result.total} clusters into session`);
+      }
     }
 
     // Call tool and return result

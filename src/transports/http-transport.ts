@@ -25,13 +25,11 @@ import {
 
 export class HttpTransport implements BaseTransport {
   private app: express.Application;
-  private clusterManager: OntapClusterManager;
   private server: any;
   private sessionManager: SessionManager;
 
   constructor() {
     this.app = express();
-    this.clusterManager = new OntapClusterManager();
     
     // Initialize session manager with configuration from environment variables
     this.sessionManager = new SessionManager({
@@ -47,8 +45,9 @@ export class HttpTransport implements BaseTransport {
   /**
    * Create a new MCP Server instance for each SSE connection
    * This follows the SDK's example pattern
+   * @param sessionId - Session ID for accessing session-scoped cluster manager
    */
-  private createMcpServer(): Server {
+  private createMcpServer(sessionId: string): Server {
     const mcpServer = new Server(
       {
         name: "netapp-ontap-mcp",
@@ -64,10 +63,19 @@ export class HttpTransport implements BaseTransport {
 
     // Initialize handler
     mcpServer.setRequestHandler(InitializeRequestSchema, async (request) => {
-      console.error("MCP Server initializing via HTTP/SSE...");
+      console.error(`MCP Server initializing via HTTP/SSE for session ${sessionId}...`);
       
-      // Load clusters from initialization options
-      loadClusters(this.clusterManager, request.params.initializationOptions);
+      // Get this session's cluster manager
+      const clusterManager = this.sessionManager.getClusterManager(sessionId);
+      if (!clusterManager) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+      
+      // Load clusters into THIS SESSION's cluster manager only
+      // Note: ONTAP_CLUSTERS env var is ignored in HTTP mode for security
+      loadClusters(clusterManager, request.params.initializationOptions);
+      
+      console.error(`Session ${sessionId} initialized with ${clusterManager.listClusters().length} cluster(s)`);
       
       // Tools are already registered in start() - don't re-register them
       
@@ -95,7 +103,16 @@ export class HttpTransport implements BaseTransport {
     mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name: toolName, arguments: args } = request.params;
       
-      console.error(`=== MCP JSON-RPC - ${toolName} called ===`);
+      console.error(`=== MCP JSON-RPC - ${toolName} called (session: ${sessionId}) ===`);
+      
+      // Get this session's cluster manager
+      const clusterManager = this.sessionManager.getClusterManager(sessionId);
+      if (!clusterManager) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+      
+      // Update session activity
+      this.sessionManager.updateActivity(sessionId);
       
       const handler = getToolHandler(toolName);
       if (!handler) {
@@ -103,7 +120,8 @@ export class HttpTransport implements BaseTransport {
       }
 
       try {
-        const result = await handler(args || {}, this.clusterManager);
+        // Pass session-scoped cluster manager to tool handler
+        const result = await handler(args || {}, clusterManager);
         
         // Wrap result in MCP content format
         // Tools return strings - wrap them in content array
@@ -142,11 +160,21 @@ export class HttpTransport implements BaseTransport {
     this.app.get('/health', (req, res) => {
       const sessionStats = this.sessionManager.getStats();
       const config = this.sessionManager.getConfig();
+      
+      // Count total clusters across all sessions
+      let totalClusters = 0;
+      for (const sessionId of this.sessionManager.getSessionIds()) {
+        const clusterManager = this.sessionManager.getClusterManager(sessionId);
+        if (clusterManager) {
+          totalClusters += clusterManager.listClusters().length;
+        }
+      }
+      
       res.json({ 
         status: 'healthy',
         server: 'NetApp ONTAP MCP Server',
         version: '2.0.0',
-        clusters: this.clusterManager.listClusters().length,
+        clusters: totalClusters,
         sessions: {
           active: sessionStats.total,
           distribution: sessionStats.byAge
@@ -179,8 +207,8 @@ export class HttpTransport implements BaseTransport {
           this.sessionManager.remove(sessionId, 'manual_close');
         };
         
-        // Create a new MCP server instance for this connection
-        const mcpServer = this.createMcpServer();
+        // Create a new MCP server instance for this connection with session context
+        const mcpServer = this.createMcpServer(sessionId);
         
         // Connect MCP server to transport
         await mcpServer.connect(transport);
@@ -210,6 +238,8 @@ export class HttpTransport implements BaseTransport {
       const sessionMetadata = this.sessionManager.get(sessionId);
       
       if (!sessionMetadata) {
+        // Security: Add delay to prevent session ID scanning
+        await new Promise(resolve => setTimeout(resolve, 5000));
         return res.status(404).json({ error: 'Session not found or expired' });
       }
       
@@ -229,8 +259,9 @@ export class HttpTransport implements BaseTransport {
   }
 
   async start(port: number = 3000): Promise<void> {
-    // Load clusters from environment
-    loadClusters(this.clusterManager);
+    // NOTE: In HTTP mode, clusters are NOT loaded from ONTAP_CLUSTERS env var
+    // Each session loads its own clusters via MCP initialize or add_cluster tool
+    // This provides session isolation for security
     
     // Register all tools (only if not already registered)
     try {
@@ -272,6 +303,12 @@ export class HttpTransport implements BaseTransport {
   }
 
   getClusterManager(): OntapClusterManager {
-    return this.clusterManager;
+    // HTTP mode uses session-scoped cluster managers for security
+    // Tools receive the appropriate manager via the CallTool handler
+    throw new Error(
+      'getClusterManager() not supported in HTTP mode. ' +
+      'HTTP mode uses session-scoped cluster managers for security isolation. ' +
+      'Use sessionManager.getClusterManager(sessionId) instead.'
+    );
   }
 }

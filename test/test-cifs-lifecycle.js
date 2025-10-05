@@ -34,9 +34,13 @@ function loadClusters() {
 // Get clusters from the MCP server via HTTP API
 async function getClustersFromServer(httpPort = 3000) {
   try {
-    // Initialize MCP client
+    // Create new session - HTTP/SSE architecture requires this
     const mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
     await mcpClient.initialize();
+    
+    // Load clusters into session
+    const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+    await loadClustersIntoSession(mcpClient);
     
     // Add retry mechanism for server startup
     let result;
@@ -247,8 +251,14 @@ class CifsShareLifecycleTest {
   async callHttpTool(toolName, args) {
     // Initialize MCP client if not already done
     if (!this.mcpClient) {
+      // Create new session and load clusters
+      console.log('🆕 Creating new test session and loading clusters');
       this.mcpClient = new McpTestClient(`http://localhost:${this.httpPort}`);
       await this.mcpClient.initialize();
+      
+      // Load clusters into session
+      const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+      await loadClustersIntoSession(this.mcpClient);
     }
 
     // Call tool and return result

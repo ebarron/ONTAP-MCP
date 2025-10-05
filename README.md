@@ -52,16 +52,18 @@ cp test/clusters.json.example test/clusters.json
 
 #### Option B: HTTP/SSE Transport (Browser/Web Apps)
 ```bash
-# Set cluster configuration
-export ONTAP_CLUSTERS='[{"name":"cluster1","cluster_ip":"10.1.1.1","username":"admin","password":"password"}]'
-
-# Start HTTP server
+# Start HTTP server (no clusters pre-loaded for security)
 node build/index.js --http=3000
 
 # MCP endpoints available at:
-# GET http://localhost:3000/mcp (SSE stream)
+# GET http://localhost:3000/mcp (SSE stream - creates session)
 # POST http://localhost:3000/messages?sessionId=xxx (JSON-RPC requests)
 ```
+
+**🔒 Session-Scoped Security:** HTTP mode uses isolated cluster registries per session. Clusters must be added via the `add_cluster` tool or MCP initialize options. See [Session Architecture](#session-architecture) below.
+
+**For STDIO Mode:** Clusters are loaded globally from `ONTAP_CLUSTERS` env var (single-user context).
+**For HTTP Mode:** Each session maintains isolated clusters (multi-tenant security).
 
 ## 🛠️ MCP Tools (55 Total)
 
@@ -123,6 +125,47 @@ node build/index.js --http=3000
 
 **Note**: All 55 tools work identically in both transport modes.
 
+## 🔒 Session Architecture
+
+### STDIO Mode (Single-User)
+- **Global Cluster Manager**: All clusters loaded from `ONTAP_CLUSTERS` env var at startup
+- **Shared State**: Single cluster registry for the VS Code instance
+- **Security**: Appropriate for single-user desktop environment
+
+### HTTP Mode (Multi-Tenant)
+- **Session-Scoped Cluster Managers**: Each HTTP/SSE session has isolated cluster registry
+- **No Cross-Session Access**: Session A cannot see or access Session B's clusters
+- **Automatic Cleanup**: Session expiration removes all cluster credentials from memory
+- **Security**: Prevents unauthorized access in multi-user/browser scenarios
+
+**How Clusters are Loaded:**
+
+**STDIO Mode:**
+```bash
+# Clusters loaded globally at startup
+export ONTAP_CLUSTERS='[{...}]'
+node build/index.js
+```
+
+**HTTP Mode:**
+```bash
+# No clusters pre-loaded (security)
+node build/index.js --http=3000
+
+# Clusters must be added per session via:
+# 1. MCP initialize with initializationOptions
+# 2. add_cluster tool call
+# 3. Demo auto-load from clusters.json (browser only)
+```
+
+**Session Lifecycle (HTTP Mode):**
+1. Client connects → `GET /mcp` → Creates SSE session with unique ID
+2. Client adds clusters → `add_cluster` tool → Clusters stored in THIS session only
+3. Client makes requests → Uses session ID → Accesses only session's clusters
+4. Session expires → Server removes session + all cluster credentials
+
+See `SESSION_ISOLATION_IMPLEMENTATION.md` for technical details.
+
 ## 📚 Documentation
 
 ### Quick Access
@@ -153,7 +196,7 @@ npm run start:http         # Test HTTP mode
 ### Environment Variables
 
 #### Cluster Configuration
-- **`ONTAP_CLUSTERS`** (required): JSON array of cluster configurations
+- **`ONTAP_CLUSTERS`** (STDIO mode only): JSON array of cluster configurations loaded at startup
   ```bash
   export ONTAP_CLUSTERS='[{
     "name": "prod-cluster",
@@ -163,6 +206,7 @@ npm run start:http         # Test HTTP mode
     "description": "Production Cluster"
   }]'
   ```
+  **Note:** HTTP mode does NOT use this env var. Clusters must be added per session via `add_cluster` tool for security.
 
 #### Harvest Metrics Integration (Optional)
 - **`HARVEST_TSDB_URL`** (optional): Prometheus/VictoriaMetrics URL for performance metrics
