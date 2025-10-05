@@ -148,6 +148,68 @@ npm run start:http         # Test HTTP mode
 ./test/run-all-tests.sh    # Run comprehensive test suite
 ```
 
+## ⚙️ Configuration
+
+### Environment Variables
+
+#### Cluster Configuration
+- **`ONTAP_CLUSTERS`** (required): JSON array of cluster configurations
+  ```bash
+  export ONTAP_CLUSTERS='[{
+    "name": "prod-cluster",
+    "cluster_ip": "10.1.1.1",
+    "username": "admin",
+    "password": "password",
+    "description": "Production Cluster"
+  }]'
+  ```
+
+#### Harvest Metrics Integration (Optional)
+- **`HARVEST_TSDB_URL`** (optional): Prometheus/VictoriaMetrics URL for performance metrics
+  ```bash
+  export HARVEST_TSDB_URL='http://prometheus-server:9090'
+  ```
+  When set, enables 9 additional Prometheus metrics tools (56 total tools)
+
+- **`HARVEST_TSDB_TIMEOUT`** (optional, default: `30s`): Query timeout for metrics requests
+  ```bash
+  export HARVEST_TSDB_TIMEOUT='60s'  # For slower systems
+  ```
+
+#### HTTP Session Management (HTTP Transport Only)
+- **`MCP_SESSION_INACTIVITY_TIMEOUT`** (optional, default: `1200000` = 20 minutes): Session timeout in milliseconds after last activity
+  ```bash
+  export MCP_SESSION_INACTIVITY_TIMEOUT='1800000'  # 30 minutes
+  ```
+
+- **`MCP_SESSION_MAX_LIFETIME`** (optional, default: `86400000` = 24 hours): Maximum session lifetime in milliseconds
+  ```bash
+  export MCP_SESSION_MAX_LIFETIME='43200000'  # 12 hours
+  ```
+
+### Session Management Details
+
+When running in HTTP mode, the server implements intelligent session management:
+
+**Session Lifecycle:**
+1. Client connects to `GET /mcp` → Creates SSE stream with unique session ID
+2. Client uses session ID for all `POST /messages?sessionId=xxx` requests
+3. Server tracks last activity timestamp for each session
+4. Sessions expire based on:
+   - **Inactivity timeout**: Session expires after N minutes of no requests (default: 20 minutes)
+   - **Max lifetime**: Session expires after N hours regardless of activity (default: 24 hours)
+5. Expired sessions are automatically cleaned up every 60 seconds
+
+**Monitoring:**
+- Session statistics available at `GET /health` endpoint
+- Shows active session count and age distribution
+- Displays current timeout configuration
+
+**Best Practices:**
+- Use shorter inactivity timeouts for public-facing deployments
+- Increase max lifetime for long-running administrative sessions
+- Monitor session counts to detect connection leaks
+
 ## 🖥️ Demo Interface
 
 A complete web-based demonstration interface showcases all MCP capabilities through an authentic NetApp BlueXP-style interface. The demo uses the MCP SSE protocol and provides:

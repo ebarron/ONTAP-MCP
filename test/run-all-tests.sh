@@ -141,6 +141,23 @@ run_test "QoS Policy Lifecycle (STDIO Mode)" "node test/test-qos-lifecycle.js st
 # Test 19: QoS Policy Lifecycle Test (HTTP Mode)
 run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/test-qos-lifecycle.js http --server-running"
 
+# Test 20: Session Management (HTTP Mode Only)
+# Note: This test starts its own server with custom timeouts, so we stop the shared server first
+echo ""
+log "=== Stopping Shared HTTP Server for Session Management Test ==="
+kill $SERVER_PID 2>/dev/null || true
+wait $SERVER_PID 2>/dev/null || true
+log "Server stopped (PID: $SERVER_PID)"
+
+run_test "Session Management (HTTP Mode)" "node test/test-session-management.js"
+
+# Restart shared server for any remaining tests (currently none, but for consistency)
+log "=== Restarting Shared HTTP Server ==="
+node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
+SERVER_PID=$!
+log "Server restarted with PID: $SERVER_PID"
+sleep 2
+
 echo ""
 log "=== Stopping Shared HTTP Server ==="
 if [ ! -z "$SERVER_PID" ]; then

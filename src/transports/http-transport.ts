@@ -22,15 +22,42 @@ import {
   getToolHandler 
 } from "../registry/tool-registry.js";
 
+/**
+ * Session metadata for tracking activity and lifecycle
+ */
+interface SessionMetadata {
+  transport: SSEServerTransport;
+  createdAt: Date;
+  lastActivityAt: Date;
+  activityCount: number;
+}
+
 export class HttpTransport implements BaseTransport {
   private app: express.Application;
   private clusterManager: OntapClusterManager;
   private server: any;
-  private transports: Map<string, SSEServerTransport> = new Map();
+  private transports: Map<string, SessionMetadata> = new Map();
+  private sessionCleanupInterval: NodeJS.Timeout | null = null;
+  
+  // Session timeout configuration (in milliseconds)
+  private readonly INACTIVITY_TIMEOUT: number;
+  private readonly MAX_SESSION_LIFETIME: number;
+  private readonly CLEANUP_INTERVAL: number = 60000; // Check every 60 seconds
 
   constructor() {
     this.app = express();
     this.clusterManager = new OntapClusterManager();
+    
+    // Configure session timeouts from environment variables
+    // Default: 20 minutes inactivity timeout
+    this.INACTIVITY_TIMEOUT = parseInt(process.env.MCP_SESSION_INACTIVITY_TIMEOUT || '1200000', 10);
+    // Default: 24 hours max session lifetime
+    this.MAX_SESSION_LIFETIME = parseInt(process.env.MCP_SESSION_MAX_LIFETIME || '86400000', 10);
+    
+    console.error(`Session Management Configuration:`);
+    console.error(`  - Inactivity timeout: ${this.INACTIVITY_TIMEOUT / 1000 / 60} minutes`);
+    console.error(`  - Max session lifetime: ${this.MAX_SESSION_LIFETIME / 1000 / 60 / 60} hours`);
+    console.error(`  - Cleanup interval: ${this.CLEANUP_INTERVAL / 1000} seconds`);
     
     this.setupMiddleware();
     this.setupRoutes();
@@ -132,11 +159,20 @@ export class HttpTransport implements BaseTransport {
     // Health check endpoint
     console.error('Registering health check endpoint');
     this.app.get('/health', (req, res) => {
+      const sessionStats = this.getSessionStats();
       res.json({ 
         status: 'healthy',
         server: 'NetApp ONTAP MCP Server',
         version: '2.0.0',
-        clusters: this.clusterManager.listClusters().length
+        clusters: this.clusterManager.listClusters().length,
+        sessions: {
+          active: sessionStats.total,
+          distribution: sessionStats.byAge
+        },
+        sessionConfig: {
+          inactivityTimeoutMinutes: this.INACTIVITY_TIMEOUT / 1000 / 60,
+          maxLifetimeHours: this.MAX_SESSION_LIFETIME / 1000 / 60 / 60
+        }
       });
     });
 
@@ -150,15 +186,21 @@ export class HttpTransport implements BaseTransport {
         // Create SSE transport (messages will be posted to /messages)
         const transport = new SSEServerTransport('/messages', res);
         
-        // Store transport by session ID for message routing
+        // Store transport with session metadata
         const sessionId = transport.sessionId;
-        this.transports.set(sessionId, transport);
+        const now = new Date();
+        this.transports.set(sessionId, {
+          transport,
+          createdAt: now,
+          lastActivityAt: now,
+          activityCount: 0
+        });
         console.error(`Created SSE transport with session ID: ${sessionId}`);
         
         // Set up cleanup handler
         transport.onclose = () => {
           console.error(`SSE transport closed for session ${sessionId}`);
-          this.transports.delete(sessionId);
+          this.removeSession(sessionId);
         };
         
         // Create a new MCP server instance for this connection
@@ -188,16 +230,20 @@ export class HttpTransport implements BaseTransport {
         return res.status(400).json({ error: 'Missing sessionId parameter' });
       }
       
-      // Get the transport for this session
-      const transport = this.transports.get(sessionId);
+      // Get the session metadata for this session
+      const sessionMetadata = this.transports.get(sessionId);
       
-      if (!transport) {
-        return res.status(404).json({ error: 'Session not found' });
+      if (!sessionMetadata) {
+        return res.status(404).json({ error: 'Session not found or expired' });
       }
+      
+      // Update session activity
+      sessionMetadata.lastActivityAt = new Date();
+      sessionMetadata.activityCount++;
       
       try {
         // Handle the POST message with the transport
-        await transport.handlePostMessage(req, res, req.body);
+        await sessionMetadata.transport.handlePostMessage(req, res, req.body);
       } catch (error) {
         console.error('Error handling MCP message:', error);
         if (!res.headersSent) {
@@ -205,6 +251,88 @@ export class HttpTransport implements BaseTransport {
         }
       }
     });
+  }
+
+  /**
+   * Remove session and clean up resources
+   */
+  private removeSession(sessionId: string): void {
+    const sessionMetadata = this.transports.get(sessionId);
+    if (sessionMetadata) {
+      const lifetime = Date.now() - sessionMetadata.createdAt.getTime();
+      console.error(`Session ${sessionId} removed after ${Math.round(lifetime / 1000)}s (${sessionMetadata.activityCount} requests)`);
+      this.transports.delete(sessionId);
+    }
+  }
+
+  /**
+   * Check for expired sessions and clean them up
+   */
+  private cleanupExpiredSessions(): void {
+    const now = Date.now();
+    let expiredCount = 0;
+    
+    for (const [sessionId, metadata] of this.transports.entries()) {
+      const sessionAge = now - metadata.createdAt.getTime();
+      const timeSinceLastActivity = now - metadata.lastActivityAt.getTime();
+      
+      let reason: string | null = null;
+      
+      // Check max lifetime
+      if (sessionAge > this.MAX_SESSION_LIFETIME) {
+        reason = `max lifetime exceeded (${Math.round(sessionAge / 1000 / 60 / 60)} hours)`;
+      }
+      // Check inactivity timeout
+      else if (timeSinceLastActivity > this.INACTIVITY_TIMEOUT) {
+        reason = `inactivity timeout (${Math.round(timeSinceLastActivity / 1000 / 60)} minutes idle)`;
+      }
+      
+      if (reason) {
+        console.error(`Expiring session ${sessionId}: ${reason}`);
+        try {
+          metadata.transport.close();
+        } catch (error) {
+          console.error(`Error closing transport for session ${sessionId}:`, error);
+        }
+        this.removeSession(sessionId);
+        expiredCount++;
+      }
+    }
+    
+    if (expiredCount > 0) {
+      console.error(`Cleaned up ${expiredCount} expired session(s). Active sessions: ${this.transports.size}`);
+    }
+  }
+
+  /**
+   * Get session statistics for monitoring
+   */
+  private getSessionStats(): { total: number; byAge: Record<string, number> } {
+    const now = Date.now();
+    const stats = {
+      total: this.transports.size,
+      byAge: {
+        '< 5min': 0,
+        '5-20min': 0,
+        '20min-1hr': 0,
+        '1-6hr': 0,
+        '6-24hr': 0,
+        '> 24hr': 0
+      }
+    };
+    
+    for (const metadata of this.transports.values()) {
+      const ageMinutes = (now - metadata.createdAt.getTime()) / 1000 / 60;
+      
+      if (ageMinutes < 5) stats.byAge['< 5min']++;
+      else if (ageMinutes < 20) stats.byAge['5-20min']++;
+      else if (ageMinutes < 60) stats.byAge['20min-1hr']++;
+      else if (ageMinutes < 360) stats.byAge['1-6hr']++;
+      else if (ageMinutes < 1440) stats.byAge['6-24hr']++;
+      else stats.byAge['> 24hr']++;
+    }
+    
+    return stats;
   }
 
   async start(port: number = 3000): Promise<void> {
@@ -222,6 +350,13 @@ export class HttpTransport implements BaseTransport {
       }
     }
     
+    // Start session cleanup interval
+    this.sessionCleanupInterval = setInterval(() => {
+      this.cleanupExpiredSessions();
+    }, this.CLEANUP_INTERVAL);
+    
+    console.error('Session cleanup job started');
+    
     return new Promise((resolve) => {
       this.server = this.app.listen(port, () => {
         console.error(`NetApp ONTAP MCP Server running on HTTP port ${port}`);
@@ -234,11 +369,18 @@ export class HttpTransport implements BaseTransport {
   }
 
   async stop(): Promise<void> {
+    // Stop session cleanup interval
+    if (this.sessionCleanupInterval) {
+      clearInterval(this.sessionCleanupInterval);
+      this.sessionCleanupInterval = null;
+      console.error('Session cleanup job stopped');
+    }
+    
     // Close all active SSE transports
-    for (const [sessionId, transport] of this.transports.entries()) {
+    for (const [sessionId, sessionMetadata] of this.transports.entries()) {
       try {
         console.error(`Closing transport for session ${sessionId}`);
-        await transport.close();
+        await sessionMetadata.transport.close();
       } catch (error) {
         console.error(`Error closing transport for session ${sessionId}:`, error);
       }
