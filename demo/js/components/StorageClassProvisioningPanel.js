@@ -269,15 +269,8 @@ class StorageClassProvisioningPanel {
                 // Clear and populate dropdown
                 exportSelect.innerHTML = '<option value="">Select an Export Policy...</option>';
                 
-                // Extract text content from API response
-                let textContent = '';
-                if (typeof response === 'string') {
-                    textContent = response;
-                } else if (response && response.data && typeof response.data === 'string') {
-                    textContent = response.data;
-                } else if (response && response.success && response.data) {
-                    textContent = response.data;
-                }
+                // Response is now text from Streamable HTTP client
+                const textContent = (response && typeof response === 'string') ? response : '';
                 
                 console.log('Extracted text content:', textContent);
                 
@@ -466,14 +459,15 @@ class StorageClassProvisioningPanel {
         console.log('Creating NFS volume with params:', volumeParams);
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
-        if (response && response.success !== false) {
+        // Response is now text from Streamable HTTP client
+        if (response && typeof response === 'string' && response.includes('successfully')) {
             const successMsg = `NFS volume "${volumeName}" created successfully with ${this.selectedStorageClass.name} storage class` +
                 (volumeParams.qos_policy ? ` and QoS policy "${volumeParams.qos_policy}"` : '') +
                 (volumeParams.snapshot_policy ? ` and snapshot policy "${volumeParams.snapshot_policy}"` : '');
             this.notifications.showSuccess(successMsg);
             this.close();
         } else {
-            throw new Error(response?.error || 'Volume creation failed');
+            throw new Error(typeof response === 'string' ? response : 'Volume creation failed');
         }
     }
 
@@ -517,14 +511,15 @@ class StorageClassProvisioningPanel {
         console.log('Creating CIFS volume with params:', volumeParams);
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
-        if (response && response.success !== false) {
+        // Response is now text from Streamable HTTP client
+        if (response && typeof response === 'string' && response.includes('successfully')) {
             const successMsg = `CIFS volume "${volumeName}" with share "${shareName}" created successfully with ${this.selectedStorageClass.name} storage class` +
                 (volumeParams.qos_policy ? ` and QoS policy "${volumeParams.qos_policy}"` : '') +
                 (volumeParams.snapshot_policy ? ` and snapshot policy "${volumeParams.snapshot_policy}"` : '');
             this.notifications.showSuccess(successMsg);
             this.close();
         } else {
-            throw new Error(response?.error || 'Volume creation failed');
+            throw new Error(typeof response === 'string' ? response : 'Volume creation failed');
         }
     }
 }

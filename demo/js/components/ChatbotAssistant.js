@@ -653,31 +653,21 @@ Available tools: {{TOOLS_COUNT}}`;
             // Use the client manager for automatic routing to correct server
             const result = await this.demo.clientManager.callTool(name, parsedArgs);
 
-            if (!result.success) {
+            // Response is now text from Streamable HTTP client (via McpApiClient)
+            if (!result || typeof result !== 'string') {
                 // 🔍 DIAGNOSTIC: Capture error details for problematic tools
                 if (problematicTools.includes(name)) {
                     console.log(`🚨 DIAGNOSTIC ERROR [${name}]:`, {
-                        error: result.error,
-                        sentParams: parsedArgs
+                        error: 'Invalid response format',
+                        sentParams: parsedArgs,
+                        receivedResult: result
                     });
                 }
-                throw new Error(result.error || 'MCP call failed');
+                throw new Error('MCP call failed - invalid response');
             }
 
-            // Extract text content from parsed data
-            // The McpApiClient already parsed the response, so result.data contains the parsed content
-            let textContent;
-            if (typeof result.data === 'string') {
-                textContent = result.data;
-            } else if (Array.isArray(result.data)) {
-                textContent = JSON.stringify(result.data, null, 2);
-            } else if (typeof result.data === 'object') {
-                textContent = JSON.stringify(result.data, null, 2);
-            } else {
-                textContent = String(result.data);
-            }
-
-            return textContent;
+            // Result is already text content from McpApiClient.parseContent()
+            return result;
         } catch (error) {
             console.error(`Error executing MCP tool ${name}:`, error);
             return `Error: Failed to execute ${name} - ${error.message}`;

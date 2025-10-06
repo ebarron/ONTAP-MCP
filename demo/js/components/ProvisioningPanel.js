@@ -215,23 +215,20 @@ class ProvisioningPanel {
             });
 
             const svmSelect = document.getElementById('svmSelect');
-            if (response.success) {
-                // Handle different response formats
-                let svms = [];
-                if (Array.isArray(response.data)) {
-                    svms = response.data;
-                } else if (typeof response.data === 'string') {
-                    // Parse text response - look for data SVMs specifically
-                    const lines = response.data.split('\n');
-                    for (const line of lines) {
-                        // Look for lines that start with "- " and contain SVM info
-                        // Format: "- vs123 (uuid) - State: running" or "- svm143 (uuid) - State: running"
-                        const svmMatch = line.match(/^-\s+(\w+)\s+\([^)]+\)\s+-\s+State:\s+running/);
-                        if (svmMatch) {
-                            const svmName = svmMatch[1];
-                            if (svmName && svmName !== 'Name:') {
-                                svms.push({ name: svmName });
-                            }
+            
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
+                // Parse text response - look for data SVMs specifically
+                const svms = [];
+                const lines = response.split('\n');
+                for (const line of lines) {
+                    // Look for lines that start with "- " and contain SVM info
+                    // Format: "- vs123 (uuid) - State: running" or "- svm143 (uuid) - State: running"
+                    const svmMatch = line.match(/^-\s+([^\s(]+)\s*\(/);
+                    if (svmMatch) {
+                        const svmName = svmMatch[1];
+                        if (svmName && svmName !== 'Name:') {
+                            svms.push({ name: svmName });
                         }
                     }
                 }
@@ -305,13 +302,8 @@ class ProvisioningPanel {
             // Parse the response to extract policy names
             let policyOptions = [];
             
-            // Extract the actual data from the MCP response
-            let responseText = '';
-            if (response && response.success && response.data) {
-                responseText = response.data;
-            } else if (typeof response === 'string') {
-                responseText = response;
-            }
+            // Response is now text from Streamable HTTP client
+            const responseText = (response && typeof response === 'string') ? response : '';
             
             if (responseText) {
                 // Parse the formatted response to extract policy names
@@ -368,20 +360,19 @@ class ProvisioningPanel {
             const aggregateSelect = document.getElementById('aggregateSelect');
             aggregateSelect.disabled = false;
             
-            if (response.success) {
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
                 let aggregates = [];
                 
-                if (typeof response.data === 'string') {
-                    // Parse text response for aggregates
-                    const lines = response.data.split('\n');
-                    for (const line of lines) {
-                        // Look for aggregate names in the format: "- aggregate_name (uuid) - State: online"
-                        const aggregateMatch = line.match(/^-\s+([^\s(]+)\s*\(/);
-                        if (aggregateMatch) {
-                            const aggregateName = aggregateMatch[1].trim();
-                            if (aggregateName && !aggregates.find(a => a.name === aggregateName)) {
-                                aggregates.push({ name: aggregateName });
-                            }
+                // Parse text response for aggregates
+                const lines = response.split('\n');
+                for (const line of lines) {
+                    // Look for aggregate names in the format: "- aggregate_name (uuid) - State: online"
+                    const aggregateMatch = line.match(/^-\s+([^\s(]+)\s*\(/);
+                    if (aggregateMatch) {
+                        const aggregateName = aggregateMatch[1].trim();
+                        if (aggregateName && !aggregates.find(a => a.name === aggregateName)) {
+                            aggregates.push({ name: aggregateName });
                         }
                     }
                 }
@@ -428,11 +419,11 @@ class ProvisioningPanel {
 
             const exportSelect = document.getElementById('exportPolicy');
             
-            if (result.success && result.data) {
+            // Response is now text from Streamable HTTP client
+            if (result && typeof result === 'string') {
                 // Parse export policies from response
                 const policies = [];
-                const responseText = typeof result.data === 'string' ? result.data : result.data.toString();
-                const lines = responseText.split('\n');
+                const lines = result.split('\n');
                 
                 for (const line of lines) {
                     // Parse lines like "🔐 **policy-name** (ID: policy-id)"
@@ -542,11 +533,12 @@ class ProvisioningPanel {
 
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
-        if (response.success) {
+        // Response is now text from Streamable HTTP client
+        if (response && typeof response === 'string' && response.includes('successfully')) {
             this.notifications.showSuccess(`NFS volume ${volumeName} created successfully${qosPolicy ? ` with QoS policy ${qosPolicy}` : ''}`);
             this.close();
         } else {
-            throw new Error(response.error || 'Unknown error');
+            throw new Error(typeof response === 'string' ? response : 'Failed to create volume');
         }
     }
 
@@ -594,11 +586,12 @@ class ProvisioningPanel {
 
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
-        if (response.success) {
+        // Response is now text from Streamable HTTP client
+        if (response && typeof response === 'string' && response.includes('successfully')) {
             this.notifications.showSuccess(`CIFS volume ${volumeName} with share ${shareName} created successfully${qosPolicy ? ` with QoS policy ${qosPolicy}` : ''}`);
             this.close();
         } else {
-            throw new Error(response.error || 'Unknown error');
+            throw new Error(typeof response === 'string' ? response : 'Failed to create volume');
         }
     }
 
@@ -613,21 +606,21 @@ class ProvisioningPanel {
             const qosSelect = document.getElementById('qosPolicy');
             let policies = [];
 
-            if (response.success) {
+            // Response is now text from Streamable HTTP client
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
                 // Parse text response to extract policy names
-                if (typeof response.data === 'string') {
-                    const lines = response.data.split('\n');
-                    for (const line of lines) {
-                        // Look for lines with policy names, format: "🎛️ **policy_name** (uuid)"
-                        const policyMatch = line.match(/🎛️\s+\*\*([^*]+)\*\*\s+\(/);
-                        if (policyMatch) {
-                            const policyName = policyMatch[1].trim();
-                            if (policyName && policyName !== 'Unknown') {
-                                // Extract SVM info if available
-                                const svmMatch = line.match(/SVM:\s+([^\s\n]+)/);
-                                const policySvm = svmMatch ? svmMatch[1] : 'cluster';
-                                policies.push({ name: policyName, svm: policySvm });
-                            }
+                const lines = response.split('\n');
+                for (const line of lines) {
+                    // Look for lines with policy names, format: "🎛️ **policy_name** (uuid)"
+                    const policyMatch = line.match(/🎛️\s+\*\*([^*]+)\*\*\s+\(/);
+                    if (policyMatch) {
+                        const policyName = policyMatch[1].trim();
+                        if (policyName && policyName !== 'Unknown') {
+                            // Extract SVM info if available
+                            const svmMatch = line.match(/SVM:\s+([^\s\n]+)/);
+                            const policySvm = svmMatch ? svmMatch[1] : 'cluster';
+                            policies.push({ name: policyName, svm: policySvm });
                         }
                     }
                 }
@@ -682,8 +675,9 @@ class ProvisioningPanel {
             let allPolicies = [];
 
             // Parse cluster-wide policies (including admin policies)
-            if (clusterResponse.success && typeof clusterResponse.data === 'string') {
-                const lines = clusterResponse.data.split('\n');
+            // Response is now text from Streamable HTTP client
+            if (clusterResponse && typeof clusterResponse === 'string') {
+                const lines = clusterResponse.split('\n');
                 for (const line of lines) {
                     const policyMatch = line.match(/🎛️\s+\*\*([^*]+)\*\*\s+\(/);
                     if (policyMatch) {

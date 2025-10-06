@@ -169,11 +169,11 @@ if lsof -i :8080 >/dev/null 2>&1; then
     print_success "Port 8080 freed successfully"
 fi
 
-# Step 4: Start MCP HTTP server with all clusters
-print_status "Starting MCP HTTP server on port 3000..."
+# Step 4: Start MCP HTTP server with all clusters (Streamable HTTP transport)
+print_status "Starting MCP HTTP server on port 3000 (Streamable HTTP - MCP 2025-06-18)..."
 export ONTAP_CLUSTERS="$CLUSTERS_JSON"
 export HARVEST_TSDB_URL="http://10.193.49.74:9090"
-nohup node build/index.js --http=3000 > mcp-server.log 2>&1 &
+nohup node build/index.js --http=3000 --streamable > mcp-server.log 2>&1 &
 MCP_PID=$!
 
 # Wait for MCP server to start

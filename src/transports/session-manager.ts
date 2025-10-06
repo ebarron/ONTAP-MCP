@@ -44,6 +44,22 @@ export class SessionManager {
   }
 
   /**
+   * Create a new session with just a cluster manager (for Streamable HTTP)
+   * Streamable HTTP manages its own transports, so we only need the cluster manager here
+   */
+  create(sessionId: string): void {
+    const now = new Date();
+    this.sessions.set(sessionId, {
+      transport: null as any,  // Not used for Streamable HTTP
+      createdAt: now,
+      lastActivityAt: now,
+      activityCount: 0,
+      clusterManager: new OntapClusterManager()
+    });
+    console.error(`Session ${sessionId} created (Streamable HTTP). Active sessions: ${this.sessions.size}`);
+  }
+
+  /**
    * Get session metadata by ID
    */
   get(sessionId: string): SessionMetadata | undefined {

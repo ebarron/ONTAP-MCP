@@ -128,13 +128,15 @@ node build/index.js --http=3000
 ```
 
 ## Git/Version Control Guidelines
-- **🚨 CRITICAL: NEVER commit OR push without explicit user permission 🚨**
-- **NEVER use git push unless user explicitly requests it**
-- **NEVER use git commit unless user explicitly requests it**
+- **🚨🚨🚨 STOP! READ THIS FIRST! 🚨🚨🚨**
+- **NEVER EVER use `git commit` without user saying "commit this" or "check it in"**
+- **NEVER EVER use `git push` without user saying "push this" or "push to github"**
+- **When staging files (git add), ALWAYS end by saying: "Ready to commit when you give permission"**
+- **If you even THINK about committing, STOP and ask first**
 - Always build and test both transport modes before changes
 - Use test scripts to verify all 55 tools still register correctly
-- Wait for explicit git instructions - user controls all commits and pushes
 - Only stage changes (git add) and show status when making file changes
+- User controls ALL commits and pushes - no exceptions, no assumptions
 
 ## NetApp ONTAP Specifics
 - Uses ONTAP REST API v1/v2 with HTTPS
@@ -405,4 +407,13 @@ demo/js/
 - `test/test-volume-lifecycle.js`: Example of dual-transport testing
 - `test/mcp-test-client.js`: MCP SSE client for HTTP mode testing
 - `demo/CHATBOT_README.md`: AI assistant setup and configuration
+- `demo/CHATBOT_STRUCTURED_FORMAT.md`: Chatbot integration specifications
+
+## 🚨 FINAL REMINDER: GIT WORKFLOW 🚨
+**AFTER making code changes, ALWAYS:**
+1. ✅ Stage files with `git add`
+2. ✅ Show status with `git status`
+3. ✅ Say: "Ready to commit when you give permission"
+4. 🛑 **WAIT for user to say "commit" or "push"**
+5. 🛑 **NEVER commit or push on your own**
 - `demo/CHATBOT_STRUCTURED_FORMAT.md`: Chatbot integration specifications

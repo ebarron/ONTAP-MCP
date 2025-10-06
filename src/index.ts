@@ -263,11 +263,20 @@ async function startStdioServer() {
   console.error("NetApp ONTAP Multi-Cluster MCP Server running on stdio");
 }
 
-async function startHttpServer(port: number = 3000) {
-  // Use the HttpTransport class which implements MCP JSON-RPC 2.0 over SSE
-  const { HttpTransport } = await import('./transports/http-transport.js');
-  const transport = new HttpTransport();
-  await transport.start(port);
+async function startHttpServer(port: number = 3000, useStreamable: boolean = false) {
+  if (useStreamable) {
+    // Use the new Streamable HTTP transport (MCP 2025-06-18)
+    console.error('Starting with Streamable HTTP transport (2025-06-18 spec)...');
+    const { StreamableHttpTransport } = await import('./transports/streamable-http-transport.js');
+    const transport = new StreamableHttpTransport();
+    await transport.start(port);
+  } else {
+    // Use the legacy HTTP+SSE transport (MCP 2024-11-05)
+    console.error('Starting with legacy HTTP+SSE transport (2024-11-05 spec)...');
+    const { HttpTransport } = await import('./transports/http-transport.js');
+    const transport = new HttpTransport();
+    await transport.start(port);
+  }
 }
 
 async function main() {
@@ -276,13 +285,17 @@ async function main() {
   const httpArg = args.find(arg => arg.startsWith('--http'));
   const port = httpArg ? parseInt(httpArg.split('=')[1]) || 3000 : 3000;
   
+  // Check for streamable HTTP flag
+  const useStreamable = args.includes('--streamable') || 
+                        process.env.MCP_USE_STREAMABLE_HTTP === 'true';
+  
   // Check for both --http flag and positional argument
   const isHttpMode = args.includes('--http') || httpArg || args[0] === 'http';
   const httpPort = args[0] === 'http' && args[1] ? parseInt(args[1]) || 3000 : port;
   
   if (isHttpMode) {
-    // HTTP mode
-    await startHttpServer(httpPort);
+    // HTTP mode (legacy or streamable based on flag)
+    await startHttpServer(httpPort, useStreamable);
   } else {
     // Default: STDIO mode
     await startStdioServer();

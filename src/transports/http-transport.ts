@@ -71,9 +71,16 @@ export class HttpTransport implements BaseTransport {
         throw new Error(`Session ${sessionId} not found`);
       }
       
-      // Load clusters into THIS SESSION's cluster manager only
-      // Note: ONTAP_CLUSTERS env var is ignored in HTTP mode for security
+      // Load clusters into THIS SESSION's cluster manager
+      // Priority: initializationOptions > environment variables
       loadClusters(clusterManager, request.params.initializationOptions);
+      
+      // Backwards compatibility: If no clusters loaded from initializationOptions,
+      // fall back to environment variables (for legacy tests)
+      if (clusterManager.listClusters().length === 0) {
+        console.error(`No clusters from initializationOptions, trying environment variables...`);
+        loadClusters(clusterManager);
+      }
       
       console.error(`Session ${sessionId} initialized with ${clusterManager.listClusters().length} cluster(s)`);
       

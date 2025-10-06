@@ -44,7 +44,7 @@ try {
 async function startTestServer() {
   console.log('Starting test server with custom session timeouts...');
   
-  const serverProcess = spawn('node', ['build/index.js', '--http=3000'], {
+  const serverProcess = spawn('node', ['build/index.js', '--http=3000', '--streamable'], {
     cwd: process.cwd(),
     env: {
       ...process.env,

@@ -166,11 +166,12 @@ class OntapMcpDemo {
                         description: cluster.description || `Auto-loaded from clusters.json`
                     });
                     
-                    if (result.success) {
+                    // Result is now text from Streamable HTTP client
+                    if (result && result.includes('added successfully')) {
                         console.log(`  ✅ Added: ${cluster.name} (${cluster.cluster_ip})`);
                         successCount++;
                     } else {
-                        console.error(`  ❌ Failed to add ${cluster.name}:`, result.error);
+                        console.error(`  ❌ Failed to add ${cluster.name}:`, result);
                         failCount++;
                     }
                 } catch (error) {
@@ -372,15 +373,12 @@ class OntapMcpDemo {
             
             console.log('MCP Response:', response); // DEBUG
             
-            if (response.success) {
-                this.clusters = response.data || [];
+            // Parse text response from Streamable HTTP client
+            if (response && typeof response === 'string') {
+                this.clusters = this.parseClusterListFromText(response);
                 console.log('Parsed clusters:', this.clusters); // DEBUG
-                
-                if (!Array.isArray(this.clusters) && this.clusters) {
-                    this.clusters = [];
-                }
             } else {
-                this.notifications.showError('Failed to load clusters: ' + (response.error || 'Unknown error'));
+                this.notifications.showError('Failed to load clusters: Invalid response format');
                 this.clusters = [];
             }
         } catch (error) {
@@ -391,6 +389,29 @@ class OntapMcpDemo {
             this.showLoading(false);
             this.updateUI();
         }
+    }
+
+    /**
+     * Parse cluster list from MCP text response
+     * Format: "- cluster-name: 10.1.1.1 (description)"
+     */
+    parseClusterListFromText(textContent) {
+        const clusters = [];
+        const lines = textContent.split('\n');
+        
+        for (const line of lines) {
+            // Pattern: "- cluster-name: 10.1.1.1 (description)"
+            const match = line.match(/^-\s+([^:]+):\s+([^\s]+)\s+\(([^)]+)\)/);
+            if (match) {
+                clusters.push({
+                    name: match[1].trim(),
+                    cluster_ip: match[2].trim(),
+                    description: match[3].trim()
+                });
+            }
+        }
+        
+        return clusters;
     }
 
     async addCluster(clusterData) {
@@ -628,10 +649,11 @@ class OntapMcpDemo {
             
             const response = await this.apiClient.testClusterConnection(clusterName);
 
-            if (response.success) {
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string' && response.includes('successful')) {
                 this.notifications.showSuccess(`Connection to ${clusterName} successful`);
             } else {
-                this.notifications.showError(`Connection to ${clusterName} failed: ${response.error}`);
+                this.notifications.showError(`Connection to ${clusterName} failed: ${response || 'Unknown error'}`);
             }
         } catch (error) {
             this.notifications.showError(`Connection test failed: ${error.message}`);
@@ -676,11 +698,14 @@ class OntapMcpDemo {
                 cluster_name: this.currentCluster.name
             });
 
-            if (response.success) {
-                console.log('Volumes:', response.data);
-                this.showInfo(`Found ${Array.isArray(response.data) ? response.data.length : 0} volumes`);
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
+                console.log('Volumes:', response);
+                // Count volumes by counting lines that start with "- "
+                const volumeCount = (response.match(/^-\s+/gm) || []).length;
+                this.showInfo(`Found ${volumeCount} volumes`);
             } else {
-                this.showError('Failed to load volumes: ' + response.error);
+                this.showError('Failed to load volumes');
             }
         } catch (error) {
             this.showError('Error loading volumes: ' + error.message);
@@ -695,11 +720,12 @@ class OntapMcpDemo {
                 cluster_name: this.currentCluster.name
             });
 
-            if (response.success) {
-                console.log('Snapshot policies:', response.data);
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
+                console.log('Snapshot policies:', response);
                 this.showInfo('Snapshot policies loaded successfully');
             } else {
-                this.showError('Failed to load snapshot policies: ' + response.error);
+                this.showError('Failed to load snapshot policies');
             }
         } catch (error) {
             this.showError('Error loading snapshot policies: ' + error.message);
@@ -714,11 +740,12 @@ class OntapMcpDemo {
                 cluster_name: this.currentCluster.name
             });
 
-            if (response.success) {
-                console.log('Export policies:', response.data);
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
+                console.log('Export policies:', response);
                 this.showInfo('Export policies loaded successfully');
             } else {
-                this.showError('Failed to load export policies: ' + response.error);
+                this.showError('Failed to load export policies');
             }
         } catch (error) {
             this.showError('Error loading export policies: ' + error.message);
@@ -733,11 +760,12 @@ class OntapMcpDemo {
                 cluster_name: this.currentCluster.name
             });
 
-            if (response.success) {
-                console.log('CIFS shares:', response.data);
+            // Response is now text from Streamable HTTP client
+            if (response && typeof response === 'string') {
+                console.log('CIFS shares:', response);
                 this.showInfo('CIFS shares loaded successfully');
             } else {
-                this.showError('Failed to load CIFS shares: ' + response.error);
+                this.showError('Failed to load CIFS shares');
             }
         } catch (error) {
             this.showError('Error loading CIFS shares: ' + error.message);
