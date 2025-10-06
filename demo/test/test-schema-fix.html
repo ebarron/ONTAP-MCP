@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Schema Preprocessing Fix</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: #10b981; font-weight: 600; }
+        .error { color: #ef4444; font-weight: 600; }
+        .warning { color: #f59e0b; font-weight: 600; }
+        pre {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        button {
+            background: #0067C5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        .tool-schema {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9fafb;
+            border-left: 3px solid #0067C5;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Schema Preprocessing Test</h1>
+    <p>This test verifies that empty schema properties are correctly preprocessed for OpenAI compatibility.</p>
+
+    <div class="test-section">
+        <h2>Test 1: Load MCP Tools</h2>
+        <button onclick="testToolLoading()">Load Tools from MCP Servers</button>
+        <div id="tool-loading-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Check Schema Preprocessing</h2>
+        <button onclick="testSchemaPreprocessing()">Check Tool Schemas</button>
+        <div id="schema-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Simulate OpenAI Validation</h2>
+        <button onclick="testOpenAIValidation()">Validate Schemas</button>
+        <div id="validation-result"></div>
+    </div>
+
+    <script type="module">
+        import McpClientManager from '../js/core/McpClientManager.js';
+
+        let clientManager;
+        let tools = [];
+
+        window.testToolLoading = async function() {
+            const resultDiv = document.getElementById('tool-loading-result');
+            resultDiv.innerHTML = '<p>⏳ Loading tools...</p>';
+
+            try {
+                // Load MCP config
+                const response = await fetch('../mcp.json');
+                const config = await response.json();
+
+                // Initialize client manager
+                clientManager = new McpClientManager(config);
+                await clientManager.initialize();
+
+                // Discover all tools
+                tools = await clientManager.discoverAllTools();
+
+                resultDiv.innerHTML = `
+                    <p class="success">✅ Loaded ${tools.length} tools from MCP servers</p>
+                    <p>Tools with empty properties (need preprocessing):</p>
+                    <div id="empty-schema-tools"></div>
+                `;
+
+                // Find tools with empty properties
+                const emptySchemaTools = tools.filter(tool => {
+                    const schema = tool.inputSchema;
+                    return schema?.type === 'object' && 
+                           schema.properties && 
+                           Object.keys(schema.properties).length === 0;
+                });
+
+                const emptyToolsDiv = document.getElementById('empty-schema-tools');
+                if (emptySchemaTools.length > 0) {
+                    emptyToolsDiv.innerHTML = emptySchemaTools.map(tool => 
+                        `<div class="tool-schema">
+                            <strong>${tool.name}</strong>
+                            <pre>${JSON.stringify(tool.inputSchema, null, 2)}</pre>
+                        </div>`
+                    ).join('');
+                } else {
+                    emptyToolsDiv.innerHTML = '<p>None found (all schemas have properties)</p>';
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        };
+
+        window.testSchemaPreprocessing = function() {
+            const resultDiv = document.getElementById('schema-result');
+            
+            if (!tools || tools.length === 0) {
+                resultDiv.innerHTML = '<p class="warning">⚠️ Please run Test 1 first</p>';
+                return;
+            }
+
+            // Simulate the buildMCPTools() preprocessing
+            const preprocessedTools = tools.map(tool => {
+                let parameters = tool.inputSchema || {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                };
+
+                // Apply the same preprocessing as ChatbotAssistant
+                if (parameters.type === 'object' && 
+                    parameters.properties && 
+                    Object.keys(parameters.properties).length === 0) {
+                    
+                    parameters = {
+                        type: 'object',
+                        properties: {
+                            _unused: {
+                                type: 'string',
+                                description: 'Optional parameter (not used by this tool)',
+                                optional: true
+                            }
+                        },
+                        required: []
+                    };
+                }
+
+                return {
+                    name: tool.name,
+                    originalSchema: tool.inputSchema,
+                    preprocessedSchema: parameters
+                };
+            });
+
+            const preprocessedCount = preprocessedTools.filter(t => t.preprocessedSchema.properties?._unused).length;
+
+            resultDiv.innerHTML = `
+                <p class="success">✅ Preprocessed ${preprocessedCount} tools with empty schemas</p>
+                <p>Sample preprocessed tools:</p>
+                ${preprocessedTools.slice(0, 3).map(tool => `
+                    <div class="tool-schema">
+                        <strong>${tool.name}</strong>
+                        <p><strong>Before:</strong></p>
+                        <pre>${JSON.stringify(tool.originalSchema, null, 2)}</pre>
+                        <p><strong>After:</strong></p>
+                        <pre>${JSON.stringify(tool.preprocessedSchema, null, 2)}</pre>
+                    </div>
+                `).join('')}
+            `;
+        };
+
+        window.testOpenAIValidation = function() {
+            const resultDiv = document.getElementById('validation-result');
+            
+            if (!tools || tools.length === 0) {
+                resultDiv.innerHTML = '<p class="warning">⚠️ Please run Test 1 first</p>';
+                return;
+            }
+
+            // Simulate OpenAI's validation rules
+            const validateSchema = (schema) => {
+                if (schema.type === 'object' && schema.properties) {
+                    if (Object.keys(schema.properties).length === 0) {
+                        return { valid: false, error: 'object schema missing properties' };
+                    }
+                }
+                return { valid: true };
+            };
+
+            const results = tools.map(tool => {
+                // Test original schema
+                const originalValidation = validateSchema(tool.inputSchema || { type: 'object', properties: {} });
+                
+                // Test preprocessed schema
+                let preprocessedSchema = tool.inputSchema || { type: 'object', properties: {} };
+                if (preprocessedSchema.type === 'object' && 
+                    preprocessedSchema.properties && 
+                    Object.keys(preprocessedSchema.properties).length === 0) {
+                    preprocessedSchema = {
+                        type: 'object',
+                        properties: {
+                            _unused: { type: 'string', description: 'Optional', optional: true }
+                        },
+                        required: []
+                    };
+                }
+                const preprocessedValidation = validateSchema(preprocessedSchema);
+
+                return {
+                    name: tool.name,
+                    originalValid: originalValidation.valid,
+                    preprocessedValid: preprocessedValidation.valid,
+                    originalError: originalValidation.error,
+                    fixed: !originalValidation.valid && preprocessedValidation.valid
+                };
+            });
+
+            const failedOriginal = results.filter(r => !r.originalValid).length;
+            const failedPreprocessed = results.filter(r => !r.preprocessedValid).length;
+            const fixed = results.filter(r => r.fixed).length;
+
+            resultDiv.innerHTML = `
+                <h3>OpenAI Validation Results:</h3>
+                <p class="error">❌ Original schemas: ${failedOriginal} failed validation</p>
+                <p class="success">✅ Preprocessed schemas: ${failedPreprocessed} failed validation</p>
+                <p class="success">🔧 Fixed ${fixed} tools via preprocessing</p>
+                
+                ${fixed > 0 ? `
+                    <h4>Fixed Tools:</h4>
+                    ${results.filter(r => r.fixed).map(r => `
+                        <div class="tool-schema">
+                            <strong>${r.name}</strong>
+                            <p>Original error: ${r.originalError}</p>
+                            <p class="success">✅ Now passes validation</p>
+                        </div>
+                    `).join('')}
+                ` : ''}
+            `;
+        };
+    </script>
+</body>
+</html>

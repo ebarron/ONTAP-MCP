@@ -172,7 +172,7 @@ fi
 # Step 4: Start MCP HTTP server with all clusters (Streamable HTTP transport)
 print_status "Starting MCP HTTP server on port 3000 (Streamable HTTP - MCP 2025-06-18)..."
 export ONTAP_CLUSTERS="$CLUSTERS_JSON"
-export HARVEST_TSDB_URL="http://10.193.49.74:9090"
+# export HARVEST_TSDB_URL="http://10.193.49.74:9090"
 nohup node build/index.js --http=3000 > mcp-server.log 2>&1 &
 MCP_PID=$!
 

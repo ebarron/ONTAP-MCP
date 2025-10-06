@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head><title>Schema Diagnostic</title></head>
+<body>
+<h1>Schema Diagnostic</h1>
+<pre id="output"></pre>
+<script type="module">
+import McpClientManager from '../js/core/McpClientManager.js';
+
+const output = document.getElementById('output');
+
+async function checkSchemas() {
+    try {
+        // Load config
+        const response = await fetch('../mcp.json');
+        const config = await response.json();
+        
+        // Initialize
+        const manager = new McpClientManager(config);
+        await manager.initialize();
+        
+        // Get tools
+        const tools = await manager.listAllTools();
+        
+        output.textContent = 'Checking schemas for all tools:\n\n';
+        
+        tools.forEach(tool => {
+            const schema = tool.inputSchema;
+            const hasProps = schema && schema.properties;
+            const propCount = hasProps ? Object.keys(schema.properties).length : 0;
+            const needsFix = schema && schema.type === 'object' && propCount === 0;
+            
+            output.textContent += `${tool.name}:\n`;
+            output.textContent += `  Schema: ${JSON.stringify(schema, null, 2)}\n`;
+            output.textContent += `  Has properties: ${hasProps}\n`;
+            output.textContent += `  Property count: ${propCount}\n`;
+            output.textContent += `  Needs fix: ${needsFix}\n\n`;
+        });
+        
+    } catch (error) {
+        output.textContent = `Error: ${error.message}\n${error.stack}`;
+    }
+}
+
+checkSchemas();
+</script>
+</body>
+</html>

@@ -466,16 +466,44 @@ Available tools: {{TOOLS_COUNT}}`;
         // Use cached tool definitions if available
         if (this.toolDefinitions && this.toolDefinitions.length > 0) {
             this.toolDefinitions.forEach(toolDef => {
+                // Get the input schema, defaulting to object with empty properties
+                let parameters = toolDef.inputSchema ? 
+                    JSON.parse(JSON.stringify(toolDef.inputSchema)) : // Deep clone to avoid mutation
+                    {
+                        type: 'object',
+                        properties: {},
+                        required: []
+                    };
+
+                // OpenAI requires at least one property when type='object'
+                // This preprocesses schemas to match GitHub Copilot's behavior
+                if (parameters.type === 'object') {
+                    // Check if properties field is missing or empty
+                    const hasNoProperties = !parameters.properties || 
+                                          (typeof parameters.properties === 'object' && 
+                                           Object.keys(parameters.properties).length === 0);
+                    
+                    if (hasNoProperties) {
+                        // Add a dummy optional parameter to satisfy OpenAI's validation
+                        parameters.properties = {
+                            _unused: {
+                                type: 'string',
+                                description: 'Optional parameter (not used by this tool)',
+                                optional: true
+                            }
+                        };
+                        if (!parameters.required) {
+                            parameters.required = [];
+                        }
+                    }
+                }
+
                 const openAITool = {
                     type: 'function',
                     function: {
                         name: toolDef.name,
                         description: toolDef.description,
-                        parameters: toolDef.inputSchema || {
-                            type: 'object',
-                            properties: {},
-                            required: []
-                        }
+                        parameters: parameters
                     }
                 };
                 mcpTools.push(openAITool);
@@ -490,7 +518,13 @@ Available tools: {{TOOLS_COUNT}}`;
                         description: `NetApp ONTAP ${toolName} operation`,
                         parameters: {
                             type: 'object',
-                            properties: {},
+                            properties: {
+                                _unused: {
+                                    type: 'string',
+                                    description: 'Optional parameter (not used by this tool)',
+                                    optional: true
+                                }
+                            },
                             required: []
                         }
                     }
@@ -598,16 +632,18 @@ Available tools: {{TOOLS_COUNT}}`;
     }
 
     async getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth = 0, retryCount = 0) {
-        const maxRetries = 3; // Allow up to 3 retries for rate limit errors
+        const maxRetries = 4; // Allow up to 4 retries for rate limit errors
         
         try {
             return await this.getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth);
         } catch (error) {
             // If it's a rate limit error and we haven't exceeded max retries, wait and retry
             if (error.message.includes('Rate limit exceeded') && retryCount < maxRetries) {
-                // Smart retry delays: 3s, 5s, 7s (more reasonable than 10s, 20s, 30s)
-                const retryDelay = 3000 + (retryCount * 2000);
-                console.log(`Rate limit hit, waiting ${retryDelay}ms before retry ${retryCount + 1}/${maxRetries}...`);
+                // Progressive backoff: 3s, 5s, 7s, 15s (4th retry gets much longer delay)
+                const retryDelay = retryCount < 3 ? 
+                    3000 + (retryCount * 2000) :  // First 3 retries: 3s, 5s, 7s
+                    15000;                         // 4th retry: 15s
+                console.log(`⏳ Rate limit hit, waiting ${retryDelay}ms before retry ${retryCount + 1}/${maxRetries}...`);
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 return await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth, retryCount + 1);
             }
@@ -623,6 +659,13 @@ Available tools: {{TOOLS_COUNT}}`;
 
         try {
             const parsedArgs = JSON.parse(args);
+            
+            // Strip out the dummy _unused parameter added for OpenAI compatibility
+            // This parameter was added in buildMCPTools() to satisfy OpenAI's validation
+            // but should not be sent to the actual MCP server
+            if (parsedArgs._unused !== undefined) {
+                delete parsedArgs._unused;
+            }
             
             // Create unique signature for duplicate detection
             const toolSignature = `${name}:${JSON.stringify(parsedArgs, Object.keys(parsedArgs).sort())}`;
