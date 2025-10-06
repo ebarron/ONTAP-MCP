@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -292,7 +292,7 @@ class VolumeLifecycleTest {
         id: 1,
         method: 'initialize',
         params: {
-          protocolVersion: '2024-11-05',
+          protocolVersion: MCP_PROTOCOL_VERSION,
           capabilities: {},
           clientInfo: {
             name: 'test-client',
@@ -399,7 +399,7 @@ class VolumeLifecycleTest {
         id: 1,
         method: 'initialize',
         params: {
-          protocolVersion: '2024-11-05',
+          protocolVersion: MCP_PROTOCOL_VERSION,
           capabilities: {},
           clientInfo: {
             name: 'test-client',

@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,7 +177,7 @@ function initializeMcpServer(serverProcess) {
       id: 0,
       method: 'initialize',
       params: {
-        protocolVersion: '2024-11-05',
+        protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: {},
         clientInfo: { name: 'test-client', version: '1.0.0' }
       }

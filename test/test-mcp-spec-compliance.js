@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,8 +41,8 @@ async function testMcpCompliance() {
     console.log(`   ✅ Protocol version: ${initResult.protocolVersion}`);
     console.log(`   ✅ Server: ${initResult.serverInfo.name} v${initResult.serverInfo.version}`);
 
-    if (initResult.protocolVersion !== '2024-11-05') {
-      console.error(`❌ FAILED: Expected protocol version 2024-11-05, got ${initResult.protocolVersion}`);
+    if (initResult.protocolVersion !== MCP_PROTOCOL_VERSION) {
+      console.error(`❌ FAILED: Expected protocol version ${MCP_PROTOCOL_VERSION}, got ${initResult.protocolVersion}`);
       process.exit(1);
     }
 
@@ -159,7 +159,7 @@ async function testMcpCompliance() {
   console.log('✅ Session management via GET /mcp: COMPLIANT');
   console.log('✅ Message routing via POST /messages: COMPLIANT');
   console.log('✅ JSON-RPC 2.0 protocol: COMPLIANT');
-  console.log('✅ MCP protocol version 2024-11-05: COMPLIANT');
+  console.log(`✅ MCP protocol version ${MCP_PROTOCOL_VERSION}: COMPLIANT`);
   console.log('✅ Error handling: COMPLIANT');
   console.log('✅ Compatible with Harvest MCP server format');
   console.log('');

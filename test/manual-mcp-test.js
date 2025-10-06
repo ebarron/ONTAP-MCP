@@ -57,7 +57,7 @@ async function test() {
       jsonrpc: '2.0',
       method: 'initialize',
       params: {
-        protocolVersion: '2024-11-05',
+        protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: {},
         clientInfo: {
           name: 'manual-test',

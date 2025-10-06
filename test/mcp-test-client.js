@@ -16,6 +16,12 @@
  */
 
 /**
+ * MCP Protocol Configuration
+ * Centralized protocol version to avoid hardcoding across test files
+ */
+export const MCP_PROTOCOL_VERSION = '2025-06-18';
+
+/**
  * MCP JSON-RPC 2.0 Client over HTTP/SSE
  * 
  * Usage:
@@ -216,7 +222,7 @@ export class McpTestClient {
 
       // Step 3: Send initialize request
       const initResult = await this.sendRequest('initialize', {
-        protocolVersion: '2024-11-05',
+        protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: {},
         clientInfo: {
           name: 'mcp-test-client',

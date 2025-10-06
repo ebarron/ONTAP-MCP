@@ -8,7 +8,14 @@ import { spawn } from 'child_process';
 import { McpTestClient } from './mcp-test-client.js';
 import { readFileSync } from 'fs';
 
-const EXPECTED_TOOL_COUNT = 47;
+// Base ONTAP tools: 47
+// Harvest metrics tools: 9 (enabled when HARVEST_TSDB_URL is set)
+const BASE_TOOL_COUNT = 47;
+const HARVEST_TOOL_COUNT = 9;
+const EXPECTED_TOOL_COUNT = process.env.HARVEST_TSDB_URL ? BASE_TOOL_COUNT + HARVEST_TOOL_COUNT : BASE_TOOL_COUNT;
+
+console.log(`🔍 Harvest integration: ${process.env.HARVEST_TSDB_URL ? 'ENABLED' : 'DISABLED'}`);
+console.log(`   Expected tool count: ${EXPECTED_TOOL_COUNT} (${BASE_TOOL_COUNT} base + ${process.env.HARVEST_TSDB_URL ? HARVEST_TOOL_COUNT : 0} harvest)`);
 
 // Load clusters from test/clusters.json
 let ONTAP_CLUSTERS;
@@ -137,8 +144,7 @@ async function testHttpMode() {
 }
 
 async function main() {
-  console.log('=== ONTAP MCP Tool Discovery Test ===');
-  console.log(`Expected tool count: ${EXPECTED_TOOL_COUNT}`);
+  console.log('\n=== ONTAP MCP Tool Discovery Test ===');
   
   let allPassed = true;
   

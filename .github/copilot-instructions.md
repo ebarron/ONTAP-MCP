@@ -7,6 +7,16 @@
 - **NEVER use `git push` without explicit user permission**  
 - **User controls ALL commits and pushes - wait for explicit instructions**
 
+## 🔧 MCP PROTOCOL VERSIONS 🔧
+- **Current MCP Specification**: 2025-06-18 (https://spec.modelcontextprotocol.io/specification/2025-06-18/)
+- **Deprecated Spec**: 2024-11-05 (old spec, phasing out)
+- **Current SDK Version**: @modelcontextprotocol/sdk@1.19.1
+- **Protocol Evolution**: 
+  - Old (2024-11-05): HTTP+SSE transport, session ID via SSE event body
+  - New (2025-06-18): Streamable HTTP transport, session ID via `Mcp-Session-Id` HTTP header
+  - Spec Section 2.8: Recommends supporting both transports for backwards compatibility
+- **Always verify against current spec before making protocol-level decisions**
+
 This is an MCP (Model Context Protocol) server providing 55+ tools for NetApp ONTAP storage management across multiple clusters. The server supports dual transports (STDIO/HTTP) and manages complete storage lifecycles including volumes, snapshots, NFS/CIFS access, and performance policies.
 
 ## Core Architecture
