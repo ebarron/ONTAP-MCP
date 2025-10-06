@@ -6,6 +6,7 @@ class OntapMcpDemo {
         this.clusters = [];
         this.currentCluster = null;
         this.selectedCluster = null;
+        this.harvestAvailable = false; // Track if Harvest tools are available
         
         // Storage Classes configuration
         this.storageClasses = [
@@ -93,6 +94,10 @@ class OntapMcpDemo {
         
         // Then list clusters from the MCP session
         await this.loadClusters();
+        
+        // Check if Harvest tools are available
+        await this.checkHarvestAvailability();
+        
         this.updateUI();
     }
 
@@ -195,6 +200,36 @@ class OntapMcpDemo {
         } catch (error) {
             console.error('Error loading clusters from demo config:', error);
             // Non-fatal - demo still works, just needs manual cluster addition
+        }
+    }
+
+    /**
+     * Check if Harvest monitoring tools are available
+     */
+    async checkHarvestAvailability() {
+        try {
+            // Check if metrics_query tool is available (from Harvest server)
+            this.harvestAvailable = this.clientManager.isToolAvailable('metrics_query');
+            
+            // Hide/show IOPS column based on availability
+            const iopsHeader = document.getElementById('iopsColumnHeader');
+            if (iopsHeader) {
+                iopsHeader.style.display = this.harvestAvailable ? '' : 'none';
+            }
+            
+            if (this.harvestAvailable) {
+                const servers = this.clientManager.getToolServers('metrics_query');
+                console.log(`✅ Harvest monitoring tools available via: ${servers.join(', ')}`);
+            } else {
+                console.log('⚠️ Harvest monitoring tools not available');
+            }
+        } catch (error) {
+            console.error('Error checking Harvest availability:', error);
+            this.harvestAvailable = false;
+            const iopsHeader = document.getElementById('iopsColumnHeader');
+            if (iopsHeader) {
+                iopsHeader.style.display = 'none';
+            }
         }
     }
 
@@ -605,8 +640,8 @@ class OntapMcpDemo {
             return;
         }
 
-        tbody.innerHTML = this.clusters.map(cluster => `
-            <div class="table-row">
+        tbody.innerHTML = this.clusters.map((cluster, index) => `
+            <div class="table-row" data-cluster-index="${index}">
                 <div class="table-cell" style="flex: 0 0 60px;">
                     <input type="radio" name="selectedCluster" value="${DemoUtils.escapeHtml(cluster.name)}" 
                            onchange="app.handleClusterSelection('${DemoUtils.escapeHtml(cluster.name)}')">
@@ -619,11 +654,11 @@ class OntapMcpDemo {
                 <div class="table-cell" style="flex: 1 0 150px;">
                     ${DemoUtils.escapeHtml(cluster.cluster_ip || 'N/A')}
                 </div>
-                <div class="table-cell" style="flex: 1 0 120px;">
-                    ${DemoUtils.escapeHtml(cluster.username || 'N/A')}
+                <div class="table-cell iops-cell" style="flex: 1 0 120px; display: ${this.harvestAvailable ? '' : 'none'};" data-cluster-name="${DemoUtils.escapeHtml(cluster.name)}">
+                    <span class="loading-spinner">⏳</span>
                 </div>
-                <div class="table-cell" style="flex: 1 0 120px;">
-                    <span class="password-masked">••••••••</span>
+                <div class="table-cell capacity-cell" style="flex: 1 0 120px;" data-cluster-name="${DemoUtils.escapeHtml(cluster.name)}">
+                    <span class="loading-spinner">⏳</span>
                 </div>
                 <div class="table-cell" style="flex: 1 0 150px;">
                     ${DemoUtils.escapeHtml(cluster.description || 'N/A')}
@@ -641,6 +676,159 @@ class OntapMcpDemo {
                 </div>
             </div>
         `).join('');
+        
+        // Lazy load metrics for each cluster
+        this.clusters.forEach((cluster, index) => {
+            this.loadClusterMetrics(cluster.name, index);
+        });
+    }
+
+    /**
+     * Lazy load metrics (IOPS and capacity) for a specific cluster
+     */
+    async loadClusterMetrics(clusterName, clusterIndex) {
+        // Load IOPS if Harvest is available
+        if (this.harvestAvailable) {
+            this.loadClusterIOPS(clusterName, clusterIndex);
+        }
+        
+        // Load capacity
+        this.loadClusterCapacity(clusterName, clusterIndex);
+    }
+
+    /**
+     * Load cluster IOPS from Harvest
+     */
+    async loadClusterIOPS(clusterName, clusterIndex) {
+        try {
+            // Query average IOPS over last hour for this cluster
+            const query = `avg_over_time(cluster_total_ops{cluster="${clusterName}"}[1h])`;
+            const response = await this.clientManager.callTool('metrics_query', { query });
+            
+            // Parse response to get the metric value
+            const iops = this.parsePrometheusValue(response);
+            const formattedIOPS = iops !== null ? this.formatIOPS(iops) : '';
+            
+            // Update the cell
+            const cell = document.querySelector(`.iops-cell[data-cluster-name="${clusterName}"]`);
+            if (cell) {
+                cell.innerHTML = formattedIOPS;
+            }
+        } catch (error) {
+            console.error(`Failed to load IOPS for ${clusterName}:`, error);
+            const cell = document.querySelector(`.iops-cell[data-cluster-name="${clusterName}"]`);
+            if (cell) {
+                cell.innerHTML = '';
+            }
+        }
+    }
+
+    /**
+     * Load cluster free capacity from ONTAP
+     */
+    async loadClusterCapacity(clusterName, clusterIndex) {
+        try {
+            // Get aggregates for this cluster
+            const response = await this.clientManager.callTool('cluster_list_aggregates', {
+                cluster_name: clusterName
+            });
+            
+            // Parse aggregate data and sum available space
+            const totalAvailable = this.parseAggregateCapacity(response);
+            const formattedCapacity = totalAvailable !== null ? this.formatCapacity(totalAvailable) : '';
+            
+            // Update the cell
+            const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
+            if (cell) {
+                cell.innerHTML = formattedCapacity;
+            }
+        } catch (error) {
+            console.error(`Failed to load capacity for ${clusterName}:`, error);
+            const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
+            if (cell) {
+                cell.innerHTML = '';
+            }
+        }
+    }
+
+    /**
+     * Parse Prometheus query response to extract numeric value
+     */
+    parsePrometheusValue(response) {
+        try {
+            // Response is JSON from Harvest MCP (full Prometheus API response)
+            const data = JSON.parse(response);
+            
+            // Prometheus API structure: {status: "success", data: {resultType: "vector", result: [...]}}
+            if (data.status === 'success' && data.data && data.data.result) {
+                const results = data.data.result;
+                
+                // If no results, metric doesn't exist for this cluster
+                if (results.length === 0) {
+                    return null;
+                }
+                
+                // Get first result's value: [timestamp, "value_as_string"]
+                const firstResult = results[0];
+                if (firstResult.value && Array.isArray(firstResult.value)) {
+                    const valueStr = firstResult.value[1];
+                    return parseFloat(valueStr);
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error parsing Prometheus value:', error, 'Response:', response);
+            return null;
+        }
+    }
+
+    /**
+     * Parse aggregate listing to calculate total available capacity
+     */
+    parseAggregateCapacity(response) {
+        try {
+            let totalAvailableBytes = 0;
+            
+            // Parse response - looking for "Available: XXX bytes" patterns
+            const lines = response.split('\n');
+            for (const line of lines) {
+                // Match patterns like "Available: 1234567890 bytes" or "available: 1234567890"
+                const match = line.match(/available:\s*([\d,]+)/i);
+                if (match) {
+                    const bytes = parseInt(match[1].replace(/,/g, ''));
+                    if (!isNaN(bytes)) {
+                        totalAvailableBytes += bytes;
+                    }
+                }
+            }
+            
+            return totalAvailableBytes > 0 ? totalAvailableBytes : null;
+        } catch (error) {
+            console.error('Error parsing aggregate capacity:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Format IOPS value with K/M suffixes
+     */
+    formatIOPS(iops) {
+        if (iops >= 1000000) {
+            return `${(iops / 1000000).toFixed(1)}M IOPS`;
+        } else if (iops >= 1000) {
+            return `${(iops / 1000).toFixed(1)}K IOPS`;
+        } else {
+            return `${Math.round(iops)} IOPS`;
+        }
+    }
+
+    /**
+     * Format capacity in GiB
+     */
+    formatCapacity(bytes) {
+        const gib = bytes / (1024 * 1024 * 1024);
+        return `${gib.toFixed(2)} GiB`;
     }
 
     async testClusterConnection(clusterName) {
