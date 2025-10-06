@@ -51,11 +51,15 @@ When users ask about performance, activity, or workload questions (IOPS, through
 
 5. **Historical Trends** - "IOPS over the last hour"
    ```
-   Use metrics_range_query with appropriate time range:
+   Use metrics_range_query with Unix timestamps (seconds since epoch):
    - query: cluster_total_ops
-   - start: <timestamp or relative like "now-1h">
-   - end: <timestamp or "now">
-   - step: "1m" or "5m"
+   - start: <Unix timestamp> (calculate: current time - 1 hour in seconds)
+   - end: <Unix timestamp> (calculate: current time in seconds)
+   - step: "1m" or "5m" for granularity
+   
+   CRITICAL: Always calculate Unix timestamps. DO NOT use relative strings like "now-1h".
+   For "last hour": end = current_time, start = current_time - 3600
+   For "last day": end = current_time, start = current_time - 86400
    ```
 
 **Available Metrics Tools:**
