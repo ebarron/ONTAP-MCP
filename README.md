@@ -6,9 +6,9 @@ A Model Context Protocol (MCP) server that provides comprehensive access to NetA
 
 This MCP server uses a modern multi-cluster architecture with centralized credential management and unified tool interfaces. All tools operate through registered cluster configurations rather than requiring credentials for each API call, providing enhanced security and simplified multi-cluster workflows.
 
-### MCP JSON-RPC 2.0 Protocol
+### MCP Protocol (2025-06-18)
 - **STDIO Transport**: JSON-RPC over stdin/stdout for VS Code and AI assistants
-- **HTTP/SSE Transport**: Server-Sent Events for browser and web applications
+- **HTTP Transport**: Streamable HTTP with SSE responses for browser and web applications
 - **Dual Mode**: All 55 tools available in both transports with identical behavior
 
 ## 🚀 Quick Start
@@ -50,14 +50,13 @@ cp test/clusters.json.example test/clusters.json
 }
 ```
 
-#### Option B: HTTP/SSE Transport (Browser/Web Apps)
+#### Option B: HTTP Transport (Browser/Web Apps)
 ```bash
 # Start HTTP server (no clusters pre-loaded for security)
 node build/index.js --http=3000
 
-# MCP endpoints available at:
-# GET http://localhost:3000/mcp (SSE stream - creates session)
-# POST http://localhost:3000/messages?sessionId=xxx (JSON-RPC requests)
+# MCP endpoint available at:
+# POST http://localhost:3000/mcp (Streamable HTTP with SSE responses)
 ```
 
 **🔒 Session-Scoped Security:** HTTP mode uses isolated cluster registries per session. Clusters must be added via the `add_cluster` tool or MCP initialize options. See [Session Architecture](#session-architecture) below.
@@ -117,8 +116,8 @@ node build/index.js --http=3000
 - Automatic initialization handshake
 - Perfect for AI assistants and IDE integration
 
-### HTTP/SSE Transport  
-- Server-Sent Events (SSE) for real-time communication
+### HTTP Transport  
+- Streamable HTTP with Server-Sent Events (SSE) responses
 - Browser-native EventSource API support
 - Session-based JSON-RPC messaging
 - Ideal for web applications and demos
@@ -133,7 +132,7 @@ node build/index.js --http=3000
 - **Security**: Appropriate for single-user desktop environment
 
 ### HTTP Mode (Multi-Tenant)
-- **Session-Scoped Cluster Managers**: Each HTTP/SSE session has isolated cluster registry
+- **Session-Scoped Cluster Managers**: Each HTTP session has isolated cluster registry
 - **No Cross-Session Access**: Session A cannot see or access Session B's clusters
 - **Automatic Cleanup**: Session expiration removes all cluster credentials from memory
 - **Security**: Prevents unauthorized access in multi-user/browser scenarios
@@ -159,7 +158,7 @@ node build/index.js --http=3000
 ```
 
 **Session Lifecycle (HTTP Mode):**
-1. Client connects → `GET /mcp` → Creates SSE session with unique ID
+1. Client connects → `POST /mcp` → Creates session with unique ID (via `Mcp-Session-Id` header)
 2. Client adds clusters → `add_cluster` tool → Clusters stored in THIS session only
 3. Client makes requests → Uses session ID → Accesses only session's clusters
 4. Session expires → Server removes session + all cluster credentials
@@ -174,7 +173,7 @@ See `SESSION_ISOLATION_IMPLEMENTATION.md` for technical details.
 - **Development**: See `.github/copilot-instructions.md` for architecture details
 
 ### Key Features
-- **MCP JSON-RPC 2.0**: Full protocol compliance with STDIO and HTTP/SSE transports
+- **MCP Protocol 2025-06-18**: Full protocol compliance with STDIO and HTTP transports
 - **Multi-cluster management** with dynamic registration
 - **Complete volume provisioning** with NFS and CIFS support
 - **Data protection policies** with automated snapshots

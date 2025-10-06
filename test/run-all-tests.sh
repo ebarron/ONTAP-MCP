@@ -61,9 +61,9 @@ npm run build
 
 echo ""
 log "=== Starting Shared HTTP Server for Test Suite ==="
-# Using Streamable HTTP transport (MCP 2025-06-18) - modern protocol
+# Using Streamable HTTP transport (MCP 2025-06-18)
 # Clusters must be loaded via MCP API into each session
-node build/index.js --http=3000 --streamable > /tmp/mcp-test-suite-server.log 2>&1 &
+node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
 SERVER_PID=$!
 log "Server started with PID: $SERVER_PID"
 
@@ -188,7 +188,7 @@ log "Isolation test server stopped"
 
 # Restart shared server and session for any remaining tests
 log "=== Restarting Shared HTTP Server ==="
-node build/index.js --http=3000 --streamable > /tmp/mcp-test-suite-server.log 2>&1 &
+node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
 SERVER_PID=$!
 log "Server restarted with PID: $SERVER_PID"
 sleep 2
