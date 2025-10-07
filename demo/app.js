@@ -481,16 +481,15 @@ class OntapMcpDemo {
         this.currentCluster = cluster;
         
         // Update flyout header
-        document.querySelector('#clusterFlyout h2').textContent = cluster.name || 'Cluster Details';
+        document.getElementById('flyoutClusterName').textContent = cluster.name || 'Cluster Details';
         
         // Update cluster info
-        document.getElementById('clusterInfoName').textContent = cluster.name || 'N/A';
-        document.getElementById('clusterInfoIp').textContent = cluster.cluster_ip || 'N/A';
-        document.getElementById('clusterInfoUsername').textContent = cluster.username || 'N/A';
-        document.getElementById('clusterInfoDescription').textContent = cluster.description || 'No description';
+        document.getElementById('flyoutClusterIp').textContent = cluster.cluster_ip || 'N/A';
+        document.getElementById('flyoutUsername').textContent = cluster.username || 'N/A';
+        document.getElementById('flyoutDescription').textContent = cluster.description || 'No description';
         
         // Show flyout
-        document.getElementById('clusterFlyout').style.display = 'flex';
+        document.getElementById('clusterDetail').style.display = 'flex';
         
         // Load additional cluster details
         const clusterInfo = await this.getClusterInfo(cluster.name);
@@ -530,7 +529,7 @@ class OntapMcpDemo {
 
     closeModals() {
         const addClusterModal = document.getElementById('addClusterModal');
-        const clusterFlyout = document.getElementById('clusterFlyout');
+        const clusterFlyout = document.getElementById('clusterDetail');
         
         if (addClusterModal) {
             addClusterModal.style.display = 'none';

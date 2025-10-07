@@ -1473,8 +1473,108 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-weight: 400;
+    font-weight: normal;
     cursor: pointer;
+}
+
+/* Checkbox group styling for monitoring options */
+.checkbox-group {
+    margin-bottom: 16px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    margin: 0;
+}
+
+.checkbox-group input[type="checkbox"]:checked + label,
+.checkbox-group label:has(input[type="checkbox"]:checked) {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+/* Preview alert rules link */
+.preview-rules-link {
+    font-size: 12px;
+    color: var(--primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.preview-rules-link:hover {
+    color: #004a99;
+    text-decoration: underline;
+}
+
+/* Alert preview info icon */
+.alert-preview-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-left: 8px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.alert-preview-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+}
+
+.alert-preview-icon svg path {
+    fill: #666;
+    transition: fill 0.2s ease;
+}
+
+.alert-preview-icon:hover svg path {
+    fill: var(--primary, #0067C5);
+}
+
+/* Storage class targets container with recommend button */
+.storage-class-targets-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-top: 8px;
+}
+
+.storage-class-targets {
+    flex: 1;
+}
+
+.recommend-btn {
+    align-self: center;
+    white-space: nowrap;
+    background: var(--button-primary-bg);
+    color: var(--text-on-color);
+    border: none;
+    padding: 10px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.recommend-btn:hover:not(:disabled) {
+    background: var(--button-primary-bg-hover);
+}
+
+.recommend-btn:disabled {
+    background: var(--button-primary-bg-disabled);
+    color: var(--button-primary-disabled);
+    cursor: not-allowed;
 }
 
 .radio-group input[type="radio"] {
@@ -1955,4 +2055,70 @@ body {
     gap: 12px;
     padding: 16px 24px;
     border-top: 1px solid var(--border);
+}
+
+/* Alert Rules Preview Modal Styles */
+.alert-rule-preview {
+    background-color: var(--field-background);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.alert-rule-preview:last-child {
+    margin-bottom: 0;
+}
+
+.alert-rule-preview h4 {
+    margin: 0 0 12px 0;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.alert-detail {
+    margin-bottom: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.alert-detail:last-child {
+    margin-bottom: 0;
+}
+
+.alert-detail strong {
+    color: var(--text-primary);
+    font-weight: 600;
+    display: inline-block;
+    min-width: 100px;
+}
+
+.alert-detail code {
+    background-color: var(--background-hover);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-size: 13px;
+    display: inline-block;
+    margin-left: 4px;
+}
+
+.severity-critical {
+    color: #d32f2f;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.severity-warning {
+    color: #f57c00;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.severity-info {
+    color: #0288d1;
+    font-weight: 600;
+    text-transform: uppercase;
 }

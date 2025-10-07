@@ -7,6 +7,7 @@ class StorageClassProvisioningPanel {
         this.apiClient = demo.apiClient;
         this.notifications = demo.notifications;
         this.selectedStorageClass = null;
+        this.alertRules = new ProvisioningAlertRules(demo);
     }
 
     // Main entry point to show the storage class provisioning panel
@@ -67,17 +68,24 @@ class StorageClassProvisioningPanel {
                                 <span class="detail-label">Snapshot Policy:</span>
                                 <span id="selectedSnapshotPolicy">-</span>
                             </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Target Cluster:</span>
-                                <span id="selectedCluster">-</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Target SVM:</span>
-                                <span id="selectedSvm">-</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Target Aggregate:</span>
-                                <span id="selectedAggregate">-</span>
+                            <div class="storage-class-targets-container">
+                                <div class="storage-class-targets">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Target Cluster:</span>
+                                        <span id="selectedCluster">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Target SVM:</span>
+                                        <span id="selectedSvm">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Target Aggregate:</span>
+                                        <span id="selectedAggregate">-</span>
+                                    </div>
+                                </div>
+                                <button type="button" class="recommend-btn" onclick="app.storageClassProvisioningPanel.getRecommendation()" id="scRecommendBtn">
+                                    Recommend...
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -96,6 +104,18 @@ class StorageClassProvisioningPanel {
                         <div class="form-group">
                             <label for="scVolumeSize">Volume Size</label>
                             <input type="text" id="scVolumeSize" name="scVolumeSize" placeholder="e.g., 100GB" required>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="scMonitorCompliance" name="scMonitorCompliance" checked>
+                                Monitor Volume's Storage Class Compliance
+                                <span class="alert-preview-icon" onclick="event.preventDefault(); app.storageClassProvisioningPanel.showAlertRulesPreview();" title="Preview Alert Rules">
+                                    <svg role="img" aria-labelledby="ic_compliance_info" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <desc id="ic_compliance_info">Preview storage class compliance alert rules</desc>
+                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M16 8C16 12.4183 12.4183 16 8 16C3.58172 16 0 12.4183 0 8C0 3.58172 3.58172 0 8 0C12.4183 0 16 3.58172 16 8ZM7.01621 7.09091V11.8175C7.04077 12.0615 7.15313 12.2883 7.3324 12.4556C7.51167 12.623 7.74563 12.7195 7.99075 12.7273C8.24007 12.7347 8.48224 12.6434 8.6645 12.4731C8.84677 12.3028 8.95436 12.0674 8.96384 11.8182V7.09091C8.93915 6.84727 8.82692 6.62085 8.64797 6.45367C8.46903 6.28649 8.23551 6.1899 7.99075 6.18182C7.74119 6.17396 7.49864 6.26513 7.31606 6.43545C7.13348 6.60577 7.02569 6.8414 7.01621 7.09091ZM7.22882 3.22861C7.02423 3.4332 6.9093 3.71067 6.9093 4C6.90323 4.14488 6.9273 4.28944 6.97998 4.42454C7.03266 4.55964 7.1128 4.68234 7.21533 4.78487C7.31787 4.88741 7.44057 4.96755 7.57567 5.02023C7.71077 5.07291 7.85533 5.09697 8.00021 5.09091C8.14509 5.09697 8.28965 5.07291 8.42475 5.02023C8.55985 4.96755 8.68255 4.88741 8.78508 4.78487C8.88762 4.68234 8.96776 4.55964 9.02043 4.42454C9.07311 4.28944 9.09718 4.14488 9.09112 4C9.09112 3.71067 8.97618 3.4332 8.7716 3.22861C8.56701 3.02403 8.28953 2.90909 8.00021 2.90909C7.71088 2.90909 7.4334 3.02403 7.22882 3.22861Z"/>
+                                    </svg>
+                                </span>
+                            </label>
                         </div>
                     </div>
                     
@@ -461,6 +481,9 @@ class StorageClassProvisioningPanel {
 
         // Response is now text from Streamable HTTP client
         if (response && typeof response === 'string' && response.includes('successfully')) {
+            // Create monitoring alerts if checkbox is enabled
+            await this.createStorageClassMonitoringAlerts(volumeName, svmName, clusterName, volumeParams.qos_policy, volumeParams.snapshot_policy);
+            
             const successMsg = `NFS volume "${volumeName}" created successfully with ${this.selectedStorageClass.name} storage class` +
                 (volumeParams.qos_policy ? ` and QoS policy "${volumeParams.qos_policy}"` : '') +
                 (volumeParams.snapshot_policy ? ` and snapshot policy "${volumeParams.snapshot_policy}"` : '');
@@ -513,6 +536,9 @@ class StorageClassProvisioningPanel {
 
         // Response is now text from Streamable HTTP client
         if (response && typeof response === 'string' && response.includes('successfully')) {
+            // Create monitoring alerts if checkbox is enabled
+            await this.createStorageClassMonitoringAlerts(volumeName, svmName, clusterName, volumeParams.qos_policy, volumeParams.snapshot_policy);
+            
             const successMsg = `CIFS volume "${volumeName}" with share "${shareName}" created successfully with ${this.selectedStorageClass.name} storage class` +
                 (volumeParams.qos_policy ? ` and QoS policy "${volumeParams.qos_policy}"` : '') +
                 (volumeParams.snapshot_policy ? ` and snapshot policy "${volumeParams.snapshot_policy}"` : '');
@@ -520,6 +546,206 @@ class StorageClassProvisioningPanel {
             this.close();
         } else {
             throw new Error(typeof response === 'string' ? response : 'Volume creation failed');
+        }
+    }
+
+    // Create monitoring alerts for storage class compliance
+    async createStorageClassMonitoringAlerts(volumeName, svmName, clusterName, qosPolicyName, snapshotPolicyName) {
+        const monitorCompliance = document.getElementById('scMonitorCompliance').checked;
+        
+        if (!monitorCompliance) {
+            return; // Monitoring not requested
+        }
+
+        try {
+            let allAlerts = [];
+            
+            // Always generate capacity alerts
+            const capacityAlerts = this.alertRules.generateCapacityAlertRules(volumeName, svmName, clusterName);
+            allAlerts.push(...capacityAlerts);
+            
+            // Generate performance alerts if QoS policy is set
+            if (qosPolicyName) {
+                const performanceAlerts = await this.alertRules.generatePerformanceAlertRules(volumeName, svmName, clusterName, qosPolicyName);
+                allAlerts.push(...performanceAlerts);
+            }
+            
+            // Generate data protection alerts if snapshot policy is set
+            if (snapshotPolicyName && snapshotPolicyName !== 'none') {
+                const dataProtectionAlerts = await this.alertRules.generateDataProtectionAlertRules(volumeName, svmName, clusterName, snapshotPolicyName);
+                allAlerts.push(...dataProtectionAlerts);
+            }
+            
+            if (allAlerts.length === 0) {
+                return; // No alerts to create
+            }
+            
+            this.notifications.showInfo('Creating storage class compliance monitoring alerts...');
+            
+            // Create alerts using centralized method
+            const results = await this.alertRules.createMonitoringAlerts(allAlerts);
+            
+            if (results.success) {
+                console.log(`✅ Created ${results.count} storage class compliance alerts`);
+            } else {
+                console.warn(`⚠️  Created ${results.count}/${allAlerts.length} alerts (${results.failed} failed)`);
+            }
+        } catch (error) {
+            console.error('Failed to create storage class monitoring alerts:', error);
+            // Don't block volume creation on alert failure
+        }
+    }
+
+    // Show alert rules preview modal for storage class
+    async showAlertRulesPreview() {
+        const volumeName = document.getElementById('scVolumeName').value.trim();
+        
+        if (!volumeName) {
+            this.notifications.showError('Please enter a volume name first');
+            return;
+        }
+
+        if (!this.selectedStorageClass) {
+            this.notifications.showError('Please select a storage class first');
+            return;
+        }
+
+        // Check if we have a recommendation (cluster/SVM/aggregate)
+        if (!this.currentRecommendations || !this.currentRecommendations.cluster || !this.currentRecommendations.svm) {
+            this.notifications.showError('Please click "Recommend..." to get placement details before previewing alerts');
+            return;
+        }
+
+        // Get QoS and snapshot policy from the selected storage class
+        const qosPolicyName = this.selectedStorageClass.qosPolicy;
+        const snapshotPolicyName = this.selectedStorageClass.snapshotPolicy;
+
+        // Use cluster and SVM from recommendations
+        const clusterName = this.currentRecommendations.cluster;
+        const svmName = this.currentRecommendations.svm;
+
+        let allAlerts = [];
+        
+        // Always include capacity alerts
+        const capacityAlerts = this.alertRules.generateCapacityAlertRules(volumeName, svmName, clusterName);
+        allAlerts.push(...capacityAlerts);
+        
+        // Include performance alerts if QoS policy is set
+        if (qosPolicyName) {
+            const performanceAlerts = await this.alertRules.generatePerformanceAlertRules(volumeName, svmName, clusterName, qosPolicyName);
+            allAlerts.push(...performanceAlerts);
+        }
+        
+        // Include data protection alerts if snapshot policy is set
+        if (snapshotPolicyName && snapshotPolicyName !== 'none') {
+            const dataProtectionAlerts = await this.alertRules.generateDataProtectionAlertRules(volumeName, svmName, clusterName, snapshotPolicyName);
+            allAlerts.push(...dataProtectionAlerts);
+        }
+
+        const title = `Storage Class Compliance Monitoring Alert Rules (${allAlerts.length} total)`;
+        this.alertRules.showAlertRulesModal(allAlerts, title);
+    }
+    // Get LLM recommendation for cluster/SVM/aggregate placement
+    async getRecommendation() {
+        if (!this.selectedStorageClass) {
+            this.notifications.showError('Please select a storage class first');
+            return;
+        }
+
+        const volumeSize = document.getElementById('scVolumeSize').value.trim();
+        if (!volumeSize) {
+            this.notifications.showError('Please enter a volume size first');
+            return;
+        }
+
+        const protocol = document.querySelector('input[name="scProtocol"]:checked').value;
+        const protocolName = protocol === 'nfs' ? 'NFS' : 'CIFS';
+
+        // Build the prompt for the LLM
+        const prompt = `Where is the best place to provision a ${volumeSize} ${protocolName} volume using my ${this.selectedStorageClass.name} storage class?`;
+
+        const recommendBtn = document.getElementById('scRecommendBtn');
+        recommendBtn.disabled = true;
+        recommendBtn.textContent = 'Recommending...';
+
+        try {
+            this.notifications.showInfo('Getting placement recommendation from AI...');
+
+            // Use the chatbot to get recommendation
+            const chatbot = this.demo.chatbot;
+            if (!chatbot) {
+                throw new Error('AI assistant not available');
+            }
+
+            // Send the message and wait for response
+            const response = await chatbot.sendMessage(prompt);
+            
+            // The chatbot should return a structured recommendation
+            // Parse it from the response
+            if (response && typeof response === 'string') {
+                // Look for the structured recommendation format
+                const recommendation = this.parseRecommendation(response);
+                
+                if (recommendation) {
+                    // Update the UI with recommendation
+                    this.currentRecommendations = recommendation;
+                    this.showStorageClassDetails(); // This will populate the cluster/SVM/aggregate
+                    this.notifications.showSuccess('Placement recommendation received');
+                } else {
+                    this.notifications.showWarning('Could not parse recommendation. Please try again.');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to get recommendation:', error);
+            this.notifications.showError('Failed to get recommendation: ' + error.message);
+        } finally {
+            recommendBtn.disabled = false;
+            recommendBtn.textContent = 'Recommend...';
+        }
+    }
+
+    // Parse LLM recommendation response
+    parseRecommendation(response) {
+        try {
+            // The chatbot should return structured JSON in the response
+            // Look for the structured format: {"cluster": "...", "svm": "...", "aggregate": "...", ...}
+            
+            // Try to find JSON block in response
+            const jsonMatch = response.match(/\{[\s\S]*?\}/);
+            if (jsonMatch) {
+                const recommendation = JSON.parse(jsonMatch[0]);
+                
+                // Validate required fields
+                if (recommendation.cluster && recommendation.svm && recommendation.aggregate) {
+                    return {
+                        cluster: recommendation.cluster,
+                        svm: recommendation.svm,
+                        aggregate: recommendation.aggregate,
+                        qos_policy: recommendation.qos_policy || this.selectedStorageClass.qosPolicy,
+                        snapshot_policy: recommendation.snapshot_policy || this.selectedStorageClass.snapshotPolicy
+                    };
+                }
+            }
+
+            // Fallback: try to parse from text format
+            const clusterMatch = response.match(/cluster[:\s]+([^\s,\n]+)/i);
+            const svmMatch = response.match(/svm[:\s]+([^\s,\n]+)/i);
+            const aggregateMatch = response.match(/aggregate[:\s]+([^\s,\n]+)/i);
+
+            if (clusterMatch && svmMatch && aggregateMatch) {
+                return {
+                    cluster: clusterMatch[1],
+                    svm: svmMatch[1],
+                    aggregate: aggregateMatch[1],
+                    qos_policy: this.selectedStorageClass.qosPolicy,
+                    snapshot_policy: this.selectedStorageClass.snapshotPolicy
+                };
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Error parsing recommendation:', error);
+            return null;
         }
     }
 }
