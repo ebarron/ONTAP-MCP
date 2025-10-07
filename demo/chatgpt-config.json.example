@@ -1,5 +1,7 @@
 {
   "api_key": "YOUR_CHATGPT_API_KEY_HERE",
-  "model": "gpt-5",
-  "max_completion_tokens": 2000
+  "base_url": "https://api.openai.com/v1",
+  "model": "gpt-4.1",
+  "user": "your-username",
+  "max_completion_tokens": 10000
 }

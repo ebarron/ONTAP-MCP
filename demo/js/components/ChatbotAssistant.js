@@ -48,22 +48,49 @@ class ChatbotAssistant {
 
     async loadConfig() {
         try {
-            const response = await fetch('./chatgpt-config.json');
+            const configUrl = `./chatgpt-config.json?v=${Date.now()}`;
+            console.log('🔍 Fetching config from:', configUrl);
+            const response = await fetch(configUrl);
+            console.log('🔍 Response URL:', response.url);
+            console.log('🔍 Response status:', response.status);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            this.config = await response.json();
+            const rawConfig = await response.json();
+            
+            console.log('🔍 Raw config received:', rawConfig);
+            
+            // Support both formats: {api_key: ...} and {OPENAI_API_KEY: ...}
+            const apiKey = rawConfig.api_key || rawConfig.OPENAI_API_KEY;
+            const baseURL = rawConfig.base_url || rawConfig.OPENAI_API_BASE_URL || 'https://api.openai.com/v1';
+            const model = rawConfig.model || rawConfig.NETAPP_MODEL || 'gpt-4o';
+            const user = rawConfig.NETAPP_USER || rawConfig.user || 'anonymous';
+            
+            console.log('🔍 Extracted values:', { apiKey: apiKey?.substring(0, 10) + '...', baseURL, model, user });
             
             // Validate API key
-            if (!this.config.api_key || this.config.api_key === 'YOUR_CHATGPT_API_KEY_HERE') {
+            if (!apiKey || apiKey === 'YOUR_CHATGPT_API_KEY_HERE') {
                 throw new Error('No valid ChatGPT API key configured');
             }
             
+            // Normalize config to internal format
+            this.config = {
+                api_key: apiKey,
+                base_url: baseURL,
+                model: model,
+                user: user,
+                max_completion_tokens: rawConfig.max_completion_tokens || 2000
+            };
+            
             console.log('ChatGPT config loaded successfully');
+            console.log(`  Base URL: ${this.config.base_url}`);
+            console.log(`  Model: ${this.config.model}`);
         } catch (error) {
             console.warn('ChatGPT config load failed, enabling mock mode:', error.message);
             this.mockMode = true;
             this.config = {
+                api_key: 'mock-key',
+                base_url: 'https://api.openai.com/v1',
                 model: 'mock-gpt-5',
                 max_completion_tokens: 2000
             };
@@ -376,6 +403,7 @@ Available tools: {{TOOLS_COUNT}}`;
 
         const payload = JSON.stringify({
             model: this.config.model,
+            user: this.config.user,
             messages: [
                 { role: 'system', content: systemPrompt },
                 ...conversationHistory,
@@ -389,7 +417,7 @@ Available tools: {{TOOLS_COUNT}}`;
         
         console.log(`📏 ChatGPT payload size: ${payload.length} characters`);
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetch(`${this.config.base_url}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.config.api_key}`,
@@ -774,6 +802,7 @@ Available tools: {{TOOLS_COUNT}}`;
 
         const payload = JSON.stringify({
             model: this.config.model,
+            user: this.config.user,
             messages: messages,
             max_completion_tokens: this.config.max_completion_tokens,
             tools: tools,
@@ -782,7 +811,7 @@ Available tools: {{TOOLS_COUNT}}`;
         
         console.log(`📏 ChatGPT payload size: ${payload.length} characters`);
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetch(`${this.config.base_url}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.config.api_key}`,
@@ -857,6 +886,7 @@ Available tools: {{TOOLS_COUNT}}`;
 
         const payload = JSON.stringify({
             model: this.config.model,
+            user: this.config.user,
             messages: [
                 { role: 'system', content: systemPrompt },
                 ...conversationHistory,
@@ -867,7 +897,7 @@ Available tools: {{TOOLS_COUNT}}`;
         
         console.log(`📏 Pass 2 payload size: ${payload.length} characters`);
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetch(`${this.config.base_url}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.config.api_key}`,

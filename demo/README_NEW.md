@@ -99,8 +99,17 @@ Enable AI-powered provisioning assistant:
 ```bash
 cd demo
 cp chatgpt-config.json.example chatgpt-config.json
-# Add your OpenAI API key
+# Edit chatgpt-config.json with your settings
 ```
+
+**Configuration fields**:
+- `api_key`: Your OpenAI API key (required)
+- `base_url`: API endpoint (default: `https://api.openai.com/v1`)
+  - For OpenAI direct: `https://api.openai.com/v1`
+  - For NetApp LLM proxy: `https://llm-proxy-api.ai.openeng.netapp.com`
+- `model`: Model to use (e.g., `gpt-4.1`, `gpt-4o`)
+- `user`: Username for tracking (optional, required for some proxies)
+- `max_completion_tokens`: Max response length (default: 10000)
 
 **Optional**: Demo works without ChatGPT configuration (uses mock mode)
 
