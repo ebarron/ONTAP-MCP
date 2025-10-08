@@ -301,20 +301,42 @@ export class OntapApiClient {
     // Handle different response formats from ONTAP API
     let volumeUuid: string;
     if (response.uuid) {
-      // Direct UUID response
+      // Direct UUID response (synchronous creation)
       volumeUuid = response.uuid;
-    } else {
-      // If no UUID is returned, we need to get it by listing volumes and finding the one we just created
-      // Wait and retry with backoff for the volume to appear
+    } else if (response.job) {
+      // Asynchronous job response - wait for job completion then find volume
+      
+      // Wait for job to complete (check job status)
+      let jobComplete = false;
+      let jobAttempts = 0;
+      const maxJobAttempts = 10;
+      
+      while (!jobComplete && jobAttempts < maxJobAttempts) {
+        jobAttempts++;
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between job checks
+        
+        try {
+          const jobStatus = await this.makeRequest<any>(`/cluster/jobs/${response.job.uuid}`);
+          
+          if (jobStatus.state === 'success') {
+            jobComplete = true;
+          } else if (jobStatus.state === 'failure') {
+            throw new Error(`Volume creation job failed: ${jobStatus.message || 'Unknown error'}`);
+          }
+          // If state is 'running' or 'queued', continue waiting
+        } catch (error) {
+          // Continue polling - don't break the loop on transient errors
+        }
+      }
+      
+      // Now find the volume by name
       let foundVolumeUuid: string | undefined;
       let attempts = 0;
       const maxAttempts = 5;
       
       while (!foundVolumeUuid && attempts < maxAttempts) {
         attempts++;
-        // Progressive delay: 1s, 2s, 3s, 4s, 5s
         const delay = attempts * 1000;
-        console.log(`Waiting ${delay}ms for volume '${params.volume_name}' to appear (attempt ${attempts}/${maxAttempts})`);
         await new Promise(resolve => setTimeout(resolve, delay));
         
         const volumes = await this.listVolumes(params.svm_name);
@@ -322,7 +344,31 @@ export class OntapApiClient {
         
         if (newVolume) {
           foundVolumeUuid = newVolume.uuid;
-          console.log(`Volume '${params.volume_name}' found after ${attempts} attempts`);
+          break;
+        }
+      }
+      
+      if (!foundVolumeUuid) {
+        throw new Error(`Volume '${params.volume_name}' was not found after creation job completed (tried ${maxAttempts} times)`);
+      }
+      
+      volumeUuid = foundVolumeUuid;
+    } else {
+      // No UUID or job - fallback to immediate polling (legacy behavior)
+      let foundVolumeUuid: string | undefined;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!foundVolumeUuid && attempts < maxAttempts) {
+        attempts++;
+        const delay = attempts * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        const volumes = await this.listVolumes(params.svm_name);
+        const newVolume = volumes.find(v => v.name === params.volume_name);
+        
+        if (newVolume) {
+          foundVolumeUuid = newVolume.uuid;
           break;
         }
       }
@@ -649,7 +695,7 @@ export class OntapApiClient {
       policyId = policy.id!;
     }
     
-    let endpoint = `/protocols/nfs/export-policies/${policyId}/rules?fields=index,clients,protocols,ro_rule,rw_rule,superuser,allow_device_creation,allow_suid,anonymous_user,comment`;
+    let endpoint = `/protocols/nfs/export-policies/${policyId}/rules?fields=index,clients,protocols,ro_rule,rw_rule,superuser,allow_device_creation,allow_suid,anonymous_user`;
     
     if (params) {
       const queryParams = new URLSearchParams();

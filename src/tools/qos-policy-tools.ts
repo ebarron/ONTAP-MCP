@@ -391,11 +391,7 @@ export async function handleClusterGetQosPolicy(args: any, clusterManager: Ontap
       policy = await client.getQosPolicy(validated.policy_uuid);
     } else {
       // Search by name
-      try {
-        policy = await client.getQosPolicyByName(validated.policy_name!, validated.svm_name);
-      } catch (error: any) {
-        return `❌ ${error.message}`;
-      }
+      policy = await client.getQosPolicyByName(validated.policy_name!, validated.svm_name);
     }
 
     let result = `📊 **QoS Policy Details**\n\n`;

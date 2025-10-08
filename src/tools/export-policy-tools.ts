@@ -199,42 +199,38 @@ export async function handleListExportPolicies(
   const params = ListExportPoliciesSchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    const queryParams: any = {};
-    if (params.svm_name) queryParams['svm.name'] = params.svm_name;
-    if (params.policy_name_pattern) queryParams['name'] = params.policy_name_pattern;
+  const queryParams: any = {};
+  if (params.svm_name) queryParams['svm.name'] = params.svm_name;
+  if (params.policy_name_pattern) queryParams['name'] = params.policy_name_pattern;
 
-    const policies = await client.listExportPolicies(queryParams);
+  const policies = await client.listExportPolicies(queryParams);
 
-    if (policies.length === 0) {
-      return "No export policies found matching the specified criteria.";
-    }
-
-    let result = `Found ${policies.length} export policies:\n\n`;
-    
-    for (const policy of policies) {
-      result += `🔐 **${policy.name}** (ID: ${policy.id})\n`;
-      if (policy.svm) result += `   🏢 SVM: ${policy.svm.name}\n`;
-      if (policy.comment) result += `   📝 Description: ${policy.comment}\n`;
-      
-      if (policy.rules && policy.rules.length > 0) {
-        result += `   📏 Rules: ${policy.rules.length}\n`;
-        for (const rule of policy.rules.slice(0, 3)) { // Show first 3 rules
-          result += `     • Rule ${rule.index}: ${rule.clients?.map((c: any) => c.match).join(', ')}\n`;
-        }
-        if (policy.rules.length > 3) {
-          result += `     • ... and ${policy.rules.length - 3} more rules\n`;
-        }
-      } else {
-        result += `   📏 Rules: None\n`;
-      }
-      result += `\n`;
-    }
-
-    return result;
-  } catch (error) {
-    return `❌ Error listing export policies: ${error instanceof Error ? error.message : String(error)}`;
+  if (policies.length === 0) {
+    return "No export policies found matching the specified criteria.";
   }
+
+  let result = `Found ${policies.length} export policies:\n\n`;
+  
+  for (const policy of policies) {
+    result += `🔐 **${policy.name}** (ID: ${policy.id})\n`;
+    if (policy.svm) result += `   🏢 SVM: ${policy.svm.name}\n`;
+    if (policy.comment) result += `   📝 Description: ${policy.comment}\n`;
+    
+    if (policy.rules && policy.rules.length > 0) {
+      result += `   📏 Rules: ${policy.rules.length}\n`;
+      for (const rule of policy.rules.slice(0, 3)) { // Show first 3 rules
+        result += `     • Rule ${rule.index}: ${rule.clients?.map((c: any) => c.match).join(', ')}\n`;
+      }
+      if (policy.rules.length > 3) {
+        result += `     • ... and ${policy.rules.length - 3} more rules\n`;
+      }
+    } else {
+      result += `   📏 Rules: None\n`;
+    }
+    result += `\n`;
+  }
+
+  return result;
 }
 
 /**
@@ -266,29 +262,25 @@ export async function handleGetExportPolicy(
   const params = GetExportPolicySchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    const policy = await client.getExportPolicy(params.policy_name, params.svm_name);
-    const rules = await client.listExportRules(policy.id!, params.svm_name);
+  const policy = await client.getExportPolicy(params.policy_name, params.svm_name);
+  const rules = await client.listExportRules(policy.id!, params.svm_name);
 
-    let result = `🔐 **Export Policy: ${policy.name}**\n\n`;
-    result += `🆔 ID: ${policy.id}\n`;
-    if (policy.comment) result += `📝 Description: ${policy.comment}\n`;
-    if (policy.svm) result += `🏢 SVM: ${policy.svm.name} (${policy.svm.uuid})\n`;
-    
-    if (rules && rules.length > 0) {
-      result += `\n📏 **Export Rules (${rules.length}):**\n\n`;
-      for (const rule of rules) {
-        result += formatExportRule(rule);
-        result += `\n`;
-      }
-    } else {
-      result += `\n📏 **Export Rules:** None configured\n`;
+  let result = `🔐 **Export Policy: ${policy.name}**\n\n`;
+  result += `🆔 ID: ${policy.id}\n`;
+  if (policy.comment) result += `📝 Description: ${policy.comment}\n`;
+  if (policy.svm) result += `🏢 SVM: ${policy.svm.name} (${policy.svm.uuid})\n`;
+  
+  if (rules && rules.length > 0) {
+    result += `\n📏 **Export Rules (${rules.length}):**\n\n`;
+    for (const rule of rules) {
+      result += formatExportRule(rule);
+      result += `\n`;
     }
-
-    return result;
-  } catch (error) {
-    return `❌ Error retrieving export policy: ${error instanceof Error ? error.message : String(error)}`;
+  } else {
+    result += `\n📏 **Export Rules:** None configured\n`;
   }
+
+  return result;
 }
 
 /**
@@ -321,31 +313,27 @@ export async function handleCreateExportPolicy(
   const params = CreateExportPolicySchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    const policyRequest: CreateExportPolicyRequest = {
-      name: params.policy_name,
-      svm: { name: params.svm_name }
-    };
+  const policyRequest: CreateExportPolicyRequest = {
+    name: params.policy_name,
+    svm: { name: params.svm_name }
+  };
 
-    if (params.comment) policyRequest.comment = params.comment;
+  if (params.comment) policyRequest.comment = params.comment;
 
-    const response = await client.createExportPolicy(policyRequest);
+  const response = await client.createExportPolicy(policyRequest);
 
-    let result = `✅ **Export policy '${params.policy_name}' created successfully!**\n\n`;
-    result += `🆔 ID: ${response.id}\n`;
-    result += `📋 Name: ${params.policy_name}\n`;
-    result += `🏢 SVM: ${params.svm_name}\n`;
-    if (params.comment) result += `📝 Description: ${params.comment}\n`;
-    
-    result += `\n💡 **Next Steps:**\n`;
-    result += `   • Add export rules using: add_export_rule\n`;
-    result += `   • Apply to volumes using: configure_volume_nfs_access\n`;
-    result += `   • View policy details using: get_export_policy\n`;
+  let result = `✅ **Export policy '${params.policy_name}' created successfully!**\n\n`;
+  result += `🆔 ID: ${response.id}\n`;
+  result += `📋 Name: ${params.policy_name}\n`;
+  result += `🏢 SVM: ${params.svm_name}\n`;
+  if (params.comment) result += `📝 Description: ${params.comment}\n`;
+  
+  result += `\n💡 **Next Steps:**\n`;
+  result += `   • Add export rules using: add_export_rule\n`;
+  result += `   • Apply to volumes using: configure_volume_nfs_access\n`;
+  result += `   • View policy details using: get_export_policy\n`;
 
-    return result;
-  } catch (error) {
-    return `❌ Error creating export policy: ${error instanceof Error ? error.message : String(error)}`;
-  }
+  return result;
 }
 
 /**
@@ -377,17 +365,9 @@ export async function handleDeleteExportPolicy(
   const params = DeleteExportPolicySchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    await client.deleteExportPolicy(params.policy_name, params.svm_name);
+  await client.deleteExportPolicy(params.policy_name, params.svm_name);
 
-    return `✅ **Export policy '${params.policy_name}' deleted successfully!**\n\n⚠️ **Important:** Make sure no volumes were using this policy, or they will revert to the default export policy.`;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    if (errorMsg.includes('policy is in use') || errorMsg.includes('cannot be deleted')) {
-      return `❌ **Cannot delete export policy '${params.policy_name}'**\n\n🚫 **Reason:** The policy is currently in use by one or more volumes.\n\n💡 **Solution:** Remove the policy from all volumes first, or use configure_volume_nfs_access to change them to a different policy.`;
-    }
-    return `❌ Error deleting export policy: ${errorMsg}`;
-  }
+  return `✅ **Export policy '${params.policy_name}' deleted successfully!**\n\n⚠️ **Important:** Make sure no volumes were using this policy, or they will revert to the default export policy.`;
 }
 
 /**
@@ -455,39 +435,35 @@ export async function handleAddExportRule(
   const params = AddExportRuleSchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    const ruleRequest: CreateExportRuleRequest = {
-      clients: params.clients,
-      protocols: params.protocols as NfsProtocol[],
-      ro_rule: params.ro_rule as NfsAuthMethod[],
-      rw_rule: params.rw_rule as NfsAuthMethod[],
-      superuser: params.superuser as SuperUserAccess[],
-      allow_device_creation: params.allow_device_creation,
-      allow_suid: params.allow_suid,
-      anonymous_user: params.anonymous_user
-    };
+  const ruleRequest: CreateExportRuleRequest = {
+    clients: params.clients,
+    protocols: params.protocols as NfsProtocol[],
+    ro_rule: params.ro_rule as NfsAuthMethod[],
+    rw_rule: params.rw_rule as NfsAuthMethod[],
+    superuser: params.superuser as SuperUserAccess[],
+    allow_device_creation: params.allow_device_creation,
+    allow_suid: params.allow_suid,
+    anonymous_user: params.anonymous_user
+  };
 
-    if (params.index) ruleRequest.index = params.index;
-    if (params.comment) ruleRequest.comment = params.comment;
+  if (params.index) ruleRequest.index = params.index;
+  if (params.comment) ruleRequest.comment = params.comment;
 
-    const response = await client.addExportRule(params.policy_name, ruleRequest, params.svm_name);
+  const response = await client.addExportRule(params.policy_name, ruleRequest, params.svm_name);
 
-    let result = `✅ **Export rule added successfully!**\n\n`;
-    result += `🔐 **Policy:** ${params.policy_name}\n`;
-    result += `📏 **Rule Index:** ${response.index}\n`;
-    result += `👥 **Clients:** ${params.clients.map(c => c.match).join(', ')}\n`;
-    result += `🔌 **Protocols:** ${params.protocols.join(', ')}\n`;
-    result += `📖 **Read-Only:** ${params.ro_rule.join(', ')}\n`;
-    result += `📝 **Read-Write:** ${params.rw_rule.join(', ')}\n`;
-    result += `👑 **Superuser:** ${params.superuser.join(', ')}\n`;
-    if (params.comment) result += `💬 **Comment:** ${params.comment}\n`;
-    
-    result += `\n💡 Use get_export_policy to view the complete policy configuration.`;
+  let result = `✅ **Export rule added successfully!**\n\n`;
+  result += `🔐 **Policy:** ${params.policy_name}\n`;
+  result += `📏 **Rule Index:** ${response.index}\n`;
+  result += `👥 **Clients:** ${params.clients.map(c => c.match).join(', ')}\n`;
+  result += `🔌 **Protocols:** ${params.protocols.join(', ')}\n`;
+  result += `📖 **Read-Only:** ${params.ro_rule.join(', ')}\n`;
+  result += `📝 **Read-Write:** ${params.rw_rule.join(', ')}\n`;
+  result += `👑 **Superuser:** ${params.superuser.join(', ')}\n`;
+  if (params.comment) result += `💬 **Comment:** ${params.comment}\n`;
+  
+  result += `\n💡 Use get_export_policy to view the complete policy configuration.`;
 
-    return result;
-  } catch (error) {
-    return `❌ Error adding export rule: ${error instanceof Error ? error.message : String(error)}`;
-  }
+  return result;
 }
 
 /**
@@ -555,38 +531,34 @@ export async function handleUpdateExportRule(
   const params = UpdateExportRuleSchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    const updates: UpdateExportRuleRequest = {};
-    
-    if (params.clients) updates.clients = params.clients;
-    if (params.protocols) updates.protocols = params.protocols as NfsProtocol[];
-    if (params.ro_rule) updates.ro_rule = params.ro_rule as NfsAuthMethod[];
-    if (params.rw_rule) updates.rw_rule = params.rw_rule as NfsAuthMethod[];
-    if (params.superuser) updates.superuser = params.superuser as SuperUserAccess[];
-    if (params.allow_device_creation !== undefined) updates.allow_device_creation = params.allow_device_creation;
-    if (params.allow_suid !== undefined) updates.allow_suid = params.allow_suid;
-    if (params.anonymous_user) updates.anonymous_user = params.anonymous_user;
-    if (params.comment !== undefined) updates.comment = params.comment;
+  const updates: UpdateExportRuleRequest = {};
+  
+  if (params.clients) updates.clients = params.clients;
+  if (params.protocols) updates.protocols = params.protocols as NfsProtocol[];
+  if (params.ro_rule) updates.ro_rule = params.ro_rule as NfsAuthMethod[];
+  if (params.rw_rule) updates.rw_rule = params.rw_rule as NfsAuthMethod[];
+  if (params.superuser) updates.superuser = params.superuser as SuperUserAccess[];
+  if (params.allow_device_creation !== undefined) updates.allow_device_creation = params.allow_device_creation;
+  if (params.allow_suid !== undefined) updates.allow_suid = params.allow_suid;
+  if (params.anonymous_user) updates.anonymous_user = params.anonymous_user;
+  if (params.comment !== undefined) updates.comment = params.comment;
 
-    await client.updateExportRule(params.policy_name, params.rule_index, updates, params.svm_name);
+  await client.updateExportRule(params.policy_name, params.rule_index, updates, params.svm_name);
 
-    let result = `✅ **Export rule updated successfully!**\n\n`;
-    result += `🔐 **Policy:** ${params.policy_name}\n`;
-    result += `📏 **Rule Index:** ${params.rule_index}\n`;
-    
-    if (params.clients) result += `👥 **Clients:** ${params.clients.map(c => c.match).join(', ')}\n`;
-    if (params.protocols) result += `🔌 **Protocols:** ${params.protocols.join(', ')}\n`;
-    if (params.ro_rule) result += `📖 **Read-Only:** ${params.ro_rule.join(', ')}\n`;
-    if (params.rw_rule) result += `📝 **Read-Write:** ${params.rw_rule.join(', ')}\n`;
-    if (params.superuser) result += `👑 **Superuser:** ${params.superuser.join(', ')}\n`;
-    if (params.comment !== undefined) result += `💬 **Comment:** ${params.comment}\n`;
+  let result = `✅ **Export rule updated successfully!**\n\n`;
+  result += `🔐 **Policy:** ${params.policy_name}\n`;
+  result += `📏 **Rule Index:** ${params.rule_index}\n`;
+  
+  if (params.clients) result += `👥 **Clients:** ${params.clients.map(c => c.match).join(', ')}\n`;
+  if (params.protocols) result += `🔌 **Protocols:** ${params.protocols.join(', ')}\n`;
+  if (params.ro_rule) result += `📖 **Read-Only:** ${params.ro_rule.join(', ')}\n`;
+  if (params.rw_rule) result += `📝 **Read-Write:** ${params.rw_rule.join(', ')}\n`;
+  if (params.superuser) result += `👑 **Superuser:** ${params.superuser.join(', ')}\n`;
+  if (params.comment !== undefined) result += `💬 **Comment:** ${params.comment}\n`;
 
-    result += `\n💡 Use get_export_policy to view the complete updated configuration.`;
+  result += `\n💡 Use get_export_policy to view the complete updated configuration.`;
 
-    return result;
-  } catch (error) {
-    return `❌ Error updating export rule: ${error instanceof Error ? error.message : String(error)}`;
-  }
+  return result;
 }
 
 /**
@@ -619,12 +591,8 @@ export async function handleDeleteExportRule(
   const params = DeleteExportRuleSchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
-  try {
-    await client.deleteExportRule(params.policy_name, params.rule_index, params.svm_name);
+  await client.deleteExportRule(params.policy_name, params.rule_index, params.svm_name);
 
-    return `✅ **Export rule ${params.rule_index} deleted successfully from policy '${params.policy_name}'!**\n\n💡 Use get_export_policy to view the updated policy configuration.`;
-  } catch (error) {
-    return `❌ Error deleting export rule: ${error instanceof Error ? error.message : String(error)}`;
-  }
+  return `✅ **Export rule ${params.rule_index} deleted successfully from policy '${params.policy_name}'!**\n\n💡 Use get_export_policy to view the updated policy configuration.`;
 }
 

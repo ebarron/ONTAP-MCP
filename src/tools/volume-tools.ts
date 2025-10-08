@@ -330,8 +330,7 @@ export async function handleListVolumes(args: any, clusterManager: OntapClusterM
   const params = ListVolumesSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
-  try {
-    const volumes = await client.listVolumes(params.svm_name);
+      const volumes = await client.listVolumes(params.svm_name);
     
     if (volumes.length === 0) {
       return params.svm_name 
@@ -358,9 +357,7 @@ export async function handleListVolumes(args: any, clusterManager: OntapClusterM
     });
     
     return result;
-  } catch (error) {
-    return `❌ Error listing volumes: ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createCreateVolumeToolDefinition(): Tool {
@@ -419,47 +416,43 @@ export async function handleCreateVolume(args: any, clusterManager: OntapCluster
   const params = CreateVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
-  try {
-    const createParams: CreateVolumeParams = {
-      svm_name: params.svm_name,
-      volume_name: params.volume_name,
-      size: params.size,
-      aggregate_name: params.aggregate_name,
-      qos_policy: params.qos_policy,
-      cifs_share: params.cifs_share
-    };
-    
-    const result = await client.createVolume(createParams);
-    
-    let response = `✅ **Volume created successfully!**\n\n` +
-           `📦 **Volume Name:** ${params.volume_name}\n` +
-           `🆔 **UUID:** ${result.uuid}\n` +
-           `🏢 **SVM:** ${params.svm_name}\n` +
-           `📊 **Size:** ${params.size}\n` +
-           `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\n` : ''}` +
-           `${params.qos_policy ? `🎯 **QoS Policy:** ${params.qos_policy}\n` : ''}` +
-           `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\n` : ''}`;
-    
-    // Add CIFS share information if configured
-    if (params.cifs_share) {
-      response += `\n📁 **CIFS Share:** ${params.cifs_share.share_name}\n`;
-      response += `   Path: /vol/${params.volume_name}\n`;
-      if (params.cifs_share.comment) {
-        response += `   Comment: ${params.cifs_share.comment}\n`;
-      }
-      if (params.cifs_share.access_control && params.cifs_share.access_control.length > 0) {
-        response += `   Access Control:\n`;
-        params.cifs_share.access_control.forEach(ace => {
-          response += `   - ${ace.user_or_group}: ${ace.permission}\n`;
-        });
-      }
-      response += `   📋 **Share Status:** Available for client access`;
+  const createParams: CreateVolumeParams = {
+    svm_name: params.svm_name,
+    volume_name: params.volume_name,
+    size: params.size,
+    aggregate_name: params.aggregate_name,
+    qos_policy: params.qos_policy,
+    cifs_share: params.cifs_share
+  };
+  
+  const result = await client.createVolume(createParams);
+  
+  let response = `✅ **Volume created successfully!**\n\n` +
+         `📦 **Volume Name:** ${params.volume_name}\n` +
+         `🆔 **UUID:** ${result.uuid}\n` +
+         `🏢 **SVM:** ${params.svm_name}\n` +
+         `📊 **Size:** ${params.size}\n` +
+         `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\n` : ''}` +
+         `${params.qos_policy ? `🎯 **QoS Policy:** ${params.qos_policy}\n` : ''}` +
+         `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\n` : ''}`;
+  
+  // Add CIFS share information if configured
+  if (params.cifs_share) {
+    response += `\n📁 **CIFS Share:** ${params.cifs_share.share_name}\n`;
+    response += `   Path: /vol/${params.volume_name}\n`;
+    if (params.cifs_share.comment) {
+      response += `   Comment: ${params.cifs_share.comment}\n`;
     }
-    
-    return response;
-  } catch (error) {
-    return `❌ **Error creating volume:** ${error instanceof Error ? error.message : String(error)}`;
+    if (params.cifs_share.access_control && params.cifs_share.access_control.length > 0) {
+      response += `   Access Control:\n`;
+      params.cifs_share.access_control.forEach(ace => {
+        response += `   - ${ace.user_or_group}: ${ace.permission}\n`;
+      });
+    }
+    response += `   📋 **Share Status:** Available for client access`;
   }
+  
+  return response;
 }
 
 export function createGetVolumeStatsToolDefinition(): Tool {
@@ -483,13 +476,10 @@ export async function handleGetVolumeStats(args: any, clusterManager: OntapClust
   const params = GetVolumeStatsSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
-  try {
-    const stats = await client.getVolumeStats(params.volume_uuid);
+      const stats = await client.getVolumeStats(params.volume_uuid);
     
     return formatVolumeStats(stats);
-  } catch (error) {
-    return `❌ **Error getting volume statistics:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createOfflineVolumeToolDefinition(): Tool {
@@ -513,16 +503,13 @@ export async function handleOfflineVolume(args: any, clusterManager: OntapCluste
   const params = OfflineVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
-  try {
-    await client.offlineVolume(params.volume_uuid);
+      await client.offlineVolume(params.volume_uuid);
     
     return `⚠️ **Volume taken offline successfully**\\n\\n` +
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
            `📴 **Status:** Offline\\n\\n` +
            `⚠️ **Warning:** The volume is now inaccessible. You can now safely delete it if needed.`;
-  } catch (error) {
-    return `❌ **Error taking volume offline:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createDeleteVolumeToolDefinition(): Tool {
@@ -546,17 +533,12 @@ export async function handleDeleteVolume(args: any, clusterManager: OntapCluster
   const params = DeleteVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
-  try {
-    await client.deleteVolume(params.volume_uuid);
-    
-    return `✅ **Volume deleted successfully**\\n\\n` +
-           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
-           `🗑️ **Status:** Permanently deleted\\n\\n` +
-           `⚠️ **Note:** This action was irreversible. All data has been permanently destroyed.`;
-  } catch (error) {
-    return `❌ **Error deleting volume:** ${error instanceof Error ? error.message : String(error)}\\n\\n` +
-           `💡 **Tip:** Ensure the volume is offline before deletion using the offline_volume tool.`;
-  }
+  await client.deleteVolume(params.volume_uuid);
+  
+  return `✅ **Volume deleted successfully**\\n\\n` +
+         `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+         `🗑️ **Status:** Permanently deleted\\n\\n` +
+         `⚠️ **Note:** This action was irreversible. All data has been permanently destroyed.`;
 }
 
 // ================================
@@ -581,8 +563,7 @@ export function createClusterListVolumesToolDefinition(): Tool {
 export async function handleClusterListVolumes(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ClusterListVolumesSchema.parse(args);
   
-  try {
-    const client = clusterManager.getClient(params.cluster_name);
+      const client = clusterManager.getClient(params.cluster_name);
     const volumes = await client.listVolumes(params.svm_name);
     
     if (volumes.length === 0) {
@@ -610,9 +591,7 @@ export async function handleClusterListVolumes(args: any, clusterManager: OntapC
     });
     
     return result;
-  } catch (error) {
-    return `❌ Error listing volumes: ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createClusterCreateVolumeToolDefinition(): Tool {
@@ -668,50 +647,46 @@ export function createClusterCreateVolumeToolDefinition(): Tool {
 export async function handleClusterCreateVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ClusterCreateVolumeSchema.parse(args);
   
-  try {
-    const client = clusterManager.getClient(params.cluster_name);
-    
-    const createParams: CreateVolumeParams = {
-      svm_name: params.svm_name,
-      volume_name: params.volume_name,
-      size: params.size,
-      aggregate_name: params.aggregate_name,
-      qos_policy: params.qos_policy,
-      cifs_share: params.cifs_share
-    };
-    
-    const result = await client.createVolume(createParams);
-    
-    let response = `✅ **Volume created successfully!**\\n\\n` +
-           `🎯 **Cluster:** ${params.cluster_name}\\n` +
-           `📦 **Volume Name:** ${params.volume_name}\\n` +
-           `🆔 **UUID:** ${result.uuid}\\n` +
-           `🏢 **SVM:** ${params.svm_name}\\n` +
-           `📊 **Size:** ${params.size}\\n` +
-           `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\\n` : ''}` +
-           `${params.qos_policy ? `🎯 **QoS Policy:** ${params.qos_policy}\\n` : ''}` +
-           `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\\n` : ''}`;
-    
-    // Add CIFS share information if configured
-    if (params.cifs_share) {
-      response += `\\n📁 **CIFS Share:** ${params.cifs_share.share_name}\\n`;
-      response += `   Path: /vol/${params.volume_name}\\n`;
-      if (params.cifs_share.comment) {
-        response += `   Comment: ${params.cifs_share.comment}\\n`;
-      }
-      if (params.cifs_share.access_control && params.cifs_share.access_control.length > 0) {
-        response += `   Access Control:\\n`;
-        params.cifs_share.access_control.forEach(ace => {
-          response += `   - ${ace.user_or_group}: ${ace.permission}\\n`;
-        });
-      }
-      response += `   📋 **Share Status:** Available for client access`;
+  const client = clusterManager.getClient(params.cluster_name);
+  
+  const createParams: CreateVolumeParams = {
+    svm_name: params.svm_name,
+    volume_name: params.volume_name,
+    size: params.size,
+    aggregate_name: params.aggregate_name,
+    qos_policy: params.qos_policy,
+    cifs_share: params.cifs_share
+  };
+  
+  const result = await client.createVolume(createParams);
+  
+  let response = `✅ **Volume created successfully!**\\n\\n` +
+         `🎯 **Cluster:** ${params.cluster_name}\\n` +
+         `📦 **Volume Name:** ${params.volume_name}\\n` +
+         `🆔 **UUID:** ${result.uuid}\\n` +
+         `🏢 **SVM:** ${params.svm_name}\\n` +
+         `📊 **Size:** ${params.size}\\n` +
+         `${params.aggregate_name ? `📁 **Aggregate:** ${params.aggregate_name}\\n` : ''}` +
+         `${params.qos_policy ? `🎯 **QoS Policy:** ${params.qos_policy}\\n` : ''}` +
+         `${result.job ? `🔄 **Job UUID:** ${result.job.uuid}\\n` : ''}`;
+  
+  // Add CIFS share information if configured
+  if (params.cifs_share) {
+    response += `\\n📁 **CIFS Share:** ${params.cifs_share.share_name}\\n`;
+    response += `   Path: /vol/${params.volume_name}\\n`;
+    if (params.cifs_share.comment) {
+      response += `   Comment: ${params.cifs_share.comment}\\n`;
     }
-    
-    return response;
-  } catch (error) {
-    return `❌ **Error creating volume:** ${error instanceof Error ? error.message : String(error)}`;
+    if (params.cifs_share.access_control && params.cifs_share.access_control.length > 0) {
+      response += `   Access Control:\\n`;
+      params.cifs_share.access_control.forEach(ace => {
+        response += `   - ${ace.user_or_group}: ${ace.permission}\\n`;
+      });
+    }
+    response += `   📋 **Share Status:** Available for client access`;
   }
+  
+  return response;
 }
 
 export function createClusterOfflineVolumeToolDefinition(): Tool {
@@ -732,8 +707,7 @@ export function createClusterOfflineVolumeToolDefinition(): Tool {
 export async function handleClusterOfflineVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ClusterVolumeUuidSchema.parse(args);
   
-  try {
-    const client = clusterManager.getClient(params.cluster_name);
+      const client = clusterManager.getClient(params.cluster_name);
     await client.offlineVolume(params.volume_uuid);
     
     return `⚠️ **Volume taken offline successfully**\\n\\n` +
@@ -741,9 +715,7 @@ export async function handleClusterOfflineVolume(args: any, clusterManager: Onta
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
            `📴 **Status:** Offline\\n\\n` +
            `⚠️ **Warning:** The volume is now inaccessible. You can now safely delete it if needed.`;
-  } catch (error) {
-    return `❌ **Error taking volume offline:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createClusterDeleteVolumeToolDefinition(): Tool {
@@ -764,19 +736,14 @@ export function createClusterDeleteVolumeToolDefinition(): Tool {
 export async function handleClusterDeleteVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ClusterVolumeUuidSchema.parse(args);
   
-  try {
-    const client = clusterManager.getClient(params.cluster_name);
-    await client.deleteVolume(params.volume_uuid);
-    
-    return `✅ **Volume deleted successfully**\\n\\n` +
-           `🎯 **Cluster:** ${params.cluster_name}\\n` +
-           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
-           `🗑️ **Status:** Permanently deleted\\n\\n` +
-           `⚠️ **Note:** This action was irreversible. All data has been permanently destroyed.`;
-  } catch (error) {
-    return `❌ **Error deleting volume:** ${error instanceof Error ? error.message : String(error)}\\n\\n` +
-           `💡 **Tip:** Ensure the volume is offline before deletion using the cluster_offline_volume tool.`;
-  }
+  const client = clusterManager.getClient(params.cluster_name);
+  await client.deleteVolume(params.volume_uuid);
+  
+  return `✅ **Volume deleted successfully**\\n\\n` +
+         `🎯 **Cluster:** ${params.cluster_name}\\n` +
+         `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
+         `🗑️ **Status:** Permanently deleted\\n\\n` +
+         `⚠️ **Note:** This action was irreversible. All data has been permanently destroyed.`;
 }
 
 export function createClusterGetVolumeStatsToolDefinition(): Tool {
@@ -797,17 +764,14 @@ export function createClusterGetVolumeStatsToolDefinition(): Tool {
 export async function handleClusterGetVolumeStats(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ClusterVolumeUuidSchema.parse(args);
   
-  try {
-    const client = clusterManager.getClient(params.cluster_name);
+      const client = clusterManager.getClient(params.cluster_name);
     const stats = await client.getVolumeStats(params.volume_uuid);
     
     let result = `🎯 **Cluster:** ${params.cluster_name}\\n\\n`;
     result += formatVolumeStats(stats);
     
     return result;
-  } catch (error) {
-    return `❌ **Error getting volume statistics:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 // ================================
@@ -835,17 +799,14 @@ export function createGetVolumeConfigurationToolDefinition(): Tool {
 export async function handleGetVolumeConfiguration(args: any, clusterManager: OntapClusterManager): Promise<string> {
   const params = GetVolumeConfigurationSchema.parse(args);
   
-  try {
-    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     
     // Get detailed volume information with all fields
     const endpoint = `/storage/volumes/${params.volume_uuid}?fields=uuid,name,size,state,type,comment,svm,aggregates,nas,snapshot_policy,efficiency,space`;
     const volume = await (client as any).makeRequest(endpoint);
     
     return formatVolumeConfig(volume);
-  } catch (error) {
-    return `❌ **Error getting volume configuration:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createUpdateVolumeSecurityStyleToolDefinition(): Tool {
@@ -870,17 +831,14 @@ export function createUpdateVolumeSecurityStyleToolDefinition(): Tool {
 export async function handleUpdateVolumeSecurityStyle(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = UpdateVolumeSecurityStyleSchema.parse(args);
   
-  try {
-    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     await client.updateVolumeSecurityStyle(params.volume_uuid, params.security_style);
     
     return `✅ **Volume security style updated successfully**\\n\\n` +
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
            `🔒 **New Security Style:** ${params.security_style}\\n\\n` +
            `💡 **Note:** The security style change may affect how permissions are handled for this volume.`;
-  } catch (error) {
-    return `❌ **Error updating volume security style:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createResizeVolumeToolDefinition(): Tool {
@@ -905,17 +863,14 @@ export function createResizeVolumeToolDefinition(): Tool {
 export async function handleResizeVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ResizeVolumeSchema.parse(args);
   
-  try {
-    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     await client.resizeVolume(params.volume_uuid, params.new_size);
     
     return `✅ **Volume resized successfully**\\n\\n` +
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
            `📊 **New Size:** ${params.new_size}\\n\\n` +
            `💡 **Note:** The volume has been expanded. ONTAP does not support shrinking volumes with data.`;
-  } catch (error) {
-    return `❌ **Error resizing volume:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createUpdateVolumeCommentToolDefinition(): Tool {
@@ -940,8 +895,7 @@ export function createUpdateVolumeCommentToolDefinition(): Tool {
 export async function handleUpdateVolumeComment(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = UpdateVolumeCommentSchema.parse(args);
   
-  try {
-    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     const comment = params.comment || "";
     await client.updateVolumeComment(params.volume_uuid, comment);
     
@@ -949,9 +903,7 @@ export async function handleUpdateVolumeComment(args: any, clusterManager: Ontap
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
            `💬 **New Comment:** ${comment || "(cleared)"}\\n\\n` +
            `📝 **Note:** The volume description has been updated for better documentation.`;
-  } catch (error) {
-    return `❌ **Error updating volume comment:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 // ================================
@@ -980,17 +932,14 @@ export function createConfigureVolumeNfsAccessToolDefinition(): Tool {
 export async function handleConfigureVolumeNfsAccess(args: any, clusterManager: OntapClusterManager): Promise<string> {
   const params = ConfigureVolumeNfsAccessSchema.parse(args);
   
-  try {
-    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     await client.configureVolumeNfsAccess(params.volume_uuid, params.export_policy_name);
     
     return `✅ **NFS access configured successfully**\n\n` +
            `🆔 **Volume UUID:** ${params.volume_uuid}\n` +
            `🔐 **Export Policy:** ${params.export_policy_name}\n\n` +
            `🌐 **Note:** The volume is now accessible via NFS according to the rules defined in the export policy.`;
-  } catch (error) {
-    return `❌ **Error configuring NFS access:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createDisableVolumeNfsAccessToolDefinition(): Tool {
@@ -1014,17 +963,14 @@ export function createDisableVolumeNfsAccessToolDefinition(): Tool {
 export async function handleDisableVolumeNfsAccess(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = DisableVolumeNfsAccessSchema.parse(args);
   
-  try {
-    const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     await client.disableVolumeNfsAccess(params.volume_uuid);
     
     return `✅ **NFS access disabled successfully**\\n\\n` +
            `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
            `🔐 **Export Policy:** default (restrictive)\\n\\n` +
            `⚠️ **Note:** The volume has been reverted to the default export policy, which may restrict NFS access.`;
-  } catch (error) {
-    return `❌ **Error disabling NFS access:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 // ================================
@@ -1058,8 +1004,7 @@ export async function handleUpdateVolume(args: any, clusterManager: OntapCluster
   const params = UpdateVolumeSchema.parse(args);
   const client = new OntapApiClient(params.cluster_ip, params.username, params.password);
   
-  try {
-    const updateParams: UpdateVolumeParams = {
+      const updateParams: UpdateVolumeParams = {
       volume_uuid: params.volume_uuid,
       size: params.size,
       comment: params.comment,
@@ -1085,9 +1030,7 @@ export async function handleUpdateVolume(args: any, clusterManager: OntapCluster
     response += `\\n💡 **Note:** All specified properties have been updated. QoS policies can be from the volume's SVM or admin SVM.`;
     
     return response;
-  } catch (error) {
-    return `❌ **Error updating volume:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }
 
 export function createClusterUpdateVolumeToolDefinition(): Tool {
@@ -1114,8 +1057,7 @@ export function createClusterUpdateVolumeToolDefinition(): Tool {
 export async function handleClusterUpdateVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
   const params = ClusterUpdateVolumeSchema.parse(args);
   
-  try {
-    const client = clusterManager.getClient(params.cluster_name);
+      const client = clusterManager.getClient(params.cluster_name);
     
     const updateParams: UpdateVolumeParams = {
       volume_uuid: params.volume_uuid,
@@ -1144,7 +1086,5 @@ export async function handleClusterUpdateVolume(args: any, clusterManager: Ontap
     response += `\\n💡 **Note:** All specified properties have been updated. QoS policies can be from the volume's SVM or admin SVM.`;
     
     return response;
-  } catch (error) {
-    return `❌ **Error updating volume:** ${error instanceof Error ? error.message : String(error)}`;
-  }
+
 }

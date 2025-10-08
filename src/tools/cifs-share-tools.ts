@@ -428,28 +428,21 @@ export async function handleDeleteCifsShare(args: any, clusterManager: OntapClus
   const client = getApiClient(clusterManager, undefined, validated.cluster_ip, validated.username, validated.password);
   
   // Get share details before deletion for confirmation
-  try {
-    const share = await client.getCifsShare(validated.name, validated.svm_name);
-    
-    await client.deleteCifsShare({
-      name: validated.name,
-      svm_name: validated.svm_name
-    });
-    
-    let response = `✅ **CIFS Share Deleted Successfully**\n\n`;
-    response += `**Deleted Share Details:**\n`;
-    response += `- Name: ${validated.name}\n`;
-    response += `- Path: ${share.path}\n`;
-    response += `- SVM: ${validated.svm_name}\n`;
-    response += `\n⚠️  **Warning:** Client access to this share has been removed.`;
-    
-    return response;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      return `❌ CIFS share '${validated.name}' not found in SVM '${validated.svm_name}'.`;
-    }
-    throw error;
-  }
+  const share = await client.getCifsShare(validated.name, validated.svm_name);
+  
+  await client.deleteCifsShare({
+    name: validated.name,
+    svm_name: validated.svm_name
+  });
+  
+  let response = `✅ **CIFS Share Deleted Successfully**\n\n`;
+  response += `**Deleted Share Details:**\n`;
+  response += `- Name: ${validated.name}\n`;
+  response += `- Path: ${share.path}\n`;
+  response += `- SVM: ${validated.svm_name}\n`;
+  response += `\n⚠️  **Warning:** Client access to this share has been removed.`;
+  
+  return response;
 }
 
 // ================================
@@ -603,27 +596,20 @@ export async function handleClusterDeleteCifsShare(args: any, clusterManager: On
   const client = getApiClient(clusterManager, validated.cluster_name);
   
   // Get share details before deletion for confirmation
-  try {
-    const share = await client.getCifsShare(validated.name, validated.svm_name);
-    
-    await client.deleteCifsShare({
-      name: validated.name,
-      svm_name: validated.svm_name
-    });
-    
-    let response = `✅ **CIFS Share Deleted Successfully from ${validated.cluster_name}**\n\n`;
-    response += `**Deleted Share Details:**\n`;
-    response += `- Name: ${validated.name}\n`;
-    response += `- Path: ${share.path}\n`;
-    response += `- SVM: ${validated.svm_name}\n`;
-    response += `- Cluster: ${validated.cluster_name}\n`;
-    response += `\n⚠️  **Warning:** Client access to this share has been removed.`;
-    
-    return response;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      return `❌ CIFS share '${validated.name}' not found in SVM '${validated.svm_name}' on cluster '${validated.cluster_name}'.`;
-    }
-    throw error;
-  }
+  const share = await client.getCifsShare(validated.name, validated.svm_name);
+  
+  await client.deleteCifsShare({
+    name: validated.name,
+    svm_name: validated.svm_name
+  });
+  
+  let response = `✅ **CIFS Share Deleted Successfully from ${validated.cluster_name}**\n\n`;
+  response += `**Deleted Share Details:**\n`;
+  response += `- Name: ${validated.name}\n`;
+  response += `- Path: ${share.path}\n`;
+  response += `- SVM: ${validated.svm_name}\n`;
+  response += `- Cluster: ${validated.cluster_name}\n`;
+  response += `\n⚠️  **Warning:** Client access to this share has been removed.`;
+  
+  return response;
 }
