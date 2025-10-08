@@ -1,10 +1,59 @@
 class ExportPolicyModal {
     constructor() {
+        this.modal = null;
+        this.form = null;
+        this.rulesContainer = null;
+        this.ruleCounter = 0;
+    }
+    
+    render() {
+        return `
+            <!-- Export Policy Creation Modal -->
+            <div class="modal-overlay" id="exportPolicyModal" style="display: none;">
+                <div class="modal-content export-policy-modal">
+                    <div class="modal-header">
+                        <input type="text" id="exportPolicyNameHeader" class="modal-title-input" value="New Export Policy" placeholder="Enter policy name...">
+                        <button class="modal-close" id="closeExportPolicyModal">&times;</button>
+                    </div>
+                    <form id="exportPolicyForm">
+                        <div class="form-group">
+                            <label for="exportPolicyDescription">Description (Optional)</label>
+                            <textarea id="exportPolicyDescription" name="description" rows="2" placeholder="Enter policy description..."></textarea>
+                        </div>
+                        
+                        <div class="export-rules-section">
+                            <h3>Export Rules</h3>
+                            <div id="rulesContainer">
+                                <!-- Rules will be added dynamically -->
+                            </div>
+                            <button type="button" class="btn-secondary add-rule-btn" id="addExportRule">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 1V15M1 8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                Add Rule
+                            </button>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancelExportPolicy">Cancel</button>
+                            <button type="submit" class="btn-primary" id="createExportPolicy">Create Policy</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+    }
+    
+    init(parentElement) {
+        // Inject HTML into DOM
+        parentElement.insertAdjacentHTML('beforeend', this.render());
+        
+        // Now get references to DOM elements
         this.modal = document.getElementById('exportPolicyModal');
         this.form = document.getElementById('exportPolicyForm');
         this.rulesContainer = document.getElementById('rulesContainer');
-        this.ruleCounter = 0;
         
+        // Bind events after HTML is in DOM
         this.bindEvents();
         this.addInitialRule();
     }

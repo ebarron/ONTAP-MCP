@@ -153,8 +153,11 @@ Available tools: {{TOOLS_COUNT}}`;
             sendBtn.addEventListener('click', () => this.sendMessage());
         }
 
-        // Start collapsed
-        document.querySelector('.chatbot-container').classList.add('collapsed');
+        // Start collapsed (only if chatbot container exists)
+        const chatbotContainer = document.querySelector('.chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.classList.add('collapsed');
+        }
     }
 
     async discoverTools() {

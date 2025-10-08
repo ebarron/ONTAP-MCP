@@ -594,6 +594,15 @@ class ProvisioningPanel {
 
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
+        // 🔍 DIAGNOSTIC LOGGING
+        console.log('🔍 VOLUME CREATION RESPONSE (ProvisioningPanel):');
+        console.log('  Type:', typeof response);
+        console.log('  Length:', response?.length);
+        console.log('  Full response:', response);
+        console.log('  Includes "successfully"?', response?.includes('successfully'));
+        console.log('  Includes "Error"?', response?.includes('Error'));
+        console.log('  Includes "❌"?', response?.includes('❌'));
+
         // Response is now text from Streamable HTTP client
         if (response && typeof response === 'string' && response.includes('successfully')) {
             this.notifications.showSuccess(`NFS volume ${volumeName} created successfully${qosPolicy ? ` with QoS policy ${qosPolicy}` : ''}`);

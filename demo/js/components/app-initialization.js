@@ -10,9 +10,12 @@ let clustersViewComponent;
 let storageClassesViewComponent;
 let alertsViewComponent;
 
+// Initialize modal/flyout components
+let chatbotSectionComponent;
+let addClusterModalComponent;
+let clusterDetailFlyoutComponent;
+
 document.addEventListener('DOMContentLoaded', () => {
-    exportPolicyModal = new ExportPolicyModal();
-    
     // Get parent containers
     const appBase = document.querySelector('.app-base');
     const mainContent = document.getElementById('main-content');
@@ -45,6 +48,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mainContent && typeof alertsView !== 'undefined') {
         alertsViewComponent = alertsView;
         alertsViewComponent.init(mainContent);
+    }
+    
+    // Initialize chatbot section
+    if (mainContent && typeof chatbotSection !== 'undefined') {
+        chatbotSectionComponent = chatbotSection;
+        chatbotSectionComponent.init(mainContent);
+    }
+    
+    // Initialize modals and flyouts (append to body)
+    if (typeof ExportPolicyModal !== 'undefined') {
+        exportPolicyModal = new ExportPolicyModal();
+        exportPolicyModal.init(document.body);
+    }
+    
+    if (typeof addClusterModal !== 'undefined') {
+        addClusterModalComponent = addClusterModal;
+        addClusterModalComponent.init(document.body);
+    }
+    
+    if (typeof clusterDetailFlyout !== 'undefined') {
+        clusterDetailFlyoutComponent = clusterDetailFlyout;
+        clusterDetailFlyoutComponent.init(document.body);
     }
     
     // Set up export policy dropdown listener using event delegation

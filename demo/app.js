@@ -234,20 +234,23 @@ class OntapMcpDemo {
     }
 
     bindEvents() {
-        // Add cluster button
-        document.getElementById('addClusterBtn').addEventListener('click', (e) => {
-            e.preventDefault();
-            this.openAddClusterModal();
-        });
+        // Add cluster button (only if it exists - it's in ClustersView)
+        const addClusterBtn = document.getElementById('addClusterBtn');
+        if (addClusterBtn) {
+            addClusterBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openAddClusterModal();
+            });
+        }
 
         // Provision Storage link - note: event listener will be updated in updateProvisionButtonState
         // No direct event listener here since we need to handle disabled state
 
-        // Modal close buttons
-        document.querySelectorAll('.modal-close, .flyout-close').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+        // Modal close buttons (use event delegation since modals are added dynamically)
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.modal-close, .flyout-close')) {
                 this.closeModals();
-            });
+            }
         });
 
         // Modal overlay close
@@ -257,30 +260,34 @@ class OntapMcpDemo {
             }
         });
 
-        // Form submission
-        document.getElementById('addClusterForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleAddCluster();
+        // Form submission (use event delegation)
+        document.addEventListener('submit', (e) => {
+            if (e.target.id === 'addClusterForm') {
+                e.preventDefault();
+                this.handleAddCluster();
+            }
         });
         
-        // Cancel button in Add Cluster modal
-        const cancelAddBtn = document.getElementById('cancelAdd');
-        if (cancelAddBtn) {
-            cancelAddBtn.addEventListener('click', () => {
+        // Cancel button in Add Cluster modal (use event delegation)
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'cancelAdd') {
                 this.closeModals();
-                document.getElementById('addClusterForm').reset();
+                const form = document.getElementById('addClusterForm');
+                if (form) form.reset();
+            }
+        });
+
+        // Search functionality (only bind if element exists)
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.filterClusters(e.target.value);
             });
         }
-
-        // Search functionality
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            this.filterClusters(e.target.value);
-        });
 
         // Search functionality - table search widget
         const searchButton = document.querySelector('.search-widget .search-button');
         const searchWrapper = document.querySelector('.search-widget-wrapper');
-        const searchInput = document.getElementById('searchInput');
         const clearButton = document.getElementById('clearSearch');
 
         if (searchButton && searchWrapper && searchInput) {

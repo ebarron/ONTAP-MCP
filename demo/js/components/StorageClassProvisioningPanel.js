@@ -474,6 +474,15 @@ class StorageClassProvisioningPanel {
         console.log('Creating NFS volume with params:', volumeParams);
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
+        // 🔍 DIAGNOSTIC LOGGING
+        console.log('🔍 VOLUME CREATION RESPONSE:');
+        console.log('  Type:', typeof response);
+        console.log('  Length:', response?.length);
+        console.log('  Full response:', response);
+        console.log('  Includes "successfully"?', response?.includes('successfully'));
+        console.log('  Includes "Error"?', response?.includes('Error'));
+        console.log('  Includes "❌"?', response?.includes('❌'));
+
         // Response is now text from Streamable HTTP client
         if (response && typeof response === 'string' && response.includes('successfully')) {
             // Create monitoring alerts if checkbox is enabled
