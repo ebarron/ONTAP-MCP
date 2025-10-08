@@ -2122,3 +2122,127 @@ body {
     font-weight: 600;
     text-transform: uppercase;
 }
+
+/* ========================================
+   Splash Screen Modal Styles
+   ======================================== */
+.splash-modal {
+    width: 900px;
+    max-width: 95vw;
+}
+
+.splash-modal .modal-body {
+    padding: 24px;
+}
+
+.splash-description {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.architecture-diagram {
+    margin: 32px 0;
+    padding: 20px;
+    background-color: #fafafa;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.architecture-diagram svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.splash-features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 24px 0;
+}
+
+.feature-column {
+    padding: 20px;
+    background-color: var(--background-hover);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.feature-column h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+}
+
+.feature-column ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.feature-column li {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    padding-left: 20px;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.feature-column li:before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.splash-footer {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 24px;
+    font-style: italic;
+}
+
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background-color: var(--background-main);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin: 0;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .splash-modal {
+        width: 100%;
+    }
+    
+    .splash-features {
+        grid-template-columns: 1fr;
+    }
+    
+    .architecture-diagram {
+        padding: 10px;
+    }
+}
