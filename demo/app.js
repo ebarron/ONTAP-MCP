@@ -333,12 +333,20 @@ class OntapMcpDemo {
     showClustersView() {
         console.log('Switching to clusters view');
         
-        // Hide storage classes view
+        // Hide other views
         const storageClassesView = document.getElementById('storageClassesView');
         const clustersView = document.getElementById('clustersView');
+        const alertsView = document.getElementById('alertsView');
         
         if (storageClassesView) storageClassesView.style.display = 'none';
+        if (alertsView) alertsView.style.display = 'none';
         if (clustersView) clustersView.style.display = 'block';
+        
+        // Show chatbot
+        const chatbotContainer = document.getElementById('chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.style.display = 'block';
+        }
         
         // Update tab navigation
         this.updateTabNavigation('clusters');
@@ -356,17 +364,25 @@ class OntapMcpDemo {
     showStorageClassesView() {
         console.log('Switching to storage classes view');
         
-        // Hide clusters view
+        // Hide other views
         const storageClassesView = document.getElementById('storageClassesView');
         const clustersView = document.getElementById('clustersView');
+        const alertsView = document.getElementById('alertsView');
         
         console.log('storageClassesView element:', storageClassesView);
         console.log('clustersView element:', clustersView);
         
         if (clustersView) clustersView.style.display = 'none';
+        if (alertsView) alertsView.style.display = 'none';
         if (storageClassesView) {
             storageClassesView.style.display = 'block';
             console.log('Storage classes view is now visible');
+        }
+        
+        // Show chatbot
+        const chatbotContainer = document.getElementById('chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.style.display = 'block';
         }
         
         // Update tab navigation
@@ -383,6 +399,34 @@ class OntapMcpDemo {
                 useStorageClassProvisioning: true
             };
         }
+    }
+
+    showAlertsView() {
+        console.log('Switching to alerts view');
+        
+        // Hide other views
+        const clustersView = document.getElementById('clustersView');
+        const storageClassesView = document.getElementById('storageClassesView');
+        const alertsView = document.getElementById('alertsView');
+        
+        if (clustersView) clustersView.style.display = 'none';
+        if (storageClassesView) storageClassesView.style.display = 'none';
+        if (alertsView) {
+            alertsView.style.display = 'block';
+            console.log('Alerts view is now visible');
+        }
+        
+        // Hide chatbot in alerts view
+        const chatbotContainer = document.getElementById('chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.style.display = 'none';
+        }
+        
+        // Update tab navigation
+        this.updateTabNavigation('alerts');
+        
+        // Future: Load alerts from Prometheus
+        // await this.loadAlerts();
     }
 
     updateTabNavigation(activeView) {

@@ -59,6 +59,18 @@ class StorageClassProvisioningPanel {
                                 <option value="">Select a Storage Class...</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label for="scVolumeName">Volume Name</label>
+                            <input type="text" id="scVolumeName" name="scVolumeName" 
+                                   placeholder="e.g., my_volume_name (alphanumeric and _ only)" 
+                                   pattern="[a-zA-Z0-9_]+" 
+                                   title="Only letters, numbers, and underscores allowed"
+                                   required>
+                        </div>
+                        <div class="form-group">
+                            <label for="scVolumeSize">Volume Size</label>
+                            <input type="text" id="scVolumeSize" name="scVolumeSize" placeholder="e.g., 100GB" required>
+                        </div>
                         <div id="storageClassDetails" class="storage-class-details-display" style="display: none;">
                             <div class="detail-row">
                                 <span class="detail-label">QoS Policy:</span>
@@ -87,23 +99,6 @@ class StorageClassProvisioningPanel {
                                     Recommend...
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Details Section -->
-                    <div class="form-section">
-                        <h3>Details</h3>
-                        <div class="form-group">
-                            <label for="scVolumeName">Volume Name</label>
-                            <input type="text" id="scVolumeName" name="scVolumeName" 
-                                   placeholder="e.g., my_volume_name (alphanumeric and _ only)" 
-                                   pattern="[a-zA-Z0-9_]+" 
-                                   title="Only letters, numbers, and underscores allowed"
-                                   required>
-                        </div>
-                        <div class="form-group">
-                            <label for="scVolumeSize">Volume Size</label>
-                            <input type="text" id="scVolumeSize" name="scVolumeSize" placeholder="e.g., 100GB" required>
                         </div>
                         <div class="form-group checkbox-group">
                             <label>
