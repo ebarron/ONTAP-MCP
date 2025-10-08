@@ -472,6 +472,11 @@ class OntapMcpDemo {
             activeTabLink.classList.add('tab-link-active');
             activeTabLink.setAttribute('aria-current', 'page');
         }
+        
+        // Update left nav using component if available
+        if (typeof leftNavBar !== 'undefined' && leftNavBar.setActive) {
+            leftNavBar.setActive(activeView);
+        }
     }
 
     async loadClusters() {
@@ -1105,6 +1110,12 @@ let app;
 let chatbot;
 document.addEventListener('DOMContentLoaded', () => {
     app = new OntapMcpDemo();
+    window.app = app; // Make app globally accessible
+    
+    // Set up left navigation now that app exists
+    if (typeof leftNavBar !== 'undefined' && leftNavBar.setupNavigation) {
+        leftNavBar.setupNavigation();
+    }
     
     // Initialize chatbot after app is ready
     setTimeout(() => {

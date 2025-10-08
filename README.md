@@ -296,11 +296,14 @@ src/
 └── types/                 # TypeScript type definitions
 
 demo/                      # Web-based demo interface (NetApp BlueXP style)
-├── index.html             # Main application (352 lines, down from 660)
+├── index.html             # Main application (242 lines, down from 660)
 ├── app.js                 # Core application logic
 ├── styles.css             # NetApp BlueXP design system
 └── js/
     ├── components/
+    │   ├── navigation/    # Navigation components
+    │   │   ├── TopNavBar.js           # Header with NetApp branding
+    │   │   └── LeftNavBar.js          # Service navigation sidebar
     │   ├── views/         # Modular view components
     │   │   ├── ClustersView.js        # Cluster management view
     │   │   ├── StorageClassesView.js  # Storage classes view

@@ -1,6 +1,10 @@
 // Initialize export policy modal
 let exportPolicyModal;
 
+// Initialize navigation components
+let topNavBarComponent;
+let leftNavBarComponent;
+
 // Initialize view components
 let clustersViewComponent;
 let storageClassesViewComponent;
@@ -9,22 +13,35 @@ let alertsViewComponent;
 document.addEventListener('DOMContentLoaded', () => {
     exportPolicyModal = new ExportPolicyModal();
     
-    // Initialize view components
+    // Get parent containers
+    const appBase = document.querySelector('.app-base');
     const mainContent = document.getElementById('main-content');
     
-    // Initialize Clusters View
+    // Initialize navigation components first (they create the layout structure)
+    if (appBase && typeof topNavBar !== 'undefined') {
+        topNavBarComponent = topNavBar;
+        topNavBarComponent.init(appBase);
+    }
+    
+    if (appBase && typeof leftNavBar !== 'undefined') {
+        leftNavBarComponent = leftNavBar;
+        leftNavBarComponent.init(appBase);
+        
+        // NOTE: Navigation event handlers will be set up after app.js loads
+        // We'll call leftNavBarComponent.setupNavigation() from app.js
+    }
+    
+    // Initialize view components (they populate the main content area)
     if (mainContent && typeof clustersView !== 'undefined') {
         clustersViewComponent = clustersView;
         clustersViewComponent.init(mainContent);
     }
     
-    // Initialize Storage Classes View
     if (mainContent && typeof storageClassesView !== 'undefined') {
         storageClassesViewComponent = storageClassesView;
         storageClassesViewComponent.init(mainContent);
     }
     
-    // Initialize Alerts View
     if (mainContent && typeof alertsView !== 'undefined') {
         alertsViewComponent = alertsView;
         alertsViewComponent.init(mainContent);
