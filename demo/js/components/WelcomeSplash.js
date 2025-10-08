@@ -104,7 +104,7 @@ class WelcomeSplash {
                             <div class="feature-column">
                                 <h4>📊 Harvest MCP Server</h4>
                                 <ul>
-                                    <li>Real-time performance metrics</li>
+                                    <li>Real-time configuration and performance metrics</li>
                                     <li>Prometheus/VictoriaMetrics integration</li>
                                     <li>Intelligent alerting system</li>
                                     <li>Infrastructure health assessment</li>
