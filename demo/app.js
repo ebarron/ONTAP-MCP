@@ -335,12 +335,24 @@ class OntapMcpDemo {
         
         // Hide other views
         const storageClassesView = document.getElementById('storageClassesView');
-        const clustersView = document.getElementById('clustersView');
-        const alertsView = document.getElementById('alertsView');
-        
         if (storageClassesView) storageClassesView.style.display = 'none';
-        if (alertsView) alertsView.style.display = 'none';
-        if (clustersView) clustersView.style.display = 'block';
+        
+        // Hide AlertsView using component
+        if (typeof alertsView !== 'undefined') {
+            alertsView.hide();
+        } else {
+            const alertsViewElement = document.getElementById('alertsView');
+            if (alertsViewElement) alertsViewElement.style.display = 'none';
+        }
+        
+        // Show ClustersView using component
+        if (typeof clustersView !== 'undefined') {
+            clustersView.show();
+        } else {
+            // Fallback to direct DOM manipulation
+            const clustersViewElement = document.getElementById('clustersView');
+            if (clustersViewElement) clustersViewElement.style.display = 'block';
+        }
         
         // Show chatbot
         const chatbotContainer = document.getElementById('chatbot-container');
@@ -364,19 +376,28 @@ class OntapMcpDemo {
     showStorageClassesView() {
         console.log('Switching to storage classes view');
         
-        // Hide other views
-        const storageClassesView = document.getElementById('storageClassesView');
-        const clustersView = document.getElementById('clustersView');
-        const alertsView = document.getElementById('alertsView');
+        // Hide ClustersView using component
+        if (typeof clustersView !== 'undefined') {
+            clustersView.hide();
+        } else {
+            const clustersViewElement = document.getElementById('clustersView');
+            if (clustersViewElement) clustersViewElement.style.display = 'none';
+        }
         
-        console.log('storageClassesView element:', storageClassesView);
-        console.log('clustersView element:', clustersView);
+        // Show StorageClassesView using component
+        if (typeof storageClassesView !== 'undefined') {
+            storageClassesView.show();
+        } else {
+            const storageClassesViewElement = document.getElementById('storageClassesView');
+            if (storageClassesViewElement) storageClassesViewElement.style.display = 'block';
+        }
         
-        if (clustersView) clustersView.style.display = 'none';
-        if (alertsView) alertsView.style.display = 'none';
-        if (storageClassesView) {
-            storageClassesView.style.display = 'block';
-            console.log('Storage classes view is now visible');
+        // Hide AlertsView using component
+        if (typeof alertsView !== 'undefined') {
+            alertsView.hide();
+        } else {
+            const alertsViewElement = document.getElementById('alertsView');
+            if (alertsViewElement) alertsViewElement.style.display = 'none';
         }
         
         // Show chatbot
@@ -407,13 +428,21 @@ class OntapMcpDemo {
         // Hide other views
         const clustersView = document.getElementById('clustersView');
         const storageClassesView = document.getElementById('storageClassesView');
-        const alertsView = document.getElementById('alertsView');
         
         if (clustersView) clustersView.style.display = 'none';
         if (storageClassesView) storageClassesView.style.display = 'none';
-        if (alertsView) {
-            alertsView.style.display = 'block';
-            console.log('Alerts view is now visible');
+        
+        // Show AlertsView using component (if available)
+        if (typeof alertsView !== 'undefined') {
+            alertsView.show();
+            console.log('Alerts view is now visible (via component)');
+        } else {
+            // Fallback to direct DOM manipulation
+            const alertsViewElement = document.getElementById('alertsView');
+            if (alertsViewElement) {
+                alertsViewElement.style.display = 'block';
+                console.log('Alerts view is now visible (fallback)');
+            }
         }
         
         // Hide chatbot in alerts view

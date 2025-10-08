@@ -294,7 +294,27 @@ src/
 │   ├── cifs-share-tools.ts          # CIFS/SMB share management
 │   └── qos-policy-tools.ts          # QoS performance management
 └── types/                 # TypeScript type definitions
-demo/                      # Web-based demo interface
+
+demo/                      # Web-based demo interface (NetApp BlueXP style)
+├── index.html             # Main application (352 lines, down from 660)
+├── app.js                 # Core application logic
+├── styles.css             # NetApp BlueXP design system
+└── js/
+    ├── components/
+    │   ├── views/         # Modular view components
+    │   │   ├── ClustersView.js        # Cluster management view
+    │   │   ├── StorageClassesView.js  # Storage classes view
+    │   │   └── AlertsView.js          # Alerts/monitoring view
+    │   ├── ChatbotAssistant.js        # AI provisioning assistant
+    │   ├── ProvisioningPanel.js       # Storage provisioning workflow
+    │   ├── ExportPolicyModal.js       # NFS export policy management
+    │   └── app-initialization.js      # Component initialization
+    ├── core/
+    │   ├── McpApiClient.js            # MCP SSE transport layer
+    │   └── utils.js                   # Utility functions
+    └── ui/
+        └── ToastNotifications.js      # User feedback system
+
 test/                      # Comprehensive testing framework
 ```
 
