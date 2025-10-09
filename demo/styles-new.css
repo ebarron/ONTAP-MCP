@@ -332,11 +332,123 @@ body {
 
 /* Additional NetApp specific styles */
 .style_sub-heading-alerts__9dguW {
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+    text-align: center;
 }
 
 .style_alert-detail-sub-heading__Gccrb {
-    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 24px;
+    flex-wrap: nowrap;
+}
+
+.style_breadcrumbs__WQB5P {
+    padding-left: 40px;
+    padding-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style_alert-details-header-item__Bnj\+3 {
+    border-left: 1px solid var(--border-main);
+    padding-left: 40px;
+}
+
+.style_card__KdEtT {
+    border-top: 1px solid var(--border-main);
+    padding: 20px 30px;
+}
+
+/* NetApp Card Module - White background */
+.Card-module_base__Mi4wLjYtaW50ZXJuYWw {
+    background-color: var(--background-content);
+    background-color: #FFFFFF;
+}
+
+/* NetApp Layout Module - Grid System */
+.Layout-module_grid__Mi4wLjYtaW50ZXJuYWw {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+}
+
+.Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw {
+    grid-column: span 12;
+}
+
+.Layout-module_lg-3__Mi4wLjYtaW50ZXJuYWw {
+    grid-column: span 3;
+}
+
+.Layout-module_lg-12__Mi4wLjYtaW50ZXJuYWw {
+    grid-column: span 12;
+}
+
+.style_truncate__kDoKg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.style_max-w-150__7Hbel {
+    max-width: 150px;
+}
+
+.style_max-w-450__SdO\+C {
+    max-width: 450px;
+}
+
+.style_pipe-separator__nsN6y {
+    border: 1px solid var(--border-main);
+    margin: 0 10px;
+}
+
+.style_alerts-link__tC-il {
+    color: var(--text-button-primary);
+    font-size: 14px;
+    line-height: 24px;
+    padding-left: 4px;
+}
+
+.style_mt-40__MznSA {
+    margin-top: 40px;
+}
+
+.style_mb-10__O6CMZ {
+    margin-bottom: 10px;
+}
+
+.style_corrective-actions__2-E4a {
+    background-color: var(--notification-information-bg);
+    border-left: 6px solid var(--notification-information);
+    margin-top: 20px;
+    padding: 40px 20px;
+}
+
+.style_corrective-actions-text__auArK {
+    min-height: 10px;
+}
+
+/* Alerts Table - Fixed height for 10 rows with scrollbar */
+.style_table-outer-layout__RLkyh {
+    background-color: var(--background-content);
+    overflow-y: auto;
+}
+
+.style_tbl-height-wo-pager__qyc4B {
+    /* Height calculation: 10 rows × ~56px per row = 560px fixed height */
+    height: 560px !important;
+    max-height: 560px;
+    overflow-y: auto !important;
+}
+
+/* Table rows container scrollable */
+.Table-module_rows-group-container__Mi4wLjYtaW50ZXJuYWw {
+    overflow-y: auto;
+    height: 560px;
 }
 
 /* NetApp Table Counter Module - Authentic styling */
@@ -344,6 +456,14 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
+    font-size: 14px;
+    font-weight: 600; /* Bold for Alerts and Filters text */
+}
+
+/* Counter text items inherit proper font size and bold weight */
+.TableCounter-module_base__Mi4wLjYtaW50ZXJuYWw > span {
+    font-size: 14px;
+    font-weight: 600; /* Bold for Alerts and Filters text */
 }
 
 /* Cluster Selection Checkbox */
@@ -365,19 +485,19 @@ body {
 .TableCounter-module_divider__Mi4wLjYtaW50ZXJuYWw {
     width: 1px;
     height: 16px;
-    background-color: #d1d5db;
+    background-color: #1C1C1C;
 }
 
 .TableCounter-module_reset__Mi4wLjYtaW50ZXJuYWw {
     color: var(--primary-main);
     text-decoration: none;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 400; /* Normal weight for Reset button */
     cursor: pointer;
     border: none;
     background: none;
     padding: 0;
-    margin-left: 8px;
+    margin-left: 0;
 }
 
 .TableCounter-module_reset__Mi4wLjYtaW50ZXJuYWw:hover {

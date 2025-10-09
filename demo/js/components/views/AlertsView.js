@@ -5,6 +5,7 @@ class AlertsView {
     constructor() {
         this.containerId = 'alertsView';
         this.alertCount = 0;
+        this.alertRulesCache = null; // Cache alert rules with corrective actions
     }
 
     // Render the complete AlertsView HTML
@@ -18,7 +19,9 @@ class AlertsView {
                 
                 <div role="heading" class="typography-module_h03__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw style_alerts-header-layout__8HFmd style_table-header-gap__xFIB7">
                     <div class="TableCounter-module_base__Mi4wLjYtaW50ZXJuYWw">
-                        <span><span>Alerts&nbsp;</span><span id="alertCount">(0)</span></span><span>&nbsp; &nbsp;<div class="TableCounter-module_divider__Mi4wLjYtaW50ZXJuYWw"></div>&nbsp; &nbsp;Filters applied (0)</span>
+                        <span><span>Alerts&nbsp;</span><span id="alertCount">(0)</span></span>
+                        <div class="TableCounter-module_divider__Mi4wLjYtaW50ZXJuYWw"></div>
+                        <span>Filters applied (0)</span>
                         <button data-component="Button" type="button" class="buttons-module_text__Mi4wLjYtaW50ZXJuYWw TableCounter-module_reset__Mi4wLjYtaW50ZXJuYWw">Reset</button>
                     </div>
                     <div class="style_text-align-right__TD9Ez">
@@ -234,6 +237,85 @@ class AlertsView {
                         </div>
                     </div>
                 </div>
+                
+                <!-- Alert Details View (initially hidden) -->
+                <div id="alertDetailsView" style="display: none;">
+                    <!-- Breadcrumb -->
+                    <div class="Breadcrumbs-module_base__Mi4wLjYtaW50ZXJuYWw style_breadcrumbs__WQB5P">
+                        <a href="#" onclick="alertsView.backToList(); return false;">Alerts</a>
+                        <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="--icon-primary: var(--icon-secondary);">
+                            <path d="M13.9905 11.9429C13.9791 11.8551 13.9415 11.7728 13.8827 11.7069L10.7027 8.15186C10.6696 8.10771 10.6274 8.07131 10.5788 8.0452C10.5303 8.01909 10.4766 8.00389 10.4216 8.00065C10.3666 7.99742 10.3116 8.00622 10.2603 8.02646C10.2091 8.04671 10.1628 8.07789 10.1248 8.11786C10.0447 8.20131 10 8.31259 10 8.42836C10 8.54413 10.0447 8.6554 10.1248 8.73886L13.0443 12.0009L10.1278 15.2629C10.048 15.3463 10.0035 15.4573 10.0035 15.5729C10.0035 15.6884 10.048 15.7995 10.1278 15.8829C10.1663 15.923 10.2129 15.9542 10.2647 15.9744C10.3164 15.9946 10.3718 16.0033 10.4272 15.9999C10.4822 15.9962 10.5357 15.9808 10.5842 15.9548C10.6328 15.9287 10.6752 15.8926 10.7087 15.8489L13.8887 12.2939C13.9305 12.2464 13.9617 12.1905 13.9803 12.13C13.9989 12.0695 14.0044 12.0057 13.9965 11.9429H13.9905Z" fill="var(--icon-primary)"></path>
+                        </svg>
+                        <div class="Breadcrumbs-module_last-crumb__Mi4wLjYtaW50ZXJuYWw">
+                            <div class="style_truncate__kDoKg style_max-w-450__SdO+C" id="alertDetailsBreadcrumb" title="">Alert Details</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alert Details Content -->
+                    <section class="Layout-module_container__Mi4wLjYtaW50ZXJuYWw">
+                        <div class="Layout-module_default__Mi4wLjYtaW50ZXJuYWw Layout-module_grid__Mi4wLjYtaW50ZXJuYWw Layout-module_center-content__Mi4wLjYtaW50ZXJuYWw">
+                            <div class="Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw Layout-module_lg-12__Mi4wLjYtaW50ZXJuYWw">
+                                <div role="heading" class="typography-module_h02__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw style_sub-heading-alerts__9dguW" id="alertDetailsName">Alert Details</div>
+                                <div class="style_alert-detail-sub-heading__Gccrb" id="alertDetailsSubheading">
+                                    <!-- Source info will be populated here -->
+                                </div>
+                                
+                                <!-- Alert Overview Card -->
+                                <div class="Card-module_base__Mi4wLjYtaW50ZXJuYWw style_card__KdEtT">
+                                    <div class="Layout-module_default__Mi4wLjYtaW50ZXJuYWw Layout-module_grid__Mi4wLjYtaW50ZXJuYWw">
+                                        <div class="Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw Layout-module_lg-3__Mi4wLjYtaW50ZXJuYWw">
+                                            <div id="alertDetailsSeverity">
+                                                <!-- Severity badge will be populated here -->
+                                            </div>
+                                        </div>
+                                        <div class="Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw Layout-module_lg-3__Mi4wLjYtaW50ZXJuYWw">
+                                            <div class="style_alert-details-header-item__Bnj+3">
+                                                <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">Active</p>
+                                                <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Status</p>
+                                            </div>
+                                        </div>
+                                        <div class="Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw Layout-module_lg-3__Mi4wLjYtaW50ZXJuYWw">
+                                            <div class="style_alert-details-header-item__Bnj+3" id="alertDetailsImpact">
+                                                <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">-</p>
+                                                <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Impact Area</p>
+                                            </div>
+                                        </div>
+                                        <div class="Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw Layout-module_lg-3__Mi4wLjYtaW50ZXJuYWw">
+                                            <div class="style_alert-details-header-item__Bnj+3" id="alertDetailsTriggered">
+                                                <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">-</p>
+                                                <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Triggered time</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Description Card -->
+                                <div class="Card-module_base__Mi4wLjYtaW50ZXJuYWw style_card__KdEtT">
+                                    <div class="Layout-module_default__Mi4wLjYtaW50ZXJuYWw Layout-module_grid__Mi4wLjYtaW50ZXJuYWw">
+                                        <div class="Layout-module_grid-item__Mi4wLjYtaW50ZXJuYWw Layout-module_lg-12__Mi4wLjYtaW50ZXJuYWw">
+                                            <div>
+                                                <div>
+                                                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">Description</p>
+                                                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw" id="alertDetailsDescription">-</p>
+                                                </div>
+                                                <div class="style_mt-40__MznSA">
+                                                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">Details</p>
+                                                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw" id="alertDetailsSummary">-</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Corrective Actions Card (optional, shown if corrective actions exist) -->
+                                <div id="alertDetailsCorrectiveActions" style="display: none;" class="Card-module_base__Mi4wLjYtaW50ZXJuYWw style_corrective-actions__2-E4a">
+                                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw style_mb-10__O6CMZ">Corrective actions to fix the issue</p>
+                                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw style_corrective-actions-text__auArK" id="alertDetailsCorrectiveActionsText"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
             </div>
         `;
     }
@@ -275,11 +357,435 @@ class AlertsView {
         }
     }
 
-    // Load alerts data (placeholder for future implementation)
+    // Format timestamp for display
+    formatTimestamp(isoString) {
+        const date = new Date(isoString);
+        const options = { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric', 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+        };
+        return date.toLocaleString('en-US', options);
+    }
+
+    // Get severity icon and styling
+    getSeverityBadge(severity) {
+        const severityLower = severity?.toLowerCase() || 'info';
+        
+        const badges = {
+            critical: {
+                class: 'InlineNotification-module_error__Mi4wLjYtaW50ZXJuYWw',
+                icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="InlineNotification-module_icon__Mi4wLjYtaW50ZXJuYWw">
+                    <desc id="-Error">Error</desc>
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 21.5C17.2467 21.5 21.5 17.2467 21.5 12C21.5 6.75329 17.2467 2.5 12 2.5C6.75329 2.5 2.5 6.75329 2.5 12C2.5 17.2467 6.75329 21.5 12 21.5ZM12 23C18.0751 23 23 18.0751 23 12C23 5.92487 18.0751 1 12 1C5.92487 1 1 5.92487 1 12C1 18.0751 5.92487 23 12 23Z" id="base-layer" fill="var(--icon-primary)"></path>
+                    <path d="M16.2549 8.78033C16.5478 8.48743 16.5478 8.01256 16.2549 7.71967C15.962 7.42677 15.4872 7.42678 15.1943 7.71967L12.0123 10.9017L8.83038 7.71979C8.53748 7.4269 8.06261 7.4269 7.76971 7.7198C7.47682 8.01269 7.47683 8.48757 7.76972 8.78046L10.9517 11.9623L7.76971 15.1444C7.47682 15.4373 7.47683 15.9121 7.76972 16.205C8.06262 16.4979 8.53749 16.4979 8.83038 16.205L12.0123 13.023L15.1944 16.205C15.4873 16.4979 15.9622 16.4979 16.2551 16.205C16.548 15.9121 16.548 15.4372 16.2551 15.1443L13.073 11.9623L16.2549 8.78033Z" id="base-layer" fill="var(--icon-primary)"></path>
+                </svg>`,
+                label: 'Critical'
+            },
+            warning: {
+                class: 'InlineNotification-module_warning__Mi4wLjYtaW50ZXJuYWw',
+                icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="InlineNotification-module_icon__Mi4wLjYtaW50ZXJuYWw">
+                    <desc id="-Notice-triangle">Notice triangle</desc>
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M2.56766 20.582H21.8206L12.2809 3.14119L2.56766 20.582ZM22.6728 22.0884H1.70806C0.935022 22.0884 0.44507 21.2692 0.817804 20.5999L11.3946 1.6084C11.7824 0.912039 12.7963 0.915832 13.1788 1.61508L23.5668 20.6066C23.9327 21.2757 23.4425 22.0884 22.6728 22.0884ZM13.2151 9.60086V14.2483C13.2151 14.4987 13.1171 14.7388 12.9427 14.9158C12.7683 15.0929 12.5317 15.1923 12.285 15.1923C12.0383 15.1923 11.8018 15.0929 11.6273 14.9158C11.4529 14.7388 11.3549 14.4987 11.3549 14.2483V9.60086C11.3549 9.3505 11.4529 9.11039 11.6273 8.93336C11.8018 8.75633 12.0383 8.65688 12.285 8.65688C12.5317 8.65688 12.7683 8.75633 12.9427 8.93336C13.1171 9.11039 13.2151 9.3505 13.2151 9.60086ZM12.2854 16.2222C12.544 16.2223 12.7945 16.3135 12.9943 16.4801C13.1941 16.6468 13.3308 16.8785 13.3811 17.136C13.4314 17.3934 13.3922 17.6606 13.2702 17.892C13.1481 18.1234 12.9508 18.3047 12.7119 18.405C12.4729 18.5053 12.2071 18.5184 11.9596 18.4421C11.7122 18.3658 11.4985 18.2047 11.3549 17.9864C11.2114 17.7681 11.1468 17.5061 11.1723 17.2449C11.1978 16.9837 11.3117 16.7396 11.4946 16.5541C11.5985 16.4487 11.7218 16.3652 11.8575 16.3083C11.9932 16.2513 12.1386 16.2221 12.2854 16.2222Z" id="base-layer" fill="var(--icon-primary)"></path>
+                </svg>`,
+                label: 'Warning'
+            },
+            info: {
+                class: 'InlineNotification-module_info__Mi4wLjYtaW50ZXJuYWw',
+                icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="InlineNotification-module_icon__Mi4wLjYtaW50ZXJuYWw">
+                    <desc id="-Info">Info</desc>
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 21.5C17.2467 21.5 21.5 17.2467 21.5 12C21.5 6.75329 17.2467 2.5 12 2.5C6.75329 2.5 2.5 6.75329 2.5 12C2.5 17.2467 6.75329 21.5 12 21.5ZM12 23C18.0751 23 23 18.0751 23 12C23 5.92487 18.0751 1 12 1C5.92487 1 1 5.92487 1 12C1 18.0751 5.92487 23 12 23Z" id="base-layer" fill="var(--icon-primary)"></path>
+                    <path d="M12 10C11.4477 10 11 10.4477 11 11V16C11 16.5523 11.4477 17 12 17C12.5523 17 13 16.5523 13 16V11C13 10.4477 12.5523 10 12 10Z" id="base-layer" fill="var(--icon-primary)"></path>
+                    <path d="M12 9C12.5523 9 13 8.55228 13 8C13 7.44772 12.5523 7 12 7C11.4477 7 11 7.44772 11 8C11 8.55228 11.4477 9 12 9Z" id="base-layer" fill="var(--icon-primary)"></path>
+                </svg>`,
+                label: 'Info'
+            }
+        };
+
+        return badges[severityLower] || badges.info;
+    }
+
+    // Render alert row
+    renderAlertRow(alert, index) {
+        const severity = this.getSeverityBadge(alert.labels.severity);
+        const triggeredTime = this.formatTimestamp(alert.activeAt);
+        const alertName = alert.labels.alertname || 'Unknown Alert';
+        const impactArea = alert.annotations?.impact || '-';
+        
+        // Determine source type and name from labels
+        let sourceType = '-';
+        let sourceName = '-';
+        
+        if (alert.labels.volume) {
+            sourceType = 'Volume';
+            sourceName = alert.labels.volume;
+        }
+        
+        return `
+            <div class="Table-module_row__Mi4wLjYtaW50ZXJuYWw Table-module_clickable__Mi4wLjYtaW50ZXJuYWw" data-testid="table-row-${alert.labels.alertname}" style="width: 100%;">
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Triggered time" style="flex: 1 0 240px;">
+                    ${triggeredTime}
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Severity" style="flex: 1 0 170px;">
+                    <div class="InlineNotification-module_base__Mi4wLjYtaW50ZXJuYWw ${severity.class}" style="width: 100%;">
+                        ${severity.icon}
+                        <span class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">${severity.label}</span>
+                    </div>
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Status" style="flex: 1 0 130px;">
+                    Active
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Name" style="flex: 1 0 300px;">
+                    <a href="#" class="style_alerts-name-link__uXpO0 style_truncate__kDoKg" title="${alertName}" onclick="alertsView.showAlertDetailsByIndex(${index}); return false;">${alertName}</a>
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Source type" style="flex: 1 0 170px;">
+                    ${sourceType}
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Source name" style="flex: 1 0 230px;">
+                    ${sourceName}
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Impact Area" style="flex: 1 0 170px;">
+                    ${impactArea}
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-empty_id" style="flex: 0 0 60px;"></div>
+            </div>
+        `;
+    }
+
+    // Store alerts data for detail view
+    storeAlertsData(alerts) {
+        this.alertsData = alerts;
+    }
+
+    // Fetch and cache alert rules with corrective actions from MCP tool
+    async fetchAndCacheAlertRules() {
+        if (this.alertRulesCache) {
+            console.log('🔍 Alert rules already cached');
+            return;
+        }
+
+        try {
+            // Call MCP list_alert_rules tool using RAW mode to get JSON directly
+            // This avoids the parseContent() text formatting that loses structure
+            console.log('🔍 Fetching alert rules from MCP (raw JSON mode)...');
+            
+            // Get the harvest-remote client
+            const harvestClient = window.app.clientManager.clients.get('harvest-remote');
+            if (!harvestClient) {
+                console.error('🔍 harvest-remote MCP client not available');
+                return;
+            }
+            
+            // Call with callMcpRaw() to get structured data instead of formatted text
+            const rawResult = await harvestClient.callMcpRaw('list_alert_rules', {});
+            
+            // MCP can return data in two places:
+            // 1. structuredContent - parsed JSON objects
+            // 2. content array - text that needs parsing
+            let rulesJson = null;
+            
+            // Try structuredContent first (preferred - already parsed)
+            if (rawResult?.structuredContent) {
+                if (rawResult.structuredContent.alert_rules) {
+                    rulesJson = rawResult.structuredContent;
+                }
+            }
+            
+            // Fallback to content array if needed
+            if (!rulesJson && rawResult?.content && Array.isArray(rawResult.content)) {
+                for (const item of rawResult.content) {
+                    if (item.type === 'text' && item.text) {
+                        try {
+                            rulesJson = JSON.parse(item.text);
+                            break;
+                        } catch (e) {
+                            // Not JSON, skip
+                        }
+                    }
+                }
+            }
+            
+            if (!rulesJson || !rulesJson.alert_rules) {
+                console.error('🔍 No alert_rules found in MCP response');
+                console.error('🔍 Full raw result:', JSON.stringify(rawResult, null, 2));
+                return;
+            }
+            
+            // Build a map of alert name → rule data with full annotations
+            const rulesMap = new Map();
+            
+            rulesJson.alert_rules.forEach(rule => {
+                if (rule.alert) {
+                    rulesMap.set(rule.alert, {
+                        annotations: rule.annotations || {},
+                        labels: rule.labels || {},
+                        expr: rule.expr,
+                        duration: rule.for,
+                        group: rule.group,
+                        file: rule.file
+                    });
+                }
+            });
+            
+            this.alertRulesCache = rulesMap;
+            console.log(`✅ Cached ${rulesMap.size} alert rules with full annotations`);
+            
+        } catch (error) {
+            console.error('Error fetching alert rules:', error);
+        }
+    }
+
+    // Show alert details by array index (unique identifier)
+    async showAlertDetailsByIndex(index) {
+        if (!this.alertsData) {
+            console.error('No alerts data available');
+            return;
+        }
+
+        const alert = this.alertsData[index];
+        if (!alert) {
+            console.error(`Alert not found at index: ${index}`);
+            return;
+        }
+
+        // Hide the alerts list
+        const alertsTable = document.querySelector('#alertsView > .Table-module_base__Mi4wLjYtaW50ZXJuYWw');
+        const alertsHeader = document.querySelector('#alertsView > .page-header');
+        const alertsToolbar = document.querySelector('#alertsView > .typography-module_h03__Mi4wLjYtaW50ZXJuYWw');
+        
+        if (alertsTable) alertsTable.style.display = 'none';
+        if (alertsHeader) alertsHeader.style.display = 'none';
+        if (alertsToolbar) alertsToolbar.style.display = 'none';
+
+        // Show details view
+        const detailsView = document.getElementById('alertDetailsView');
+        if (detailsView) {
+            detailsView.style.display = 'block';
+        }
+
+        // Populate details (async to fetch rule data)
+        await this.populateAlertDetails(alert);
+    }
+
+    // Show alert details view (legacy - finds first match by name)
+    async showAlertDetails(alertName) {
+        // Find the alert in stored data
+        if (!this.alertsData) {
+            console.error('No alerts data available');
+            return;
+        }
+
+        const alert = this.alertsData.find(a => a.labels.alertname === alertName);
+        if (!alert) {
+            console.error(`Alert not found: ${alertName}`);
+            return;
+        }
+
+        // Hide the alerts list
+        const alertsTable = document.querySelector('#alertsView > .Table-module_base__Mi4wLjYtaW50ZXJuYWw');
+        const alertsHeader = document.querySelector('#alertsView > .page-header');
+        const alertsToolbar = document.querySelector('#alertsView > .typography-module_h03__Mi4wLjYtaW50ZXJuYWw');
+        
+        if (alertsTable) alertsTable.style.display = 'none';
+        if (alertsHeader) alertsHeader.style.display = 'none';
+        if (alertsToolbar) alertsToolbar.style.display = 'none';
+
+        // Show details view
+        const detailsView = document.getElementById('alertDetailsView');
+        if (detailsView) {
+            detailsView.style.display = 'block';
+        }
+
+        // Populate details (async to fetch rule data)
+        await this.populateAlertDetails(alert);
+    }
+
+    // Populate alert details (with rule data from cache)
+    async populateAlertDetails(alert) {
+        // Get rule definition from cache for corrective actions
+        let ruleData = null;
+        if (this.alertRulesCache && alert.labels.alertname) {
+            ruleData = this.alertRulesCache.get(alert.labels.alertname);
+        }
+
+        // Breadcrumb and title
+        document.getElementById('alertDetailsBreadcrumb').textContent = alert.labels.alertname || 'Alert Details';
+        document.getElementById('alertDetailsBreadcrumb').title = alert.labels.alertname || '';
+        document.getElementById('alertDetailsName').textContent = alert.labels.alertname || 'Alert Details';
+
+        // Subheading with source info
+        const subheading = document.getElementById('alertDetailsSubheading');
+        let subheadingHTML = '';
+        
+        if (alert.labels.svm) {
+            subheadingHTML += `<p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Storage VM:</p> `;
+            subheadingHTML += `<a class="style_alerts-link__tC-il style_max-w-150__7Hbel style_truncate__kDoKg" title="${alert.labels.svm}" alt="SVM link" href="#">${alert.labels.svm}</a>`;
+            subheadingHTML += `<span class="style_pipe-separator__nsN6y"></span>`;
+        }
+        
+        if (alert.labels.cluster) {
+            subheadingHTML += `<p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Cluster:</p> `;
+            subheadingHTML += `<a class="style_alerts-link__tC-il style_max-w-150__7Hbel style_truncate__kDoKg" title="${alert.labels.cluster}" alt="CLUSTER link" href="#">${alert.labels.cluster}</a>`;
+        }
+        
+        subheading.innerHTML = subheadingHTML;
+
+        // Severity badge
+        const severity = this.getSeverityBadge(alert.labels.severity);
+        document.getElementById('alertDetailsSeverity').innerHTML = `
+            <div>
+                <div>
+                    <div class="InlineNotification-module_base__Mi4wLjYtaW50ZXJuYWw ${severity.class}">
+                        ${severity.icon}
+                        <span class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">
+                            <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">${severity.label}</p>
+                        </span>
+                    </div>
+                    <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Severity</p>
+                </div>
+            </div>
+        `;
+
+        // Impact Area
+        const impactArea = alert.annotations?.impact || '-';
+        document.getElementById('alertDetailsImpact').innerHTML = `
+            <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">${impactArea}</p>
+            <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Impact Area</p>
+        `;
+
+        // Triggered time
+        const triggeredTime = this.formatTimestamp(alert.activeAt);
+        document.getElementById('alertDetailsTriggered').innerHTML = `
+            <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw typography-module_b__Mi4wLjYtaW50ZXJuYWw">${triggeredTime}</p>
+            <p class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Triggered time</p>
+        `;
+
+        // Description
+        const description = alert.annotations?.description || 'No description available';
+        document.getElementById('alertDetailsDescription').textContent = description;
+
+        // Details/Summary
+        const summary = alert.annotations?.summary || 'No additional details available';
+        document.getElementById('alertDetailsSummary').textContent = summary;
+
+        // Corrective Actions (check both active alert and rule definition)
+        let correctiveActions = alert.annotations?.corrective_actions || alert.annotations?.corrective_action;
+        
+        // If not found in active alert, try the rule definition
+        if (!correctiveActions && ruleData) {
+            correctiveActions = ruleData.annotations?.corrective_action || ruleData.annotations?.corrective_actions;
+        }
+        
+        const correctiveActionsCard = document.getElementById('alertDetailsCorrectiveActions');
+        
+        if (correctiveActions) {
+            const correctiveActionsText = document.getElementById('alertDetailsCorrectiveActionsText');
+            correctiveActionsText.textContent = correctiveActions;
+            // Preserve newlines from YAML literal block syntax (|)
+            correctiveActionsText.style.whiteSpace = 'pre-wrap';
+            correctiveActionsCard.style.display = 'block';
+        } else {
+            correctiveActionsCard.style.display = 'none';
+        }
+    }
+
+    // Navigate back to alerts list
+    backToList() {
+        // Hide details view
+        const detailsView = document.getElementById('alertDetailsView');
+        if (detailsView) {
+            detailsView.style.display = 'none';
+        }
+
+        // Show alerts list
+        const alertsTable = document.querySelector('#alertsView > .Table-module_base__Mi4wLjYtaW50ZXJuYWw');
+        const alertsHeader = document.querySelector('#alertsView > .page-header');
+        const alertsToolbar = document.querySelector('#alertsView > .typography-module_h03__Mi4wLjYtaW50ZXJuYWw');
+        
+        if (alertsTable) alertsTable.style.display = '';
+        if (alertsHeader) alertsHeader.style.display = '';
+        if (alertsToolbar) alertsToolbar.style.display = '';
+    }
+
+
+    // Load alerts data from Harvest MCP
     async loadAlerts() {
-        // TODO: Integrate with Harvest MCP to load actual alerts
-        // For now, just update count to 0
-        this.updateAlertCount(0);
+        try {
+            // Get global app instance
+            if (!window.app || !window.app.clientManager) {
+                console.error('App or client manager not initialized');
+                return;
+            }
+
+            // Call Harvest MCP get_active_alerts tool (routes to harvest-remote server)
+            const response = await window.app.clientManager.callTool('get_active_alerts', {});
+            
+            console.log('Raw alerts response:', response.substring(0, 500) + '...');
+            
+            // Response is a text string with markdown formatting
+            // Extract JSON from markdown code block
+            let alertsData = [];
+            
+            const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
+            if (!jsonMatch || !jsonMatch[1]) {
+                console.error('Could not find JSON block in response');
+                throw new Error('Invalid response format from get_active_alerts');
+            }
+            
+            // Parse the JSON
+            const parsedData = JSON.parse(jsonMatch[1]);
+            
+            // Extract alerts array from the response structure
+            // Response format: { status: "success", data: { alerts: [...] } }
+            if (parsedData.data && parsedData.data.alerts) {
+                alertsData = parsedData.data.alerts;
+            } else if (Array.isArray(parsedData)) {
+                // Fallback: if it's already an array
+                alertsData = parsedData;
+            } else {
+                console.error('Unexpected response structure:', parsedData);
+                throw new Error('Could not extract alerts from response');
+            }
+            
+            console.log(`Loaded ${alertsData.length} alerts`);
+
+            // Store alerts data for detail view
+            this.storeAlertsData(alertsData);
+            
+            // Fetch and cache alert rules for corrective actions
+            await this.fetchAndCacheAlertRules();
+
+            // Update alert count
+            this.updateAlertCount(alertsData.length);
+
+            // Render table rows
+            const tableBody = document.getElementById('alertsTableBody');
+            if (tableBody && alertsData.length > 0) {
+                tableBody.innerHTML = alertsData.map((alert, index) => this.renderAlertRow(alert, index)).join('');
+            } else if (tableBody) {
+                tableBody.innerHTML = `
+                    <div class="Table-module_row__Mi4wLjYtaW50ZXJuYWw" style="padding: 20px; text-align: center;">
+                        <span class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">No active alerts found</span>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Error loading alerts:', error);
+            this.updateAlertCount(0);
+            
+            const tableBody = document.getElementById('alertsTableBody');
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <div class="Table-module_row__Mi4wLjYtaW50ZXJuYWw" style="padding: 20px; text-align: center; color: var(--error-main);">
+                        <span class="typography-module_body14__Mi4wLjYtaW50ZXJuYWw">Error loading alerts: ${error.message}</span>
+                    </div>
+                `;
+            }
+        }
     }
 }
 

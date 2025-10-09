@@ -67,6 +67,29 @@ class McpApiClient {
     }
 
     /**
+     * Call an MCP tool and return raw result (no text extraction)
+     * Use this when you need structured data (JSON) instead of formatted text
+     * @param {string} toolName - Name of the tool to call
+     * @param {object} params - Parameters for the tool
+     * @returns {Promise<object>} - Raw tool response (MCP content array)
+     */
+    async callMcpRaw(toolName, params = {}) {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        try {
+            console.log(`📞 Calling MCP tool (raw): ${toolName}`, params);
+            const result = await this.client.callTool(toolName, params);
+            console.log(`✅ Tool response received (raw result)`);
+            return result;
+        } catch (error) {
+            console.error(`❌ MCP call failed for ${toolName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * List all available tools
      * @returns {Promise<Array>} - Array of tool definitions
      */

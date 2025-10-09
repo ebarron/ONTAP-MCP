@@ -442,6 +442,8 @@ class OntapMcpDemo {
         // Show AlertsView using component (if available)
         if (typeof alertsView !== 'undefined') {
             alertsView.show();
+            // Load alerts data from Harvest MCP
+            alertsView.loadAlerts();
             console.log('Alerts view is now visible (via component)');
         } else {
             // Fallback to direct DOM manipulation
