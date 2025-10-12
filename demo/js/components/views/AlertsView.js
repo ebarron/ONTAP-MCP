@@ -6,6 +6,11 @@ class AlertsView {
         this.containerId = 'alertsView';
         this.alertCount = 0;
         this.alertRulesCache = null; // Cache alert rules with corrective actions
+        
+        // Initialize corrective action components (will be set when app initializes)
+        this.correctiveActionParser = null;
+        this.fixItModal = null;
+        this.parameterResolver = null;
     }
 
     // Render the complete AlertsView HTML
@@ -551,6 +556,17 @@ class AlertsView {
             return;
         }
 
+        // Store current alert index AND unique identifier for re-rendering after undo
+        this.currentAlertIndex = index;
+        
+        // Store unique identifier to find this alert after alerts reload
+        this.currentAlertIdentifier = {
+            fingerprint: alert.fingerprint,
+            cluster: alert.labels?.cluster,
+            volume: alert.labels?.volume,
+            alertname: alert.labels?.alertname
+        };
+
         // Hide the alerts list
         const alertsTable = document.querySelector('#alertsView > .Table-module_base__Mi4wLjYtaW50ZXJuYWw');
         const alertsHeader = document.querySelector('#alertsView > .page-header');
@@ -601,6 +617,42 @@ class AlertsView {
 
         // Populate details (async to fetch rule data)
         await this.populateAlertDetails(alert);
+    }
+
+    /**
+     * Find the current alert index after alerts have been reloaded
+     * Uses the stored identifier to match the alert
+     */
+    findCurrentAlertIndex() {
+        if (!this.currentAlertIdentifier || !this.alertsData) {
+            return undefined;
+        }
+
+        const identifier = this.currentAlertIdentifier;
+        
+        // Try to find by fingerprint first (most reliable)
+        if (identifier.fingerprint) {
+            const index = this.alertsData.findIndex(alert => alert.fingerprint === identifier.fingerprint);
+            if (index !== -1) {
+                console.log(`🔍 Found alert by fingerprint at index ${index}`);
+                return index;
+            }
+        }
+        
+        // Fallback: Find by cluster + volume + alertname
+        const index = this.alertsData.findIndex(alert => 
+            alert.labels?.cluster === identifier.cluster &&
+            alert.labels?.volume === identifier.volume &&
+            alert.labels?.alertname === identifier.alertname
+        );
+        
+        if (index !== -1) {
+            console.log(`🔍 Found alert by labels at index ${index}`);
+            return index;
+        }
+        
+        console.warn('⚠️ Could not find current alert after reload');
+        return undefined;
     }
 
     // Populate alert details (with rule data from cache)
@@ -682,13 +734,343 @@ class AlertsView {
         const correctiveActionsCard = document.getElementById('alertDetailsCorrectiveActions');
         
         if (correctiveActions) {
-            const correctiveActionsText = document.getElementById('alertDetailsCorrectiveActionsText');
-            correctiveActionsText.textContent = correctiveActions;
-            // Preserve newlines from YAML literal block syntax (|)
-            correctiveActionsText.style.whiteSpace = 'pre-wrap';
+            // Parse corrective actions and render Fix-It UI
+            await this.renderCorrectiveActions(correctiveActions, alert);
             correctiveActionsCard.style.display = 'block';
         } else {
             correctiveActionsCard.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render corrective actions with Fix-It buttons
+     */
+    async renderCorrectiveActions(correctiveActionText, alert) {
+        const container = document.getElementById('alertDetailsCorrectiveActionsText');
+        
+        // Show loading state
+        container.innerHTML = '<p style="color: #666;">Parsing corrective actions...</p>';
+        
+        try {
+            // Parse corrective actions using LLM
+            const alertContext = {
+                alertname: alert.labels?.alertname,
+                severity: alert.labels?.severity,
+                volume: alert.labels?.volume,
+                cluster: alert.labels?.cluster,
+                svm: alert.labels?.svm,
+                value: alert.annotations?.summary?.match(/\[([0-9.]+)%\]/)?.[1] || alert.value
+            };
+            
+            // Safety check: ensure parser is initialized
+            if (!this.correctiveActionParser) {
+                console.warn('⚠️ CorrectiveActionParser not initialized - showing raw text');
+                return `<div class="corrective-actions-raw">
+                    <pre>${correctiveActionText}</pre>
+                </div>`;
+            }
+            
+            const parsed = await this.correctiveActionParser.parseCorrectiveActions(
+                correctiveActionText,
+                alertContext
+            );
+            
+            console.log('📋 Parsed corrective actions:', parsed);
+            console.log('📋 Number of remediation options:', parsed.remediation_options?.length);
+            
+            // Render parsed actions with Fix-It buttons
+            let html = `<div class="corrective-actions-parsed">`;
+            
+            // Overall description
+            if (parsed.description) {
+                html += `<p class="corrective-actions-description">${parsed.description}</p>`;
+            }
+            
+            // Remediation options
+            if (parsed.remediation_options && parsed.remediation_options.length > 0) {
+                html += `<div class="remediation-options">`;
+                
+                for (const option of parsed.remediation_options) {
+                    console.log(`📋 Option ${option.option_number}: ${option.option_title} (${option.solutions?.length || 0} solutions)`);
+                    
+                    html += `
+                        <div class="remediation-option">
+                            <h4 class="option-title">
+                                <span class="option-number">Option ${option.option_number}:</span>
+                                ${option.option_title}
+                            </h4>
+                            <p class="option-description">${option.option_description}</p>
+                    `;
+                    
+                    // Solutions (Fix-It buttons)
+                    if (option.solutions && option.solutions.length > 0) {
+                        html += `<div class="solution-buttons">`;
+                        
+                        for (const solution of option.solutions) {
+                            const solutionIndex = option.solutions.indexOf(solution);
+                            const buttonId = `fixItBtn_${option.option_number}_${solutionIndex}`;
+                            
+                            // Store solution and alert data as base64 to avoid escaping issues
+                            const solutionData = btoa(JSON.stringify(solution));
+                            const alertData = btoa(JSON.stringify(alert));
+                            
+                            // Check if there's undo info for this action
+                            const undoInfo = this.getUndoInfoForAction(solution.mcp_tool, alert);
+                            const isExecuted = undoInfo !== null;
+                            
+                            html += `
+                                <button 
+                                    id="${buttonId}" 
+                                    class="fix-it-button ${isExecuted ? 'fix-it-button-executed' : ''}"
+                                    data-solution="${solutionData}"
+                                    data-alert="${alertData}"
+                                    onclick="alertsView.handleFixItClick(this)"
+                                    ${isExecuted ? 'disabled' : ''}
+                                >
+                                    <span class="fix-it-icon">${isExecuted ? '✓' : '🔧'}</span>
+                                    ${solution.solution_title}${isExecuted ? ' (Applied)' : ''}
+                                </button>
+                            `;
+                            
+                            // Show undo button if action was executed
+                            if (isExecuted) {
+                                html += `
+                                    <button 
+                                        class="undo-button"
+                                        onclick="alertsView.handleUndoClick('${buttonId}')"
+                                        title="Undo last action"
+                                    >
+                                        <span class="undo-icon">⏪</span>
+                                        Undo
+                                    </button>
+                                `;
+                            }
+                        }
+                        
+                        html += `</div>`; // solution-buttons
+                    }
+                    
+                    html += `</div>`; // remediation-option
+                }
+                
+                html += `</div>`; // remediation-options
+            }
+            
+            html += `</div>`; // corrective-actions-parsed
+            
+            // Add styles
+            html += this.getCorrectiveActionsStyles();
+            
+            container.innerHTML = html;
+            
+        } catch (error) {
+            console.error('Error rendering corrective actions:', error);
+            // Fallback to plain text display
+            container.textContent = correctiveActionText;
+            container.style.whiteSpace = 'pre-wrap';
+        }
+    }
+
+    /**
+     * Get CSS styles for corrective actions UI
+     */
+    getCorrectiveActionsStyles() {
+        return `
+            <style>
+                .corrective-actions-parsed {
+                    font-size: 14px;
+                    line-height: 1.5;
+                }
+                
+                .corrective-actions-description {
+                    margin: 0 0 20px 0;
+                    color: #333;
+                    font-size: 14px;
+                }
+                
+                .remediation-options {
+                    margin-top: 16px;
+                }
+                
+                .remediation-option {
+                    margin-bottom: 24px;
+                    padding-bottom: 24px;
+                    border-bottom: 1px solid #e1e5e9;
+                }
+                
+                .remediation-option:last-child {
+                    border-bottom: none;
+                    margin-bottom: 0;
+                    padding-bottom: 0;
+                }
+                
+                .option-title {
+                    font-size: 15px;
+                    font-weight: 600;
+                    color: #333;
+                    margin: 0 0 8px 0;
+                }
+                
+                .option-number {
+                    color: #0067C5;
+                }
+                
+                .option-description {
+                    margin: 0 0 16px 0;
+                    color: #666;
+                    font-size: 13px;
+                }
+                
+                .solution-buttons {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 12px;
+                }
+                
+                .fix-it-button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 20px;
+                    background: #0067C5;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                
+                .fix-it-button:hover {
+                    background: #0056a3;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(0, 103, 197, 0.3);
+                }
+                
+                .fix-it-button-executed {
+                    background: #9e9e9e;
+                    color: #fff;
+                    cursor: not-allowed;
+                    opacity: 0.7;
+                }
+                
+                .fix-it-button-executed:hover {
+                    background: #9e9e9e;
+                    transform: none;
+                    box-shadow: none;
+                }
+                
+                .fix-it-icon {
+                    font-size: 16px;
+                }
+                
+                .undo-button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 10px 16px;
+                    background: #f5f5f5;
+                    color: #333;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                
+                .undo-button:hover {
+                    background: #e8e8e8;
+                    border-color: #ccc;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+                }
+                
+                .undo-icon {
+                    font-size: 14px;
+                }
+            </style>
+        `;
+    }
+
+    /**
+     * Handle Fix-It button click
+     */
+    handleFixItClick(button) {
+        try {
+            // Decode base64-encoded data from button attributes
+            const solutionData = JSON.parse(atob(button.getAttribute('data-solution')));
+            const alertData = JSON.parse(atob(button.getAttribute('data-alert')));
+            
+            console.log('Fix-It button clicked:', solutionData.solution_title);
+            
+            // Show Fix-It modal
+            if (this.fixItModal) {
+                this.fixItModal.show(solutionData, alertData);
+            } else {
+                console.error('FixItModal not initialized');
+                window.alert('Fix-It modal is not available');
+            }
+        } catch (error) {
+            console.error('Error handling Fix-It click:', error);
+            window.alert('Failed to open Fix-It dialog: ' + error.message);
+        }
+    }
+
+    /**
+     * Get undo info for a specific action on an alert (if exists)
+     */
+    getUndoInfoForAction(mcpTool, alert) {
+        try {
+            const undoInfoStr = sessionStorage.getItem('lastFixItAction');
+            if (!undoInfoStr) return null;
+            
+            const undoInfo = JSON.parse(undoInfoStr);
+            
+            // Check if undo info matches this tool and alert context
+            const clusterMatch = undoInfo.clusterName === alert.labels?.cluster;
+            const volumeMatch = undoInfo.volumeName === alert.labels?.volume;
+            const toolMatch = undoInfo.originalTool === mcpTool;
+            
+            // Check if action was recent (within last 5 minutes)
+            const age = Date.now() - undoInfo.timestamp;
+            const isRecent = age < (5 * 60 * 1000); // 5 minutes
+            
+            if (clusterMatch && volumeMatch && toolMatch && isRecent) {
+                return undoInfo;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error checking undo info:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Handle undo button click
+     */
+    handleUndoClick(buttonId) {
+        try {
+            const undoInfoStr = sessionStorage.getItem('lastFixItAction');
+            if (!undoInfoStr) {
+                window.alert('No undo information available');
+                return;
+            }
+            
+            const undoInfo = JSON.parse(undoInfoStr);
+            
+            // Execute undo via FixItModal
+            if (this.fixItModal && this.fixItModal.executeUndo) {
+                this.fixItModal.executeUndo(undoInfo);
+            } else {
+                console.error('FixItModal undo not available');
+                window.alert('Undo functionality is not available');
+            }
+        } catch (error) {
+            console.error('Error handling undo click:', error);
+            window.alert('Failed to execute undo: ' + error.message);
         }
     }
 
@@ -751,6 +1133,19 @@ class AlertsView {
             }
             
             console.log(`Loaded ${alertsData.length} alerts`);
+            
+            // Filter alerts to only show registered clusters
+            const registeredClusters = window.app?.clusters || [];
+            const registeredClusterNames = registeredClusters.map(c => c.name);
+            
+            if (registeredClusterNames.length > 0) {
+                const originalCount = alertsData.length;
+                alertsData = alertsData.filter(alert => {
+                    const clusterName = alert.labels?.cluster;
+                    return clusterName && registeredClusterNames.includes(clusterName);
+                });
+                console.log(`Filtered alerts: ${originalCount} → ${alertsData.length} (only registered clusters: ${registeredClusterNames.join(', ')})`);
+            }
 
             // Store alerts data for detail view
             this.storeAlertsData(alertsData);

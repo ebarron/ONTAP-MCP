@@ -8,9 +8,9 @@ import { spawn } from 'child_process';
 import { McpTestClient } from './mcp-test-client.js';
 import { readFileSync } from 'fs';
 
-// Base ONTAP tools: 47
+// Base ONTAP tools: 51 (removed cluster_offline_volume, state now in cluster_update_volume)
 // Harvest metrics tools: 9 (enabled when HARVEST_TSDB_URL is set)
-const BASE_TOOL_COUNT = 47;
+const BASE_TOOL_COUNT = 51;
 const HARVEST_TOOL_COUNT = 9;
 const EXPECTED_TOOL_COUNT = process.env.HARVEST_TSDB_URL ? BASE_TOOL_COUNT + HARVEST_TOOL_COUNT : BASE_TOOL_COUNT;
 

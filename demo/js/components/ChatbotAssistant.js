@@ -412,7 +412,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 ...conversationHistory,
                 { role: 'user', content: message }
             ],
-            max_completion_tokens: 1500, // Pass 1: Limited budget for tool execution phase
+            max_completion_tokens: 4000, // Pass 1: Increased budget for multi-step tool execution (was 1500)
             tools: tools,
             tool_choice: 'auto', // Let ChatGPT decide when to use tools
             parallel_tool_calls: false // Force sequential tool calls to encourage focused investigation
@@ -580,10 +580,10 @@ Available tools: {{TOOLS_COUNT}}`;
         // Calculate total tool calls made so far
         const totalCallsSoFar = Object.values(this.toolCallFrequency || {}).reduce((sum, count) => sum + count, 0);
         const plannedCalls = totalCallsSoFar + toolCalls.length;
-        console.log(`🧮 TOOL CALL BUDGET: ${plannedCalls}/8 calls planned (current: ${totalCallsSoFar})`);
+        console.log(`🧮 TOOL CALL BUDGET: ${plannedCalls}/20 calls planned (current: ${totalCallsSoFar})`);
         
-        if (plannedCalls > 8) {
-            console.warn(`⚠️ BUDGET EXCEEDED: ${plannedCalls}/8 calls - ChatGPT is being inefficient!`);
+        if (plannedCalls > 20) {
+            console.warn(`⚠️ BUDGET EXCEEDED: ${plannedCalls}/20 calls - ChatGPT is being inefficient!`);
         }
         
         toolCalls.forEach(tc => {
@@ -758,7 +758,7 @@ Available tools: {{TOOLS_COUNT}}`;
             'cifs': ['cluster_create_cifs_share', 'cluster_delete_cifs_share', 'update_cifs_share', 'get_cifs_share'],
             'qos': ['cluster_create_qos_policy', 'cluster_update_qos_policy', 'cluster_delete_qos_policy', 'cluster_get_qos_policy'],
             'snapshot': ['create_snapshot_policy', 'delete_snapshot_policy', 'create_snapshot_schedule', 'delete_snapshot_schedule', 'get_snapshot_policy', 'get_snapshot_schedule'],
-            'volume': ['cluster_delete_volume', 'cluster_offline_volume', 'resize_volume', 'update_volume', 'update_volume_comment', 'update_volume_security_style'],
+            'volume': ['cluster_delete_volume', 'cluster_update_volume', 'resize_volume', 'update_volume', 'update_volume_comment', 'update_volume_security_style'],
             'export': ['delete_export_rule', 'update_export_rule']
         };
         

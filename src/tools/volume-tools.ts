@@ -152,6 +152,7 @@ const UpdateVolumeSchema = z.object({
   size: z.string().describe("New size (e.g., '500GB', '2TB') - can only increase").optional(),
   comment: z.string().describe("New comment/description").optional(),
   security_style: z.enum(['unix', 'ntfs', 'mixed', 'unified']).describe("New security style").optional(),
+  state: z.enum(['online', 'offline', 'restricted']).describe("Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access").optional(),
   qos_policy: z.string().describe("New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)").optional(),
   snapshot_policy: z.string().describe("New snapshot policy name").optional(),
   nfs_export_policy: z.string().describe("New NFS export policy name").optional()
@@ -164,6 +165,7 @@ const ClusterUpdateVolumeSchema = z.object({
   size: z.string().describe("New size (e.g., '500GB', '2TB') - can only increase").optional(),
   comment: z.string().describe("New comment/description").optional(),
   security_style: z.enum(['unix', 'ntfs', 'mixed', 'unified']).describe("New security style").optional(),
+  state: z.enum(['online', 'offline', 'restricted']).describe("Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access").optional(),
   qos_policy: z.string().describe("New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)").optional(),
   snapshot_policy: z.string().describe("New snapshot policy name").optional(),
   nfs_export_policy: z.string().describe("New NFS export policy name").optional()
@@ -689,35 +691,6 @@ export async function handleClusterCreateVolume(args: any, clusterManager: Ontap
   return response;
 }
 
-export function createClusterOfflineVolumeToolDefinition(): Tool {
-  return {
-    name: "cluster_offline_volume",
-    description: "Take a volume offline on a registered cluster by cluster name (required before deletion). WARNING: This will make the volume inaccessible.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cluster_name: { type: "string", description: "Name of the registered cluster" },
-        volume_uuid: { type: "string", description: "UUID of the volume to take offline" },
-      },
-      required: ["cluster_name", "volume_uuid"],
-    },
-  };
-}
-
-export async function handleClusterOfflineVolume(args: any, clusterManager: OntapClusterManager): Promise<any> {
-  const params = ClusterVolumeUuidSchema.parse(args);
-  
-      const client = clusterManager.getClient(params.cluster_name);
-    await client.offlineVolume(params.volume_uuid);
-    
-    return `⚠️ **Volume taken offline successfully**\\n\\n` +
-           `🎯 **Cluster:** ${params.cluster_name}\\n` +
-           `🆔 **Volume UUID:** ${params.volume_uuid}\\n` +
-           `📴 **Status:** Offline\\n\\n` +
-           `⚠️ **Warning:** The volume is now inaccessible. You can now safely delete it if needed.`;
-
-}
-
 export function createClusterDeleteVolumeToolDefinition(): Tool {
   return {
     name: "cluster_delete_volume",
@@ -980,7 +953,7 @@ export async function handleDisableVolumeNfsAccess(args: any, clusterManager: On
 export function createUpdateVolumeToolDefinition(): Tool {
   return {
     name: "update_volume",
-    description: "Update multiple volume properties in a single operation including size, comment, security style, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
+    description: "Update multiple volume properties in a single operation including size, comment, security style, state, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
     inputSchema: {
       type: "object",
       properties: {
@@ -991,6 +964,7 @@ export function createUpdateVolumeToolDefinition(): Tool {
         size: { type: "string", description: "New size (e.g., '500GB', '2TB') - can only increase" },
         comment: { type: "string", description: "New comment/description" },
         security_style: { type: "string", enum: ["unix", "ntfs", "mixed", "unified"], description: "New security style" },
+        state: { type: "string", enum: ["online", "offline", "restricted"], description: "Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access" },
         qos_policy: { type: "string", description: "New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)" },
         snapshot_policy: { type: "string", description: "New snapshot policy name" },
         nfs_export_policy: { type: "string", description: "New NFS export policy name" }
@@ -1009,6 +983,7 @@ export async function handleUpdateVolume(args: any, clusterManager: OntapCluster
       size: params.size,
       comment: params.comment,
       security_style: params.security_style,
+      state: params.state,
       qos_policy: params.qos_policy,
       snapshot_policy: params.snapshot_policy,
       nfs_export_policy: params.nfs_export_policy
@@ -1023,6 +998,16 @@ export async function handleUpdateVolume(args: any, clusterManager: OntapCluster
     if (params.size) response += `   📊 Size: ${params.size}\\n`;
     if (params.comment !== undefined) response += `   💬 Comment: ${params.comment || '(cleared)'}\\n`;
     if (params.security_style) response += `   🔒 Security Style: ${params.security_style}\\n`;
+    if (params.state) {
+      response += `   📈 State: ${params.state}\\n`;
+      if (params.state === 'offline') {
+        response += `\\n⚠️ **Warning:** The volume is now inaccessible. Required before deletion.\\n`;
+      } else if (params.state === 'online') {
+        response += `\\n✅ **Info:** The volume is now accessible.\\n`;
+      } else if (params.state === 'restricted') {
+        response += `\\n🔒 **Info:** The volume is in restricted mode (admin-only access).\\n`;
+      }
+    }
     if (params.qos_policy !== undefined) response += `   🎯 QoS Policy: ${params.qos_policy || '(removed)'}\\n`;
     if (params.snapshot_policy) response += `   📸 Snapshot Policy: ${params.snapshot_policy}\\n`;
     if (params.nfs_export_policy) response += `   🔐 Export Policy: ${params.nfs_export_policy}\\n`;
@@ -1036,7 +1021,7 @@ export async function handleUpdateVolume(args: any, clusterManager: OntapCluster
 export function createClusterUpdateVolumeToolDefinition(): Tool {
   return {
     name: "cluster_update_volume",
-    description: "Update multiple volume properties on a registered cluster including size, comment, security style, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
+    description: "Update multiple volume properties on a registered cluster including size, comment, security style, state, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1045,6 +1030,7 @@ export function createClusterUpdateVolumeToolDefinition(): Tool {
         size: { type: "string", description: "New size (e.g., '500GB', '2TB') - can only increase" },
         comment: { type: "string", description: "New comment/description" },
         security_style: { type: "string", enum: ["unix", "ntfs", "mixed", "unified"], description: "New security style" },
+        state: { type: "string", enum: ["online", "offline", "restricted"], description: "Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access" },
         qos_policy: { type: "string", description: "New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)" },
         snapshot_policy: { type: "string", description: "New snapshot policy name" },
         nfs_export_policy: { type: "string", description: "New NFS export policy name" }
@@ -1064,6 +1050,7 @@ export async function handleClusterUpdateVolume(args: any, clusterManager: Ontap
       size: params.size,
       comment: params.comment,
       security_style: params.security_style,
+      state: params.state,
       qos_policy: params.qos_policy,
       snapshot_policy: params.snapshot_policy,
       nfs_export_policy: params.nfs_export_policy
@@ -1079,6 +1066,16 @@ export async function handleClusterUpdateVolume(args: any, clusterManager: Ontap
     if (params.size) response += `   📊 Size: ${params.size}\\n`;
     if (params.comment !== undefined) response += `   💬 Comment: ${params.comment || '(cleared)'}\\n`;
     if (params.security_style) response += `   🔒 Security Style: ${params.security_style}\\n`;
+    if (params.state) {
+      response += `   📈 State: ${params.state}\\n`;
+      if (params.state === 'offline') {
+        response += `\\n⚠️ **Warning:** The volume is now inaccessible. Required before deletion.\\n`;
+      } else if (params.state === 'online') {
+        response += `\\n✅ **Info:** The volume is now accessible.\\n`;
+      } else if (params.state === 'restricted') {
+        response += `\\n🔒 **Info:** The volume is in restricted mode (admin-only access).\\n`;
+      }
+    }
     if (params.qos_policy !== undefined) response += `   🎯 QoS Policy: ${params.qos_policy || '(removed)'}\\n`;
     if (params.snapshot_policy) response += `   📸 Snapshot Policy: ${params.snapshot_policy}\\n`;
     if (params.nfs_export_policy) response += `   🔐 Export Policy: ${params.nfs_export_policy}\\n`;

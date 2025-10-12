@@ -585,9 +585,10 @@ class CifsShareLifecycleTest {
         
         // Offline the volume using multi-cluster tools
         let offlineResult;
-        offlineResult = await this.callTool('cluster_offline_volume', {
+        offlineResult = await this.callTool('cluster_update_volume', {
           cluster_name: config.cluster_name,
-          volume_uuid: volumeUuid
+          volume_uuid: volumeUuid,
+          state: 'offline'
         });
 
         console.log('✅ Volume taken offline');

@@ -160,10 +160,10 @@ test_mcp_tool "delete_export_rule" \
 echo "=== CLEANUP TESTS ==="
 echo ""
 
-# Test 21: Delete volume
-test_mcp_tool "cluster_offline_volume" \
-    '{"cluster_name": "'$CLUSTER_NAME'", "volume_uuid": "VOLUME_UUID_FROM_CREATION"}' \
-    "Take test volume offline"
+# Test 21: Offline and delete volume
+test_mcp_tool "cluster_update_volume" \
+    '{"cluster_name": "'$CLUSTER_NAME'", "volume_uuid": "VOLUME_UUID_FROM_CREATION", "state": "offline"}' \
+    "Take test volume offline (using cluster_update_volume)"
 
 test_mcp_tool "cluster_delete_volume" \
     '{"cluster_name": "'$CLUSTER_NAME'", "volume_uuid": "VOLUME_UUID_FROM_CREATION"}' \

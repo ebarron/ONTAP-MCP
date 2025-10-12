@@ -146,7 +146,19 @@ run_test "QoS Policy Lifecycle (STDIO Mode)" "node test/test-qos-lifecycle.js st
 # Test 19: QoS Policy Lifecycle Test (HTTP Mode)
 run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/test-qos-lifecycle.js http --server-running"
 
-# Test 20: Session Management (HTTP Mode Only)
+# Test 20: Volume Autosize Lifecycle Test (STDIO Mode)
+run_test "Volume Autosize Lifecycle (STDIO Mode)" "node test/test-volume-autosize-lifecycle-v2.js stdio"
+
+# Test 21: Volume Autosize Lifecycle Test (HTTP Mode)
+run_test "Volume Autosize Lifecycle (HTTP Mode)" "node test/test-volume-autosize-lifecycle-v2.js http --server-running"
+
+# Test 22: Volume Snapshot Lifecycle Test (STDIO Mode)
+run_test "Volume Snapshot Lifecycle (STDIO Mode)" "node test/test-volume-snapshot-lifecycle-v2.js stdio"
+
+# Test 23: Volume Snapshot Lifecycle Test (HTTP Mode)
+run_test "Volume Snapshot Lifecycle (HTTP Mode)" "node test/test-volume-snapshot-lifecycle-v2.js http --server-running"
+
+# Test 24: Session Management (HTTP Mode Only)
 # Note: This test starts its own server with custom timeouts, so we stop the shared server first
 echo ""
 log "=== Stopping Shared HTTP Server for Session Management Test ==="
@@ -156,7 +168,7 @@ log "Shared server stopped"
 
 run_test "Session Management (HTTP Mode)" "node test/test-session-management.js"
 
-# Test 21: Session Isolation (HTTP Mode Only)
+# Test 25: Session Isolation (HTTP Mode Only)
 # This test validates that sessions cannot access each other's clusters
 echo ""
 log "=== Starting Fresh HTTP Server for Session Isolation Test ==="

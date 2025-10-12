@@ -1,6 +1,11 @@
 // Initialize export policy modal
 let exportPolicyModal;
 
+// Initialize corrective action components
+let correctiveActionParser;
+let fixItModal;
+let parameterResolver;
+
 // Initialize navigation components
 let topNavBarComponent;
 let leftNavBarComponent;
@@ -71,6 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
         clusterDetailFlyoutComponent = clusterDetailFlyout;
         clusterDetailFlyoutComponent.init(document.body);
     }
+    
+    // Initialize corrective action components (must happen after app.js loads)
+    // Will be connected to alertsView when app initializes
+    console.log('App initialization: Components ready, waiting for app.js to load...');
     
     // Set up export policy dropdown listener using event delegation
     // This works for dynamically created elements

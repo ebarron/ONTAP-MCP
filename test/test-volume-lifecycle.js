@@ -602,9 +602,10 @@ class VolumeLifecycleTest {
           
           try {
             // Try to offline first
-            await this.callTool('cluster_offline_volume', {
+            await this.callTool('cluster_update_volume', {
               ...this.getClusterAuth(),
-              volume_uuid: volumeUuid
+              volume_uuid: volumeUuid,
+              state: 'offline'
             });
             await this.sleep(1000);
           } catch (error) {
@@ -734,9 +735,10 @@ class VolumeLifecycleTest {
     const offlineArgs = {
       ...this.getClusterAuth(),
       volume_uuid: this.volume_uuid,
+      state: 'offline'
     };
 
-    const result = await this.callTool('cluster_offline_volume', offlineArgs);
+    const result = await this.callTool('cluster_update_volume', offlineArgs);
     const resultText = this.extractText(result);
     await this.log(`✅ Volume offline result: ${resultText.substring(0, 100)}...`);
     
@@ -818,9 +820,10 @@ class VolumeLifecycleTest {
         await this.log(`🧹 Attempting cleanup of test volume...`);
         try {
           // Try to offline first
-          await this.callTool('cluster_offline_volume', {
+          await this.callTool('cluster_update_volume', {
             ...this.getClusterAuth(),
-            volume_uuid: this.volume_uuid
+            volume_uuid: this.volume_uuid,
+            state: 'offline'
           });
           await this.sleep(1000);
         } catch (offlineError) {

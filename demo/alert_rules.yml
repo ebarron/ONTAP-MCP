@@ -1,0 +1,142 @@
+# Example Harvest alerts
+
+groups:
+- name: Harvest Rules
+  rules:
+
+# Alert for any instance that has a volume used percentage > 90%
+  - alert: Volume Used Percentage Breach
+    expr: volume_size_used_percent{} > 90
+    for: 5m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Volume [{{ $labels.volume }}] is [{{$value}}%] used"
+      description: "Volume [{{ $labels.volume }}] is [{{$value}}%] used"
+      corrective_action: |
+          If an ONTAP volume runs out of space, the primary corrective actions involve reclaiming existing space or increasing the
+          volume's capacity. The best approach depends on the volume's configuration, including whether autosizing and automatic
+          Snapshot deletion are enabled.
+          The volume autosize command is used to enable automatic volume growth. You must specify the volume's maximum size and
+          the mode:
+          1. volume autosize -vserver <vserver_name> -volume <volume_name> -mode grow -maximum-size <size>
+          To Increase the sizee:
+          1. volume modify -vserver <vserver_name> -volume <volume_name> -size <new_size>
+          2. volume size <volume_name> +<amount>
+          To delete a specific snapshot, use the volume snapshot delete command.
+          4. volume snapshot delete -vserver <vserver_name> -volume <volume_name> -snapshot <snapshot_name>
+
+  # Alert for any instance that is unreachable for >5 minutes.
+  - alert: InstanceDown
+    expr: up{} == 0
+    for: 5m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Endpoint [{{ $labels.instance }}] down"
+      description: "[{{ $labels.instance }}] of job [{{ $labels.job }}] has been down for more than 5 minutes."
+
+  
+
+  # Alert for offline volume
+  - alert: Volume state offline
+    expr: volume_labels{state="offline"} == 1
+    for: 5m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Volume [{{ $labels.volume  }}] is offline"
+      description: "Volume [{{ $labels.volume  }}] is offline"
+      corrective_action: |
+          If an ONTAP volume is offline, the primary corrective actions involve bringing the volume back online or addressing the underlying issues
+          that caused it to go offline.  Reasons may include underyling issues with the aggregate, disk failures, or configuration problems.
+          To bring a volume back online, you can use the following command:
+          1. volume online -vserver <vserver_name> -volume <volume_name>
+      
+
+    # Alert for offline aggregate
+  - alert: Aggregate state is not online
+    expr: aggr_labels{state!="online"} == 1
+    for: 5m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Aggregate [{{ $labels.aggr }}] state is [{{ $labels.state }}]"
+      description: "Aggregate [{{ $labels.aggr }}] state is [{{ $labels.state }}]"
+
+    # Alert for disk failure
+  - alert: Disk failure
+    expr: disk_labels{failed="true"} == 1
+    for: 5m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Disk [{{ $labels.disk }}] is in failure state"
+      description: "Disk [{{ $labels.disk }}] is in failure state"
+
+
+    # Alert for node nfs latency
+  - alert: Node nfs latency is high
+    expr: node_nfs_latency{} > 5000
+    for: 5m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Node [{{ $labels.node }}] has [{{$value}}] nfs latency (microsec)"
+      description: "Node [{{ $labels.node }}] has [{{$value}}] nfs latency (microsec)"
+
+    # Snapmirror lag time is high
+  - alert: Snapmirror lag time is high
+    expr: snapmirror_lag_time{} > 3600
+    for: 1m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Snapmirror [{{ $labels.relationship_id }}] has [{{$value}}] lag time (in secs)"
+      description: "Snapmirror [{{ $labels.relationship_id }}] has [{{$value}}] lag time (in secs)"
+
+  # Volume created. Refer https://netapp.github.io/harvest/latest/plugins/#changelog-plugin for more details.
+  - alert: Volume Created
+    expr: change_log{op="create",object="volume"} > 0
+    labels:
+      severity: "info"
+    annotations:
+      summary: "{{ $labels.object }} [{{ $labels.volume }}] created"
+      description: "{{ $labels.object }} [{{ $labels.volume }}] created"
+
+    # Volume modified. Refer https://netapp.github.io/harvest/latest/plugins/#changelog-plugin for more details.
+  - alert: Volume Modified
+    expr: change_log{op="update",object="volume"} > 0
+    labels:
+      severity: "info"
+    annotations:
+      summary: "{{ $labels.object }} [{{ $labels.volume }}] updated"
+      description: "The [{{ $labels.track }}] of {{ $labels.object }} [{{ $labels.volume }}] has been updated. The previous value was [{{ $labels.old_value }}], and the new value is [{{ $labels.new_value }}]."
+
+    # Volume deleted. Refer https://netapp.github.io/harvest/latest/plugins/#changelog-plugin for more details.
+  - alert: Volume Deleted
+    expr: change_log{op="delete",object="volume"} > 0
+    labels:
+      severity: "warning"
+    annotations:
+      summary: "{{ $labels.object }} [{{ $labels.volume }}] deleted"
+      description: "{{ $labels.object }} [{{ $labels.volume }}] deleted"
+
+    # Certificates expiring within 1 month
+  - alert: Certificates expiring within 1 month
+    expr: 0 < ((security_certificate_expiry_time{} * on (uuid) group_left (name, expiry_time) security_certificate_labels{}) - time()) < (30*24*3600)
+    for: 1m
+    labels:
+      severity: "warning"
+    annotations:
+      summary: "Certificate [{{ $labels.name }}] will be expiring on [{{ $labels.expiry_time }}]"
+      description: "Certificate [{{ $labels.name }}] will be expiring on [{{ $labels.expiry_time }}]"
+
+    # Certificates expired
+  - alert: Certificates expired
+    expr: ((security_certificate_expiry_time{} * on (uuid) group_left (name, expiry_time) security_certificate_labels{}) - time()) < 0
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Certificate [{{ $labels.name }}] has been expired on [{{ $labels.expiry_time }}]"
+      description: "Certificate [{{ $labels.name }}] has been expired on [{{ $labels.expiry_time }}]"

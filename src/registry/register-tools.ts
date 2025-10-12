@@ -94,8 +94,6 @@ import {
   handleClusterListVolumes as handleClusterListVolumesVolumeTool,
   createClusterCreateVolumeToolDefinition,
   handleClusterCreateVolume,
-  createClusterOfflineVolumeToolDefinition,
-  handleClusterOfflineVolume,
   createClusterDeleteVolumeToolDefinition,
   handleClusterDeleteVolume,
   createClusterGetVolumeStatsToolDefinition,
@@ -147,6 +145,22 @@ import {
   createClusterDeleteQosPolicyToolDefinition,
   handleClusterDeleteQosPolicy
 } from "../tools/qos-policy-tools.js";
+
+import {
+  handleClusterEnableVolumeAutosize,
+  handleClusterGetVolumeAutosizeStatus,
+  createClusterEnableVolumeAutosizeToolDefinition,
+  createClusterGetVolumeAutosizeStatusToolDefinition
+} from "../tools/volume-autosize-tools.js";
+
+import {
+  handleClusterListVolumeSnapshots,
+  handleClusterGetVolumeSnapshotInfo,
+  handleClusterDeleteVolumeSnapshot,
+  createClusterListVolumeSnapshotsToolDefinition,
+  createClusterGetVolumeSnapshotInfoToolDefinition,
+  createClusterDeleteVolumeSnapshotToolDefinition
+} from "../tools/volume-snapshot-tools.js";
 
 // Import Harvest metrics tools
 import {
@@ -296,13 +310,6 @@ export function registerAllTools(): void {
     category: ToolCategory.VOLUME_MANAGEMENT,
     definition: createClusterCreateVolumeToolDefinition,
     handler: handleClusterCreateVolume
-  });
-
-  registerTool({
-    name: "cluster_offline_volume",
-    category: ToolCategory.VOLUME_MANAGEMENT,
-    definition: createClusterOfflineVolumeToolDefinition,
-    handler: handleClusterOfflineVolume
   });
 
   registerTool({
@@ -584,6 +591,43 @@ export function registerAllTools(): void {
     category: ToolCategory.QOS_POLICIES,
     definition: createClusterDeleteQosPolicyToolDefinition,
     handler: handleClusterDeleteQosPolicy
+  });
+
+  // Volume Autosize Tools
+  registerTool({
+    name: "cluster_enable_volume_autosize",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createClusterEnableVolumeAutosizeToolDefinition,
+    handler: handleClusterEnableVolumeAutosize
+  });
+
+  registerTool({
+    name: "cluster_get_volume_autosize_status",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createClusterGetVolumeAutosizeStatusToolDefinition,
+    handler: handleClusterGetVolumeAutosizeStatus
+  });
+
+  // Volume Snapshot Management Tools
+  registerTool({
+    name: "cluster_list_volume_snapshots",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createClusterListVolumeSnapshotsToolDefinition,
+    handler: handleClusterListVolumeSnapshots
+  });
+
+  registerTool({
+    name: "cluster_get_volume_snapshot_info",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createClusterGetVolumeSnapshotInfoToolDefinition,
+    handler: handleClusterGetVolumeSnapshotInfo
+  });
+
+  registerTool({
+    name: "cluster_delete_volume_snapshot",
+    category: ToolCategory.VOLUME_MANAGEMENT,
+    definition: createClusterDeleteVolumeSnapshotToolDefinition,
+    handler: handleClusterDeleteVolumeSnapshot
   });
 
   // Harvest Metrics Tools (feature-gated by HARVEST_TSDB_URL)

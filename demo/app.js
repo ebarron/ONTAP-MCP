@@ -51,6 +51,9 @@ class OntapMcpDemo {
         this.apiClient = null;      // Backward compatibility (will be default client)
         this.notifications = new ToastNotifications();
         
+        // Expose toast notifications globally for Fix-It modal and other components
+        window.toastNotifications = this.notifications;
+        
         // Components will be initialized after config loads
         this.provisioningPanel = null;
         this.storageClassProvisioningPanel = null;
@@ -87,6 +90,9 @@ class OntapMcpDemo {
         this.provisioningPanel = new ProvisioningPanel(this);
         this.storageClassProvisioningPanel = new StorageClassProvisioningPanel(this);
         
+        // Initialize corrective action components for Fix-It functionality
+        await this.initializeCorrectiveActionComponents();
+        
         this.bindEvents();
         
         // Auto-load clusters from demo/clusters.json into this session
@@ -99,6 +105,66 @@ class OntapMcpDemo {
         await this.checkHarvestAvailability();
         
         this.updateUI();
+    }
+
+    /**
+     * Initialize corrective action components for Fix-It functionality
+     */
+    async initializeCorrectiveActionComponents() {
+        try {
+            console.log('🔧 Initializing Fix-It components...');
+            
+            // Initialize ParameterResolver (from Phase 1)
+            // Need both ONTAP client (for volume ops) and Harvest client (for metrics)
+            if (typeof ParameterResolver !== 'undefined') {
+                const ontapClient = this.clientManager.getClient('netapp-ontap');
+                const harvestClient = this.clientManager.getClient('harvest-remote');
+                window.parameterResolver = new ParameterResolver(ontapClient, harvestClient);
+                console.log('  ✅ ParameterResolver initialized with ONTAP + Harvest clients');
+            } else {
+                console.warn('  ⚠️  ParameterResolver not found');
+            }
+            
+            // Initialize CorrectiveActionParser - REUSE ChatbotAssistant's config
+            if (typeof CorrectiveActionParser !== 'undefined') {
+                window.correctiveActionParser = new CorrectiveActionParser();
+                
+                // Wait for chatbot to initialize and share its config
+                if (window.chatbot && window.chatbot.config) {
+                    await window.correctiveActionParser.initWithConfig(window.chatbot.config, this.clientManager);
+                    console.log('  ✅ CorrectiveActionParser initialized (shared ChatGPT session + MCP tools)');
+                } else {
+                    // Fallback: initialize with clientManager only (mock mode for parsing)
+                    await window.correctiveActionParser.initWithConfig({}, this.clientManager);
+                    console.log('  ⚠️  CorrectiveActionParser initialized in mock mode (no ChatGPT config)');
+                }
+            } else {
+                console.warn('  ⚠️  CorrectiveActionParser not found');
+            }
+            
+            // Initialize FixItModal
+            if (typeof FixItModal !== 'undefined' && window.parameterResolver) {
+                window.fixItModal = new FixItModal(this.apiClient, window.parameterResolver);
+                console.log('  ✅ FixItModal initialized');
+            } else {
+                console.warn('  ⚠️  FixItModal not initialized (missing dependencies)');
+            }
+            
+            // Wire up components to AlertsView
+            if (typeof alertsView !== 'undefined') {
+                alertsView.correctiveActionParser = window.correctiveActionParser;
+                alertsView.fixItModal = window.fixItModal;
+                alertsView.parameterResolver = window.parameterResolver;
+                console.log('  ✅ Fix-It components connected to AlertsView');
+            } else {
+                console.warn('  ⚠️  AlertsView not found - Fix-It components not connected');
+            }
+            
+            console.log('✅ Fix-It components ready');
+            
+        } catch (error) {
+            console.error('❌ Failed to initialize Fix-It components:', error);
+        }
     }
 
     /**

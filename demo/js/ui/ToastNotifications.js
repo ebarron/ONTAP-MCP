@@ -109,34 +109,74 @@ class ToastNotifications {
      * Show a toast message
      * @param {string} message - Message to display
      * @param {string} type - Type of message (info, success, warning, error)
-     * @param {number} duration - Duration in milliseconds (0 = no auto-close)
+     * @param {number|object} durationOrOptions - Duration in milliseconds or options object
      */
-    showMessage(message, type = 'info', duration = 5000) {
+    showMessage(message, type = 'info', durationOrOptions = 5000) {
+        // Parse options
+        let duration = 5000;
+        let undoLabel = null;
+        let onUndo = null;
+        
+        if (typeof durationOrOptions === 'object') {
+            duration = durationOrOptions.duration || 10000; // Longer for undo
+            undoLabel = durationOrOptions.undoLabel;
+            onUndo = durationOrOptions.onUndo;
+        } else {
+            duration = durationOrOptions;
+        }
+        
         // Remove existing message
         const existing = document.querySelector('.toast-message');
         if (existing) {
             this.removeToast(existing);
         }
 
-        // Create toast message
+        // Create toast message with optional undo button
         const toast = document.createElement('div');
         toast.className = `toast-message toast-${type}`;
+        
+        const undoButton = undoLabel && onUndo ? `
+            <button class="toast-undo-btn" style="
+                background: rgba(255,255,255,0.2);
+                border: 1px solid rgba(255,255,255,0.4);
+                color: white;
+                padding: 4px 12px;
+                border-radius: 4px;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-right: 8px;
+                transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.3)'" 
+               onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                ${undoLabel}
+            </button>
+        ` : '';
+        
         toast.innerHTML = `
             <div class="toast-content">
                 <span>${DemoUtils.escapeHtml(message)}</span>
-                <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
+                <div style="display: flex; align-items: center;">
+                    ${undoButton}
+                    <button class="toast-close">×</button>
+                </div>
             </div>
         `;
 
+        // Add undo button functionality
+        if (undoLabel && onUndo) {
+            const undoBtn = toast.querySelector('.toast-undo-btn');
+            undoBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeToast(toast);
+                onUndo();
+            });
+        }
+        
         // Add close button functionality
         const closeBtn = toast.querySelector('.toast-close');
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.removeToast(toast);
-        });
-
-        // Add click to dismiss
-        toast.addEventListener('click', () => {
             this.removeToast(toast);
         });
 

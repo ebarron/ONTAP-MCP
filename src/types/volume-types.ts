@@ -265,6 +265,8 @@ export interface UpdateVolumeParams {
   comment?: string;
   /** New security style */
   security_style?: VolumeSecurityStyle;
+  /** Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access */
+  state?: 'online' | 'offline' | 'restricted';
   /** New QoS policy name (can be from volume's SVM or admin SVM, or empty string to remove) */
   qos_policy?: string;
   /** New snapshot policy name */

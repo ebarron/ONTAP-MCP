@@ -17,6 +17,15 @@ import type {
   VolumeNfsConfig
 } from './types/volume-types.js';
 import type {
+  EnableVolumeAutosizeParams,
+  VolumeAutosizeStatus
+} from './types/volume-autosize-types.js';
+import type {
+  VolumeSnapshot,
+  ListVolumeSnapshotsParams,
+  VolumeSnapshotResponse
+} from './types/volume-snapshot-types.js';
+import type {
   ExportPolicy,
   ExportRule,
   CreateExportPolicyRequest,
@@ -891,6 +900,11 @@ export class OntapApiClient {
       body.nas.security_style = params.security_style;
     }
 
+    // Update state (online, offline, restricted)
+    if (params.state) {
+      body.state = params.state;
+    }
+
     // Update QoS policy
     if (params.qos_policy !== undefined) {
       if (params.qos_policy === '') {
@@ -1473,6 +1487,114 @@ export class OntapApiClient {
    */
   async deleteQosPolicy(policyUuid: string): Promise<void> {
     await this.makeRequest(`/storage/qos/policies/${policyUuid}`, 'DELETE');
+  }
+
+  // ================================
+  // Volume Autosize Management
+  // ================================
+
+  /**
+   * Enable or configure volume autosize
+   * ONTAP API: PATCH /api/storage/volumes/{uuid}
+   */
+  async enableVolumeAutosize(params: EnableVolumeAutosizeParams): Promise<void> {
+    const body: any = {
+      autosize: {
+        mode: params.mode
+      }
+    };
+
+    if (params.maximum_size) {
+      body.autosize.maximum = this.parseSize(params.maximum_size);
+    }
+
+    if (params.minimum_size) {
+      body.autosize.minimum = this.parseSize(params.minimum_size);
+    }
+
+    if (params.grow_threshold_percent !== undefined) {
+      body.autosize.grow_threshold = params.grow_threshold_percent;
+    }
+
+    if (params.shrink_threshold_percent !== undefined) {
+      body.autosize.shrink_threshold = params.shrink_threshold_percent;
+    }
+
+    await this.makeRequest(
+      `/storage/volumes/${params.volume_uuid}`,
+      'PATCH',
+      body
+    );
+  }
+
+  /**
+   * Get volume autosize configuration
+   * ONTAP API: GET /api/storage/volumes/{uuid}?fields=autosize
+   */
+  async getVolumeAutosizeStatus(volumeUuid: string): Promise<VolumeAutosizeStatus> {
+    const response = await this.makeRequest<any>(
+      `/storage/volumes/${volumeUuid}?fields=autosize,size,space`
+    );
+    return {
+      autosize: response.autosize,
+      current_size: response.size,
+      space: response.space
+    };
+  }
+
+  // ================================
+  // Volume Snapshot Management
+  // ================================
+
+  /**
+   * List snapshots for a volume
+   * ONTAP API: GET /api/storage/volumes/{volume.uuid}/snapshots
+   */
+  async listVolumeSnapshots(params: ListVolumeSnapshotsParams): Promise<VolumeSnapshot[]> {
+    let endpoint = `/storage/volumes/${params.volume_uuid}/snapshots?fields=uuid,name,create_time,size,volume`;
+    
+    if (params.sort_by) {
+      const orderPrefix = params.order === 'desc' ? '-' : '';
+      endpoint += `&order_by=${orderPrefix}${params.sort_by}`;
+    }
+    
+    const response = await this.makeRequest<{ records: any[] }>(endpoint);
+    return response.records || [];
+  }
+
+  /**
+   * Get detailed information about a specific snapshot
+   * ONTAP API: GET /api/storage/volumes/{volume.uuid}/snapshots/{uuid}
+   */
+  async getVolumeSnapshotInfo(volumeUuid: string, snapshotUuid: string): Promise<VolumeSnapshot> {
+    return await this.makeRequest<VolumeSnapshot>(
+      `/storage/volumes/${volumeUuid}/snapshots/${snapshotUuid}?fields=uuid,name,create_time,size,comment,volume,state`
+    );
+  }
+
+  /**
+   * Delete a volume snapshot
+   * ONTAP API: DELETE /api/storage/volumes/{volume.uuid}/snapshots/{uuid}
+   */
+  async deleteVolumeSnapshot(volumeUuid: string, snapshotUuid: string): Promise<void> {
+    await this.makeRequest(
+      `/storage/volumes/${volumeUuid}/snapshots/${snapshotUuid}`,
+      'DELETE'
+    );
+  }
+
+  /**
+   * Find snapshot by name (helper method)
+   */
+  async findSnapshotByName(volumeUuid: string, snapshotName: string): Promise<VolumeSnapshot> {
+    const endpoint = `/storage/volumes/${volumeUuid}/snapshots?name=${encodeURIComponent(snapshotName)}&fields=uuid,name`;
+    const response = await this.makeRequest<VolumeSnapshotResponse>(endpoint);
+    
+    if (!response.records || response.records.length === 0) {
+      throw new Error(`Snapshot '${snapshotName}' not found on volume ${volumeUuid}`);
+    }
+    
+    return response.records[0];
   }
 
   /**

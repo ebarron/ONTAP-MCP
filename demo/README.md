@@ -1,103 +1,203 @@
-# NetApp ONTAP MCP Demo Interface
+# NetApp ONTAP MCP Demo# NetApp ONTAP MCP Demo Interface
 
-## 🚀 Quick Start
 
-### Prerequisites
+
+Web-based interface showcasing NetApp ONTAP MCP capabilities with BlueXP-style UI.## 🚀 Quick Start
+
+
+
+## Quick Start### Prerequisites
+
 - NetApp ONTAP MCP server built (`npm run build`)
-- ONTAP cluster credentials configured in `demo/clusters.json`
-- Python 3 for web server
+
+```bash- ONTAP cluster credentials configured in `demo/clusters.json`
+
+# From project root- Python 3 for web server
+
+./start-demo.sh
 
 ### Demo Setup
 
-#### 1. Configure Clusters
+# Access at http://localhost:8080
+
+# MCP server runs on http://localhost:3000#### 1. Configure Clusters
+
+```
 
 Copy the example configuration and edit with your cluster credentials:
 
+## Prerequisites
+
 ```bash
-cd demo
-cp clusters.json.example clusters.json
-```
 
-Edit `clusters.json` with your ONTAP cluster details:
+- Node.js and npmcd demo
 
-```json
-[
-  {
-    "name": "my-cluster",
+- Python 3 (for web server)cp clusters.json.example clusters.json
+
+- ONTAP cluster credentials in `test/clusters.json````
+
+
+
+## What's IncludedEdit `clusters.json` with your ONTAP cluster details:
+
+
+
+- **Storage Provisioning**: Create volumes with NFS/CIFS, set QoS policies, manage snapshots```json
+
+- **Alert Monitoring**: View and remediate 900+ Prometheus alerts with Fix-It actions[
+
+- **AI Assistant**: ChatGPT-powered provisioning recommendations  {
+
+- **Multi-Cluster**: Manage multiple ONTAP clusters from single interface    "name": "my-cluster",
+
     "cluster_ip": "10.193.49.74",
-    "username": "admin",
+
+## Configuration    "username": "admin",
+
     "password": "Netapp1!",
-    "description": "Demo ONTAP Cluster"
-  }
-]
+
+### Clusters    "description": "Demo ONTAP Cluster"
+
+Uses `test/clusters.json` (shared with test suite):  }
+
+```bash]
+
+cp test/clusters.json.example test/clusters.json```
+
+# Edit with your cluster credentials
+
+```**⚠️ Security Note:** `clusters.json` contains plaintext credentials and is served as a static file. **Only use demo/lab credentials**. This file is gitignored to prevent accidental credential commits.
+
+
+
+### ChatGPT (Optional)#### 2. Start Demo
+
+For AI assistant features:
+
+```bashFrom the ONTAP-MCP root directory:
+
+cp demo/chatgpt-config.json.example demo/chatgpt-config.json
+
+# Add your OpenAI API key```bash
+
+```./start-demo.sh
+
 ```
 
-**⚠️ Security Note:** `clusters.json` contains plaintext credentials and is served as a static file. **Only use demo/lab credentials**. This file is gitignored to prevent accidental credential commits.
-
-#### 2. Start Demo
-
-From the ONTAP-MCP root directory:
-
-```bash
-./start-demo.sh
-```
+## Directory Structure
 
 This automatically:
-- Builds the MCP server if needed
-- Starts MCP HTTP server on port 3000 with **session-scoped security**
-- Starts demo web server on port 8080
-- Browser loads clusters from `clusters.json` into your session automatically
 
-Access demo at: **http://localhost:8080**
+```- Builds the MCP server if needed
 
-#### 3. Stop Demo
+demo/- Starts MCP HTTP server on port 3000 with **session-scoped security**
 
-```bash
-./stop-demo.sh
+├── index.html              # Main UI- Starts demo web server on port 8080
+
+├── app.js                  # Application logic- Browser loads clusters from `clusters.json` into your session automatically
+
+├── alert_rules.yml         # Alert remediation rules
+
+├── js/Access demo at: **http://localhost:8080**
+
+│   ├── components/         # UI components (AlertsView, FixItModal, ChatbotAssistant, etc.)
+
+│   ├── core/               # MCP client, parameter resolver, utilities#### 3. Stop Demo
+
+│   └── ui/                 # Toast notifications
+
+└── test/                   # API and integration tests```bash
+
+```./stop-demo.sh
+
 ```
-
-### Manual Setup (if needed)
-
-```bash
-# Terminal 1: Start MCP HTTP server (NO clusters pre-loaded)
-cd /Users/ebarron/ONTAP-MCP
-npm run build
-node build/index.js --http=3000
-
-# Terminal 2: Start demo web server FROM demo directory
-cd /Users/ebarron/ONTAP-MCP/demo  
-python3 -m http.server 8080
-
-# Browser: http://localhost:8080
-# Clusters auto-load from demo/clusters.json into your session
-```
-
-## Overview
-
-This demo provides a web-based NetApp BlueXP-style interface for the ONTAP MCP server, showcasing complete storage provisioning workflows with **session-scoped security isolation**.
 
 ## Key Features
 
-### 🔒 Session-Scoped Security
+### Manual Setup (if needed)
 
-- **Isolated Sessions**: Each browser session maintains its own cluster registry
-- **No Cross-Session Access**: Session A cannot access clusters from Session B
-- **Automatic Cleanup**: Session expiration removes all cluster credentials
-- **Demo Convenience**: Clusters auto-load from `clusters.json` on each page refresh
+### Fix-It Actions
 
-### 📦 Storage Provisioning
+- **Dynamic Tool Discovery**: Auto-discovers all 67 MCP tools (51 ONTAP + 16 Harvest)```bash
 
-- **Volume Creation**: Complete volume provisioning with NFS and CIFS support
+- **Parameter Resolution**: Automatically resolves volume UUIDs and metrics# Terminal 1: Start MCP HTTP server (NO clusters pre-loaded)
+
+- **Smart Mapping**: Maps ONTAP CLI commands to MCP tools via LLMcd /Users/ebarron/ONTAP-MCP
+
+- **Undo Support**: Reversible actions with one-click rollbacknpm run build
+
+node build/index.js --http=3000
+
+### Multi-Server MCP
+
+- Connects to both `netapp-ontap-mcp` and `harvest-remote` servers# Terminal 2: Start demo web server FROM demo directory
+
+- Automatic tool routing based on capabilitycd /Users/ebarron/ONTAP-MCP/demo  
+
+- Unified tool discovery across serverspython3 -m http.server 8080
+
+
+
+## Testing# Browser: http://localhost:8080
+
+# Clusters auto-load from demo/clusters.json into your session
+
+```bash```
+
+# Test MCP tools directly
+
+node test/mcp-test-client.js cluster_list_volumes '{"cluster_name":"my-cluster"}'## Overview
+
+
+
+# Interactive API testingThis demo provides a web-based NetApp BlueXP-style interface for the ONTAP MCP server, showcasing complete storage provisioning workflows with **session-scoped security isolation**.
+
+open demo/test/test-api.html
+
+```## Key Features
+
+
+
+## Troubleshooting### 🔒 Session-Scoped Security
+
+
+
+**Demo won't start:**- **Isolated Sessions**: Each browser session maintains its own cluster registry
+
+- Check ports 3000 and 8080 are available- **No Cross-Session Access**: Session A cannot access clusters from Session B
+
+- Ensure MCP server built: `npm run build`- **Automatic Cleanup**: Session expiration removes all cluster credentials
+
+- Check logs: `tail -f mcp-server.log demo-server.log`- **Demo Convenience**: Clusters auto-load from `clusters.json` on each page refresh
+
+
+
+**No clusters shown:**### 📦 Storage Provisioning
+
+- Verify `test/clusters.json` exists and has valid credentials
+
+- Check browser console for connection errors- **Volume Creation**: Complete volume provisioning with NFS and CIFS support
+
 - **Export Policy Management**: NFS export policy configuration and assignment
-- **CIFS Share Creation**: SMB shares with ACLs and user/group permissions
-- **Smart Forms**: Dynamic dropdowns for SVMs, aggregates, and policies
-- **Real-time Validation**: ONTAP-compatible naming and size validation
 
-### 🎨 NetApp BlueXP Design
+**Fix-It buttons not working:**- **CIFS Share Creation**: SMB shares with ACLs and user/group permissions
 
-- **Authentic Styling**: Official NetApp colors, typography, and layout patterns
-- **Responsive Design**: Mobile-friendly interface
-- **Toast Notifications**: User feedback for all operations
+- Requires Harvest metrics server for alert data- **Smart Forms**: Dynamic dropdowns for SVMs, aggregates, and policies
+
+- Check MCP server logs for tool execution errors- **Real-time Validation**: ONTAP-compatible naming and size validation
+
+
+
+## Documentation### 🎨 NetApp BlueXP Design
+
+
+
+- `CHATBOT_README.md` - AI assistant setup- **Authentic Styling**: Official NetApp colors, typography, and layout patterns
+
+- `MCP_CONFIG_README.md` - MCP server configuration- **Responsive Design**: Mobile-friendly interface
+
+- `../README.md` - Main project documentation- **Toast Notifications**: User feedback for all operations
+
 - **Loading States**: Visual feedback during API calls
 
 ## Architecture

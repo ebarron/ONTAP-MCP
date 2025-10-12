@@ -90,8 +90,6 @@ import {
   handleClusterListVolumes,
   createClusterCreateVolumeToolDefinition,
   handleClusterCreateVolume,
-  createClusterOfflineVolumeToolDefinition,
-  handleClusterOfflineVolume,
   createClusterDeleteVolumeToolDefinition,
   handleClusterDeleteVolume,
   createClusterGetVolumeStatsToolDefinition,
