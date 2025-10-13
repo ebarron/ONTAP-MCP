@@ -26,8 +26,14 @@ class ChatbotAssistant {
     }
 
     async init() {
-        // Load ChatGPT configuration
-        await this.loadConfig();
+        // Initialize OpenAI service (singleton)
+        if (!window.openAIService.getConfig()) {
+            await window.openAIService.initialize();
+        }
+        
+        // Get config from centralized service
+        this.config = window.openAIService.getConfig();
+        this.mockMode = window.openAIService.isMockMode();
         
         // Load system prompt template from file
         await this.loadSystemPromptTemplate();
@@ -44,57 +50,6 @@ class ChatbotAssistant {
         this.isInitialized = true;
         this.updateStatus('Ready to help with ONTAP provisioning');
         this.enableInput();
-    }
-
-    async loadConfig() {
-        try {
-            const configUrl = `./chatgpt-config.json?v=${Date.now()}`;
-            console.log('🔍 Fetching config from:', configUrl);
-            const response = await fetch(configUrl);
-            console.log('🔍 Response URL:', response.url);
-            console.log('🔍 Response status:', response.status);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            const rawConfig = await response.json();
-            
-            console.log('🔍 Raw config received:', rawConfig);
-            
-            // Support both formats: {api_key: ...} and {OPENAI_API_KEY: ...}
-            const apiKey = rawConfig.api_key || rawConfig.OPENAI_API_KEY;
-            const baseURL = rawConfig.base_url || rawConfig.OPENAI_API_BASE_URL || 'https://api.openai.com/v1';
-            const model = rawConfig.model || rawConfig.NETAPP_MODEL || 'gpt-4o';
-            const user = rawConfig.NETAPP_USER || rawConfig.user || 'anonymous';
-            
-            console.log('🔍 Extracted values:', { apiKey: apiKey?.substring(0, 10) + '...', baseURL, model, user });
-            
-            // Validate API key
-            if (!apiKey || apiKey === 'YOUR_CHATGPT_API_KEY_HERE') {
-                throw new Error('No valid ChatGPT API key configured');
-            }
-            
-            // Normalize config to internal format
-            this.config = {
-                api_key: apiKey,
-                base_url: baseURL,
-                model: model,
-                user: user,
-                max_completion_tokens: rawConfig.max_completion_tokens || 2000
-            };
-            
-            console.log('ChatGPT config loaded successfully');
-            console.log(`  Base URL: ${this.config.base_url}`);
-            console.log(`  Model: ${this.config.model}`);
-        } catch (error) {
-            console.warn('ChatGPT config load failed, enabling mock mode:', error.message);
-            this.mockMode = true;
-            this.config = {
-                api_key: 'mock-key',
-                base_url: 'https://api.openai.com/v1',
-                model: 'mock-gpt-5',
-                max_completion_tokens: 2000
-            };
-        }
     }
 
     async loadSystemPromptTemplate() {
@@ -404,52 +359,26 @@ Available tools: {{TOOLS_COUNT}}`;
     }
 
     async getChatGPTResponse(message) {
-        // Enforce global rate limiting
-        await this.enforceGlobalRateLimit();
-        
         const systemPrompt = this.buildSystemPrompt();
         const conversationHistory = this.buildConversationHistory();
 
         // Build tools for ChatGPT function calling (newer format)
         const tools = this.buildMCPTools();
 
-        const payload = JSON.stringify({
-            model: this.config.model,
-            user: this.config.user,
+        // Use centralized OpenAI service
+        const data = await window.openAIService.callChatCompletion({
+            component: 'ChatbotAssistant',
             messages: [
                 { role: 'system', content: systemPrompt },
                 ...conversationHistory,
                 { role: 'user', content: message }
             ],
-            max_completion_tokens: 4000, // Pass 1: Increased budget for multi-step tool execution (was 1500)
+            max_completion_tokens: 4000,
             tools: tools,
-            tool_choice: 'auto', // Let ChatGPT decide when to use tools
-            parallel_tool_calls: false // Force sequential tool calls to encourage focused investigation
-        });
-        
-        console.log(`📏 ChatGPT payload size: ${payload.length} characters`);
-
-        const response = await fetch(`${this.config.base_url}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.config.api_key}`,
-                'Content-Type': 'application/json'
-            },
-            body: payload
+            tool_choice: 'auto',
+            parallel_tool_calls: false
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            
-            // Handle rate limit errors specifically
-            if (response.status === 429) {
-                throw new Error(`Rate limit exceeded. Please wait a moment and try again. The system made too many requests to ChatGPT in a short time.`);
-            }
-            
-            throw new Error(`ChatGPT API error: ${response.status} ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
         console.log('ChatGPT API response:', data);
         
         const choice = data.choices?.[0];
@@ -786,15 +715,7 @@ Available tools: {{TOOLS_COUNT}}`;
         return false;
     }
 
-    async enforceGlobalRateLimit() {
-        // Track last call time for rate limit error analysis (no preemptive delays)
-        this.lastChatGPTCallTime = Date.now();
-    }
-
     async getChatGPTResponseWithToolResults(originalMessage, toolCalls, toolResults, recursionDepth = 0) {
-        // Enforce global rate limiting
-        await this.enforceGlobalRateLimit();
-        
         const systemPrompt = this.buildSystemPrompt();
         const conversationHistory = this.buildConversationHistory(); // Simple accumulation, no cleaning
         const tools = this.buildMCPTools();
@@ -812,38 +733,15 @@ Available tools: {{TOOLS_COUNT}}`;
             ...toolResults
         ];
 
-        const payload = JSON.stringify({
-            model: this.config.model,
-            user: this.config.user,
+        // Use centralized OpenAI service
+        const data = await window.openAIService.callChatCompletion({
+            component: 'ChatbotAssistant-ToolResults',
             messages: messages,
             max_completion_tokens: this.config.max_completion_tokens,
             tools: tools,
-            tool_choice: recursionDepth >= 20 ? 'none' : 'auto' // Allow tools until depth 20, then force completion
-        });
-        
-        console.log(`📏 ChatGPT payload size: ${payload.length} characters`);
-
-        const response = await fetch(`${this.config.base_url}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.config.api_key}`,
-                'Content-Type': 'application/json'
-            },
-            body: payload
+            tool_choice: recursionDepth >= 20 ? 'none' : 'auto'
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            
-            // Handle rate limit errors specifically
-            if (response.status === 429) {
-                throw new Error(`Rate limit exceeded. Please wait a moment and try again. The system made too many requests to ChatGPT in a short time.`);
-            }
-            
-            throw new Error(`ChatGPT API error: ${response.status} ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
         const choice = data.choices?.[0];
         
         // Don't store assistant message with tool_calls here - it will be stored when handleToolCalls completes
@@ -888,42 +786,23 @@ Available tools: {{TOOLS_COUNT}}`;
         // Pass 2: Generate final answer with tools disabled and full token budget
         console.log('🎯 Pass 2: Generating final answer with tools disabled...');
         
-        await this.enforceGlobalRateLimit();
-        
         const systemPrompt = this.buildSystemPrompt();
         const conversationHistory = this.buildConversationHistory(); // Simple accumulation, no cleaning
         
         // Add explicit instruction to generate answer
         const finalizationPrompt = "You have gathered all necessary information from the ONTAP clusters. Now provide your specific provisioning recommendation using the required structured format. Do not call any more tools - analyze the data you have and make a decision.";
 
-        const payload = JSON.stringify({
-            model: this.config.model,
-            user: this.config.user,
+        // Use centralized OpenAI service (no tools)
+        const data = await window.openAIService.callChatCompletion({
+            component: 'ChatbotAssistant-FinalAnswer',
             messages: [
                 { role: 'system', content: systemPrompt },
                 ...conversationHistory,
                 { role: 'user', content: finalizationPrompt }
             ],
-            max_completion_tokens: this.config.max_completion_tokens // Full token budget, no tools
-        });
-        
-        console.log(`📏 Pass 2 payload size: ${payload.length} characters`);
-
-        const response = await fetch(`${this.config.base_url}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.config.api_key}`,
-                'Content-Type': 'application/json'
-            },
-            body: payload
+            max_completion_tokens: this.config.max_completion_tokens
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(`ChatGPT API error: ${response.status} ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
         console.log('✅ Pass 2 completed:', data);
         
         // Enhanced debugging for Pass 2

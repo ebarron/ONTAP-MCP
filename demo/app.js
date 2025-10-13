@@ -125,19 +125,13 @@ class OntapMcpDemo {
                 console.warn('  ⚠️  ParameterResolver not found');
             }
             
-            // Initialize CorrectiveActionParser - REUSE ChatbotAssistant's config
+            // Initialize CorrectiveActionParser - uses centralized OpenAI service
             if (typeof CorrectiveActionParser !== 'undefined') {
                 window.correctiveActionParser = new CorrectiveActionParser();
                 
-                // Wait for chatbot to initialize and share its config
-                if (window.chatbot && window.chatbot.config) {
-                    await window.correctiveActionParser.initWithConfig(window.chatbot.config, this.clientManager);
-                    console.log('  ✅ CorrectiveActionParser initialized (shared ChatGPT session + MCP tools)');
-                } else {
-                    // Fallback: initialize with clientManager only (mock mode for parsing)
-                    await window.correctiveActionParser.initWithConfig({}, this.clientManager);
-                    console.log('  ⚠️  CorrectiveActionParser initialized in mock mode (no ChatGPT config)');
-                }
+                // Initialize with MCP client manager (config from OpenAI service)
+                await window.correctiveActionParser.initWithConfig(this.clientManager);
+                console.log('  ✅ CorrectiveActionParser initialized (centralized OpenAI service + MCP tools)');
             } else {
                 console.warn('  ⚠️  CorrectiveActionParser not found');
             }
@@ -1213,25 +1207,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearInterval(waitForInit);
                 console.log('✅ ChatbotAssistant initialized');
                 
-                // Re-initialize CorrectiveActionParser with chatbot's config
-                console.log('🔍 Checking CorrectiveActionParser re-init conditions:');
-                console.log('  - window.correctiveActionParser:', window.correctiveActionParser);
-                console.log('  - window.correctiveActionParser exists:', !!window.correctiveActionParser);
-                console.log('  - chatbot.config exists:', !!chatbot.config);
-                console.log('  - chatbot.mockMode:', chatbot.mockMode);
-                
-                if (window.correctiveActionParser && chatbot.config && !chatbot.mockMode) {
-                    console.log('🔄 Re-initializing CorrectiveActionParser with chatbot config...');
-                    await window.correctiveActionParser.initWithConfig(chatbot.config, app.clientManager);
-                    console.log('✅ CorrectiveActionParser now using live ChatGPT config');
+                // CorrectiveActionParser already uses centralized OpenAI service
+                // Just verify it's properly initialized
+                console.log('✅ CorrectiveActionParser using centralized OpenAI service');
+                if (!chatbot.mockMode) {
+                    console.log('   OpenAI service active and shared across all components');
                 } else {
-                    console.log('⚠️ Skipping CorrectiveActionParser re-initialization');
-                    if (chatbot.mockMode) {
-                        console.log('   Reason: ChatbotAssistant is in mock mode');
-                    }
-                    if (!chatbot.config) {
-                        console.log('   Reason: No chatbot config available');
-                    }
+                    console.log('   ⚠️ ChatbotAssistant in mock mode - no API key configured');
                 }
             }
         }, 100); // Check every 100ms

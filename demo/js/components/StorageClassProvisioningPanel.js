@@ -665,9 +665,6 @@ class StorageClassProvisioningPanel {
         const protocol = document.querySelector('input[name="scProtocol"]:checked').value;
         const protocolName = protocol === 'nfs' ? 'NFS' : 'CIFS';
 
-        // Build the prompt for the LLM
-        const prompt = `Where is the best place to provision a ${volumeSize} ${protocolName} volume using my ${this.selectedStorageClass.name} storage class?`;
-
         const recommendBtn = document.getElementById('scRecommendBtn');
         recommendBtn.disabled = true;
         recommendBtn.textContent = 'Recommending...';
@@ -675,15 +672,19 @@ class StorageClassProvisioningPanel {
         try {
             this.notifications.showInfo('Getting placement recommendation from AI...');
 
-            // Use the chatbot to get recommendation
+            // Use the chatbot to get recommendation (it has access to all MCP tools and cluster context)
             const chatbot = this.demo.chatbot;
             if (!chatbot) {
                 throw new Error('AI assistant not available');
             }
 
+            // Build the prompt for the LLM - keep it simple and let the chatbot use its tools
+            const prompt = `Where is the best place to provision a ${volumeSize} ${protocolName} volume using my ${this.selectedStorageClass.name} storage class?`;
+
             // Send the message and wait for response
             const response = await chatbot.sendMessage(prompt);
-            
+            console.log('AI Recommendation response:', response);
+
             // The chatbot should return a structured recommendation
             // Parse it from the response
             if (response && typeof response === 'string') {
@@ -694,14 +695,28 @@ class StorageClassProvisioningPanel {
                     // Update the UI with recommendation
                     this.currentRecommendations = recommendation;
                     this.showStorageClassDetails(); // This will populate the cluster/SVM/aggregate
-                    this.notifications.showSuccess('Placement recommendation received');
+                    
+                    // Show reasoning if available
+                    if (recommendation.reasoning) {
+                        this.notifications.showSuccess(`Recommendation: ${recommendation.reasoning}`);
+                    } else {
+                        this.notifications.showSuccess('Placement recommendation received');
+                    }
                 } else {
                     this.notifications.showWarning('Could not parse recommendation. Please try again.');
                 }
             }
         } catch (error) {
             console.error('Failed to get recommendation:', error);
-            this.notifications.showError('Failed to get recommendation: ' + error.message);
+            
+            // Better error messages
+            if (error.message.includes('mock mode') || error.message.includes('API key')) {
+                this.notifications.showError('AI recommendations require ChatGPT API key configuration');
+            } else if (error.message.includes('Rate limit')) {
+                this.notifications.showError('Too many requests. Please wait a moment and try again.');
+            } else {
+                this.notifications.showError('Failed to get recommendation: ' + error.message);
+            }
         } finally {
             recommendBtn.disabled = false;
             recommendBtn.textContent = 'Recommend...';
@@ -714,8 +729,9 @@ class StorageClassProvisioningPanel {
             // The chatbot should return structured JSON in the response
             // Look for the structured format: {"cluster": "...", "svm": "...", "aggregate": "...", ...}
             
-            // Try to find JSON block in response
-            const jsonMatch = response.match(/\{[\s\S]*?\}/);
+            // Try to find JSON block in response (remove markdown code blocks if present)
+            const cleanedResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            const jsonMatch = cleanedResponse.match(/\{[\s\S]*?\}/);
             if (jsonMatch) {
                 const recommendation = JSON.parse(jsonMatch[0]);
                 
@@ -725,6 +741,7 @@ class StorageClassProvisioningPanel {
                         cluster: recommendation.cluster,
                         svm: recommendation.svm,
                         aggregate: recommendation.aggregate,
+                        reasoning: recommendation.reasoning, // Capture reasoning for user feedback
                         qos_policy: recommendation.qos_policy || this.selectedStorageClass.qosPolicy,
                         snapshot_policy: recommendation.snapshot_policy || this.selectedStorageClass.snapshotPolicy
                     };

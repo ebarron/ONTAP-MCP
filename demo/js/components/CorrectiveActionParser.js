@@ -11,12 +11,17 @@ class CorrectiveActionParser {
     }
 
     /**
-     * Initialize with configuration and MCP client manager
+     * Initialize with MCP client manager (config from centralized service)
      */
-    async initWithConfig(config, clientManager) {
-        this.config = config;
+    async initWithConfig(clientManager) {
+        // Get config from centralized OpenAI service
+        if (!window.openAIService.getConfig()) {
+            await window.openAIService.initialize();
+        }
+        
+        this.config = window.openAIService.getConfig();
         this.clientManager = clientManager;
-        this.mockMode = !config?.api_key;
+        this.mockMode = window.openAIService.isMockMode();
         
         // Discover available MCP tools dynamically
         await this.discoverAvailableTools();
@@ -224,30 +229,17 @@ Map any ONTAP CLI commands to the appropriate MCP tools and provide clear parame
     }
 
     async callOpenAI(systemPrompt, userPrompt) {
-        const response = await fetch(`${this.config.base_url}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.config.api_key}`
-            },
-            body: JSON.stringify({
-                model: this.config.model,
-                user: this.config.user,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1, // Low temperature for consistent parsing
-                max_tokens: 2000
-            })
+        // Use centralized OpenAI service
+        const data = await window.openAIService.callChatCompletion({
+            component: 'CorrectiveActionParser',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.1, // Low temperature for consistent parsing
+            max_completion_tokens: 2000
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-        }
-
-        const data = await response.json();
         const content = data.choices[0].message.content;
         
         // Remove markdown code blocks if present (defensive)

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI Service Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #0067C5;
+            margin-top: 0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #e1e5e9;
+            border-radius: 4px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #0067C5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005099;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0067C5;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 OpenAI Service Test Suite</h1>
+        <p>Testing the centralized OpenAI service architecture</p>
+    </div>
+
+    <div class="container">
+        <div class="test-section">
+            <h2>1. Service Initialization</h2>
+            <div id="init-status" class="status info">Waiting to test...</div>
+            <button onclick="testInitialization()">Test Initialization</button>
+        </div>
+
+        <div class="test-section">
+            <h2>2. Configuration Loading</h2>
+            <div id="config-status" class="status info">Waiting to test...</div>
+            <button onclick="testConfig()">Test Config</button>
+            <pre id="config-output" style="display:none;"></pre>
+        </div>
+
+        <div class="test-section">
+            <h2>3. Simple API Call</h2>
+            <div id="api-status" class="status info">Waiting to test...</div>
+            <button onclick="testSimpleAPICall()">Test Simple Call</button>
+            <div id="api-output"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4. Rate Limiting</h2>
+            <div id="rate-status" class="status info">Waiting to test...</div>
+            <button onclick="testRateLimiting()">Test Rate Limiting (3 calls)</button>
+            <div id="rate-output"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>5. Service Metrics</h2>
+            <div id="metrics-status" class="status info">Waiting to test...</div>
+            <button onclick="showMetrics()">Show Metrics</button>
+            <div id="metrics-output" class="metrics"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>6. Run All Tests</h2>
+            <button onclick="runAllTests()">Run All Tests</button>
+        </div>
+    </div>
+
+    <script src="../js/core/OpenAIService.js"></script>
+    <script>
+        async function testInitialization() {
+            const status = document.getElementById('init-status');
+            try {
+                status.className = 'status info';
+                status.textContent = 'Testing initialization...';
+                
+                if (!window.openAIService) {
+                    throw new Error('OpenAIService not found in window');
+                }
+                
+                await window.openAIService.initialize();
+                
+                status.className = 'status success';
+                status.textContent = '✅ Service initialized successfully';
+                
+                return true;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `❌ Initialization failed: ${error.message}`;
+                return false;
+            }
+        }
+
+        async function testConfig() {
+            const status = document.getElementById('config-status');
+            const output = document.getElementById('config-output');
+            
+            try {
+                status.className = 'status info';
+                status.textContent = 'Testing config loading...';
+                
+                if (!window.openAIService.getConfig()) {
+                    await window.openAIService.initialize();
+                }
+                
+                const config = window.openAIService.getConfig();
+                const mockMode = window.openAIService.isMockMode();
+                
+                status.className = mockMode ? 'status error' : 'status success';
+                status.textContent = mockMode 
+                    ? '⚠️ Running in mock mode (no API key)' 
+                    : '✅ Config loaded successfully';
+                
+                output.style.display = 'block';
+                output.textContent = JSON.stringify({
+                    base_url: config.base_url,
+                    model: config.model,
+                    user: config.user,
+                    mock_mode: mockMode,
+                    has_api_key: config.api_key && config.api_key !== 'mock-key'
+                }, null, 2);
+                
+                return !mockMode;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `❌ Config test failed: ${error.message}`;
+                return false;
+            }
+        }
+
+        async function testSimpleAPICall() {
+            const status = document.getElementById('api-status');
+            const output = document.getElementById('api-output');
+            
+            try {
+                status.className = 'status info';
+                status.textContent = 'Making API call...';
+                output.innerHTML = '';
+                
+                if (!window.openAIService.getConfig()) {
+                    await window.openAIService.initialize();
+                }
+                
+                if (window.openAIService.isMockMode()) {
+                    throw new Error('Cannot test API call in mock mode');
+                }
+                
+                const startTime = performance.now();
+                const result = await window.openAIService.callChatCompletion({
+                    component: 'test-suite',
+                    messages: [
+                        { role: 'user', content: 'Say "Hello from OpenAI Service!" in one sentence.' }
+                    ],
+                    max_completion_tokens: 50,
+                    temperature: 0.7
+                });
+                const duration = performance.now() - startTime;
+                
+                const response = result.choices[0].message.content;
+                
+                status.className = 'status success';
+                status.textContent = `✅ API call succeeded (${duration.toFixed(0)}ms)`;
+                
+                output.innerHTML = `<pre>${response}</pre>`;
+                
+                return true;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `❌ API call failed: ${error.message}`;
+                return false;
+            }
+        }
+
+        async function testRateLimiting() {
+            const status = document.getElementById('rate-status');
+            const output = document.getElementById('rate-output');
+            
+            try {
+                status.className = 'status info';
+                status.textContent = 'Testing rate limiting with 3 calls...';
+                output.innerHTML = '';
+                
+                if (!window.openAIService.getConfig()) {
+                    await window.openAIService.initialize();
+                }
+                
+                if (window.openAIService.isMockMode()) {
+                    throw new Error('Cannot test rate limiting in mock mode');
+                }
+                
+                const times = [];
+                const startTime = Date.now();
+                
+                for (let i = 1; i <= 3; i++) {
+                    const callStart = Date.now();
+                    await window.openAIService.callChatCompletion({
+                        component: 'test-rate-limit',
+                        messages: [
+                            { role: 'user', content: `Test call ${i}: Say "OK"` }
+                        ],
+                        max_completion_tokens: 10,
+                        temperature: 0
+                    });
+                    const callEnd = Date.now();
+                    times.push({
+                        call: i,
+                        elapsed: callEnd - startTime,
+                        duration: callEnd - callStart
+                    });
+                }
+                
+                const totalTime = Date.now() - startTime;
+                const avgInterval = times.length > 1 ? 
+                    (times[times.length-1].elapsed - times[0].elapsed) / (times.length - 1) : 0;
+                
+                status.className = 'status success';
+                status.textContent = `✅ Rate limiting working (avg interval: ${avgInterval.toFixed(0)}ms)`;
+                
+                output.innerHTML = '<pre>' + times.map(t => 
+                    `Call ${t.call}: +${t.elapsed}ms (duration: ${t.duration}ms)`
+                ).join('\n') + `\nTotal time: ${totalTime}ms</pre>`;
+                
+                return true;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `❌ Rate limiting test failed: ${error.message}`;
+                return false;
+            }
+        }
+
+        async function showMetrics() {
+            const status = document.getElementById('metrics-status');
+            const output = document.getElementById('metrics-output');
+            
+            try {
+                if (!window.openAIService.getConfig()) {
+                    await window.openAIService.initialize();
+                }
+                
+                const metrics = window.openAIService.getMetrics();
+                
+                output.innerHTML = `
+                    <div class="metric">
+                        <div class="metric-value">${metrics.totalRequests}</div>
+                        <div class="metric-label">Total Requests</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${metrics.successfulRequests}</div>
+                        <div class="metric-label">Successful</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${metrics.failedRequests}</div>
+                        <div class="metric-label">Failed</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${metrics.averageDuration.toFixed(0)}ms</div>
+                        <div class="metric-label">Avg Duration</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${metrics.successRate.toFixed(1)}%</div>
+                        <div class="metric-label">Success Rate</div>
+                    </div>
+                `;
+                
+                status.className = 'status success';
+                status.textContent = '✅ Metrics retrieved';
+                
+                // Also log to console
+                window.openAIService.logMetrics();
+                
+                return true;
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `❌ Metrics retrieval failed: ${error.message}`;
+                return false;
+            }
+        }
+
+        async function runAllTests() {
+            console.log('🧪 Running all OpenAI Service tests...');
+            
+            const results = {
+                initialization: await testInitialization(),
+                config: await testConfig(),
+                api_call: false,
+                rate_limiting: false,
+                metrics: false
+            };
+            
+            // Only run API tests if not in mock mode
+            if (!window.openAIService.isMockMode()) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                results.api_call = await testSimpleAPICall();
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                results.rate_limiting = await testRateLimiting();
+            }
+            
+            results.metrics = await showMetrics();
+            
+            const totalTests = Object.keys(results).length;
+            const passedTests = Object.values(results).filter(r => r).length;
+            
+            console.log(`\n📊 Test Results: ${passedTests}/${totalTests} passed`);
+            console.log('Details:', results);
+            
+            alert(`Test Complete!\n${passedTests}/${totalTests} tests passed\n\nCheck console for details`);
+        }
+    </script>
+</body>
+</html>
