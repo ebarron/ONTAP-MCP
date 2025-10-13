@@ -4,7 +4,7 @@ groups:
 - name: Harvest Rules
   rules:
 
-# Alert for any instance that has a volume used percentage > 90%
+    # Alert for any instance that has a volume used percentage > 90%
   - alert: Volume Used Percentage Breach
     expr: volume_size_used_percent{} > 90
     for: 5m
@@ -24,9 +24,10 @@ groups:
           1. volume modify -vserver <vserver_name> -volume <volume_name> -size <new_size>
           2. volume size <volume_name> +<amount>
           To delete a specific snapshot, use the volume snapshot delete command.
-          4. volume snapshot delete -vserver <vserver_name> -volume <volume_name> -snapshot <snapshot_name>
+          1. volume snapshot delete -vserver <vserver_name> -volume <volume_name> -snapshot <snapshot_name>
+      
 
-  # Alert for any instance that is unreachable for >5 minutes.
+    # Alert for any instance that is unreachable for >5 minutes.
   - alert: InstanceDown
     expr: up{} == 0
     for: 5m
@@ -38,7 +39,7 @@ groups:
 
   
 
-  # Alert for offline volume
+    # Alert for offline volume
   - alert: Volume state offline
     expr: volume_labels{state="offline"} == 1
     for: 5m

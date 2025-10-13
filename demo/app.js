@@ -142,10 +142,18 @@ class OntapMcpDemo {
                 console.warn('  ⚠️  CorrectiveActionParser not found');
             }
             
+            // Initialize UndoManager (PHASE 5.1)
+            if (typeof UndoManager !== 'undefined' && window.parameterResolver) {
+                window.undoManager = new UndoManager(this.apiClient, window.parameterResolver);
+                console.log('  ✅ UndoManager initialized');
+            } else {
+                console.warn('  ⚠️  UndoManager not initialized (missing dependencies)');
+            }
+            
             // Initialize FixItModal
-            if (typeof FixItModal !== 'undefined' && window.parameterResolver) {
-                window.fixItModal = new FixItModal(this.apiClient, window.parameterResolver);
-                console.log('  ✅ FixItModal initialized');
+            if (typeof FixItModal !== 'undefined' && window.parameterResolver && window.undoManager) {
+                window.fixItModal = new FixItModal(this.apiClient, window.parameterResolver, window.undoManager);
+                console.log('  ✅ FixItModal initialized (with UndoManager)');
             } else {
                 console.warn('  ⚠️  FixItModal not initialized (missing dependencies)');
             }
@@ -1193,10 +1201,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Initialize chatbot after app is ready
-    setTimeout(() => {
+    setTimeout(async () => {
         chatbot = new ChatbotAssistant(app);
         // Store reference to chatbot in app for view switching
         app.chatbot = chatbot;
+        
+        // Wait for chatbot initialization to complete
+        console.log('⏳ Waiting for ChatbotAssistant initialization...');
+        const waitForInit = setInterval(async () => {
+            if (chatbot.isInitialized) {
+                clearInterval(waitForInit);
+                console.log('✅ ChatbotAssistant initialized');
+                
+                // Re-initialize CorrectiveActionParser with chatbot's config
+                console.log('🔍 Checking CorrectiveActionParser re-init conditions:');
+                console.log('  - window.correctiveActionParser:', window.correctiveActionParser);
+                console.log('  - window.correctiveActionParser exists:', !!window.correctiveActionParser);
+                console.log('  - chatbot.config exists:', !!chatbot.config);
+                console.log('  - chatbot.mockMode:', chatbot.mockMode);
+                
+                if (window.correctiveActionParser && chatbot.config && !chatbot.mockMode) {
+                    console.log('🔄 Re-initializing CorrectiveActionParser with chatbot config...');
+                    await window.correctiveActionParser.initWithConfig(chatbot.config, app.clientManager);
+                    console.log('✅ CorrectiveActionParser now using live ChatGPT config');
+                } else {
+                    console.log('⚠️ Skipping CorrectiveActionParser re-initialization');
+                    if (chatbot.mockMode) {
+                        console.log('   Reason: ChatbotAssistant is in mock mode');
+                    }
+                    if (!chatbot.config) {
+                        console.log('   Reason: No chatbot config available');
+                    }
+                }
+            }
+        }, 100); // Check every 100ms
     }, 1000);
 });
 

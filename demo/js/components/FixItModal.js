@@ -2,9 +2,10 @@
 // Shows action details, resolves parameters, and executes MCP tools
 
 class FixItModal {
-    constructor(apiClient, parameterResolver) {
+    constructor(apiClient, parameterResolver, undoManager) {
         this.apiClient = apiClient;
         this.parameterResolver = parameterResolver;
+        this.undoManager = undoManager;
         this.currentAction = null;
         this.currentAlert = null;
         this.modalElement = null;
@@ -407,6 +408,10 @@ class FixItModal {
             // Resolve parameters
             this.resolvedParams = await this.resolveParameters(action, alert);
 
+            // DEBUG: Log action to see if cli_command is present
+            console.log('🔍 Action object:', action);
+            console.log('🔍 Has cli_command?', !!action.cli_command);
+            
             // Render action description (from Fix-It button text)
             this.renderActionDescription(action);
             
@@ -458,6 +463,11 @@ class FixItModal {
             params.volume_name = volumeName;
         }
         
+        // Merge any params from the action (e.g., state='online')
+        if (action.mcp_params) {
+            Object.assign(params, action.mcp_params);
+        }
+        
         // Tool-specific parameter resolution
         switch (action.mcp_tool) {
             case 'cluster_enable_volume_autosize':
@@ -471,19 +481,23 @@ class FixItModal {
                 break;
                 
             case 'cluster_update_volume':
-                // Determine if this is "set new size" or "add to size"
-                const currentVolumeSize = await this.parameterResolver.getCurrentVolumeSize(clusterName, volumeName);
-                const currentUsedPercent = await this.parameterResolver.getCurrentVolumeUsedPercent(clusterName, volumeName);
-                
-                if (action.solution_title.includes('Set New')) {
-                    // Calculate size to bring to ~80% utilization
-                    const newSize = this.parameterResolver.suggestNewSize(currentVolumeSize, currentUsedPercent, 'reduce_to_80');
-                    params.size = this.parameterResolver.formatSize(newSize);
-                } else {
-                    // Add 20% to current size
-                    const newSize = this.parameterResolver.suggestNewSize(currentVolumeSize, currentUsedPercent, 'add_20_percent');
-                    params.size = this.parameterResolver.formatSize(newSize);
+                // Only fetch size metrics if we're actually resizing (not changing state)
+                if (action.solution_title.includes('Size') || action.solution_title.includes('Resize')) {
+                    // Determine if this is "set new size" or "add to size"
+                    const currentVolumeSize = await this.parameterResolver.getCurrentVolumeSize(clusterName, volumeName);
+                    const currentUsedPercent = await this.parameterResolver.getCurrentVolumeUsedPercent(clusterName, volumeName);
+                    
+                    if (action.solution_title.includes('Set New')) {
+                        // Calculate size to bring to ~80% utilization
+                        const newSize = this.parameterResolver.suggestNewSize(currentVolumeSize, currentUsedPercent, 'reduce_to_80');
+                        params.size = this.parameterResolver.formatSize(newSize);
+                    } else {
+                        // Add 20% to current size
+                        const newSize = this.parameterResolver.suggestNewSize(currentVolumeSize, currentUsedPercent, 'add_20_percent');
+                        params.size = this.parameterResolver.formatSize(newSize);
+                    }
                 }
+                // For state changes, the mcp_params already has state='online' or state='offline'
                 break;
                 
             case 'cluster_delete_volume_snapshot':
@@ -640,9 +654,39 @@ class FixItModal {
     async execute() {
         // Show progress overlay
         document.getElementById('fixItModalProgress').style.display = 'flex';
-        document.getElementById('fixItModalProgressText').textContent = 'Executing action...';
+        document.getElementById('fixItModalProgressText').textContent = 'Capturing current state...';
+        
+        let originalState = null;
+        let reversibility = null;
         
         try {
+            // PHASE 5.1: Capture current state BEFORE execution
+            try {
+                originalState = await this.undoManager.captureCurrentState(
+                    this.currentAlert,
+                    this.currentAction,
+                    this.resolvedParams
+                );
+                
+                // Determine if action is reversible
+                reversibility = this.undoManager.determineReversibility(
+                    this.currentAction,
+                    originalState
+                );
+                
+                console.log('📸 State captured:', originalState);
+                console.log('🔍 Reversibility:', reversibility);
+            } catch (stateError) {
+                console.warn('⚠️ State capture failed, proceeding without undo:', stateError);
+                reversibility = {
+                    reversible: false,
+                    reason: 'Could not capture current state'
+                };
+            }
+            
+            // Update progress
+            document.getElementById('fixItModalProgressText').textContent = 'Executing action...';
+            
             // Call MCP tool
             const result = await this.apiClient.callMcp(
                 this.currentAction.mcp_tool,
@@ -651,8 +695,8 @@ class FixItModal {
             
             console.log('✅ Fix-It action executed successfully:', result);
             
-            // Show success message
-            this.showSuccess(result);
+            // Show success message with undo info
+            this.showSuccess(result, originalState, reversibility);
             
         } catch (error) {
             console.error('❌ Fix-It action failed:', error);
@@ -663,16 +707,47 @@ class FixItModal {
     /**
      * Show success message and close modal
      */
-    showSuccess(result) {
+    showSuccess(result, originalState, reversibility) {
         // Update progress text
         document.getElementById('fixItModalProgressText').innerHTML = 
             '✅ Action completed successfully!';
         
-        // Store undo information for reversible actions
-        this.storeUndoInfo();
+        // PHASE 5.1: Store undo information using UndoManager
+        if (reversibility && reversibility.reversible && originalState) {
+            try {
+                const actionId = crypto.randomUUID();
+                const undoAction = this.undoManager.generateUndoAction(
+                    this.currentAction,
+                    originalState,
+                    this.resolvedParams
+                );
+                
+                this.undoManager.storeUndoInfo(
+                    actionId,
+                    undoAction,
+                    originalState,
+                    {
+                        mcp_tool: this.currentAction.mcp_tool,
+                        params: this.resolvedParams,
+                        result: result
+                    },
+                    this.currentAlert,
+                    reversibility
+                );
+                
+                console.log('✅ Undo information stored');
+            } catch (undoError) {
+                console.warn('⚠️ Failed to store undo info:', undoError);
+            }
+        } else if (reversibility && !reversibility.reversible) {
+            console.log(`ℹ️ Action not reversible: ${reversibility.reason}`);
+        }
         
         // Close modal after 1 second and re-render alert details
         setTimeout(() => {
+            // Capture alert reference before closing
+            const alert = this.currentAlert;
+            
             this.close();
             
             // Re-render the current alert details to show undo button
@@ -687,66 +762,31 @@ class FixItModal {
                 }
             }
             
-            // Show toast notification with undo option
-            this.showSuccessWithUndo();
+            // Show toast notification with undo option (pass alert since currentAlert is now null)
+            this.showSuccessWithUndo(alert);
         }, 1000);
     }
     
     /**
-     * Store undo information in sessionStorage for reversible actions
+     * Show success toast with undo option (using UndoManager)
      */
-    storeUndoInfo() {
-        const action = this.currentAction;
-        const alert = this.currentAlert;
-        
-        // Only store undo for reversible actions
-        const reversibleActions = {
-            'cluster_enable_volume_autosize': {
-                undoTool: 'cluster_enable_volume_autosize',
-                undoParams: (params) => ({
-                    cluster_name: params.cluster_name,
-                    volume_uuid: params.volume_uuid,
-                    mode: 'off'
-                }),
-                undoLabel: 'Disable Autosize'
-            }
-            // Add more reversible actions here in the future
-        };
-        
-        if (reversibleActions[action.mcp_tool]) {
-            const reversibleAction = reversibleActions[action.mcp_tool];
-            const undoInfo = {
-                timestamp: Date.now(),
-                alertFingerprint: alert.fingerprint,
-                actionTitle: action.solution_title,
-                originalTool: action.mcp_tool,
-                originalParams: this.resolvedParams,
-                undoTool: reversibleAction.undoTool,
-                undoParams: reversibleAction.undoParams(this.resolvedParams),
-                undoLabel: reversibleAction.undoLabel,
-                clusterName: alert.labels?.cluster,
-                volumeName: alert.labels?.volume
-            };
-            
-            sessionStorage.setItem('lastFixItAction', JSON.stringify(undoInfo));
-            console.log('💾 Stored undo info:', undoInfo);
+    showSuccessWithUndo(alert) {
+        if (!alert) {
+            console.warn('⚠️ No alert provided - showing simple success toast');
+            this.showToast('Fix-It action completed successfully', 'success');
+            return;
         }
-    }
-    
-    /**
-     * Show success toast with undo option
-     */
-    showSuccessWithUndo() {
-        const undoInfo = sessionStorage.getItem('lastFixItAction');
+        
+        const undoInfo = this.undoManager.getUndoInfo(alert.fingerprint);
         
         if (undoInfo) {
-            const info = JSON.parse(undoInfo);
+            const undoLabel = this.undoManager.generateUndoLabel(undoInfo.undoAction);
             const message = `Fix-It action completed successfully`;
             
             // Show toast with undo button
             this.showToast(message, 'success', {
-                undoLabel: info.undoLabel,
-                onUndo: () => this.executeUndo(info)
+                undoLabel: undoLabel,
+                onUndo: () => this.executeUndo(undoInfo)
             });
         } else {
             this.showToast('Fix-It action completed successfully', 'success');
@@ -764,10 +804,13 @@ class FixItModal {
             this.showToast('Undoing action...', 'info');
             
             // Execute undo via MCP
-            const result = await this.apiClient.callMcp(undoInfo.undoTool, undoInfo.undoParams);
+            const result = await this.apiClient.callMcp(undoInfo.undoAction.mcp_tool, undoInfo.undoAction.params);
             
-            // Clear undo info
-            sessionStorage.removeItem('lastFixItAction');
+            // Clear undo info from UndoManager
+            if (this.undoManager && undoInfo.alertFingerprint) {
+                this.undoManager.clearUndoInfo(undoInfo.alertFingerprint);
+                console.log('🗑️ Cleared undo info for alert fingerprint:', undoInfo.alertFingerprint);
+            }
             
             // Show success
             this.showToast('Action undone successfully', 'success');
@@ -783,7 +826,13 @@ class FixItModal {
                     // Find the alert by its identifier (in case array position changed)
                     const alertIndex = alertsView.findCurrentAlertIndex();
                     if (alertIndex !== undefined) {
+                        // Alert still exists - refresh details
                         alertsView.showAlertDetailsByIndex(alertIndex);
+                    } else {
+                        // Alert disappeared (likely resolved!) - close details and show success
+                        console.log('✅ Alert resolved after undo - closing details view');
+                        alertsView.closeAlertDetails();
+                        this.showToast('✅ Alert resolved! The undo action fixed the underlying issue.', 'success');
                     }
                 }
             }

@@ -651,7 +651,8 @@ class AlertsView {
             return index;
         }
         
-        console.warn('⚠️ Could not find current alert after reload');
+        // Alert not found - likely resolved (this is good!)
+        console.log('✅ Alert not found after reload - may have been resolved');
         return undefined;
     }
 
@@ -660,7 +661,16 @@ class AlertsView {
         // Get rule definition from cache for corrective actions
         let ruleData = null;
         if (this.alertRulesCache && alert.labels.alertname) {
+            console.log('🔍 Looking up alert rule:', alert.labels.alertname);
+            console.log('🔍 Cache has', this.alertRulesCache.size, 'rules:', Array.from(this.alertRulesCache.keys()));
             ruleData = this.alertRulesCache.get(alert.labels.alertname);
+            console.log('🔍 Rule found:', ruleData ? 'YES' : 'NO');
+            if (ruleData) {
+                console.log('🔍 Rule data:', ruleData);
+                console.log('🔍 Rule annotations:', ruleData.annotations);
+                console.log('🔍 Annotation keys:', Object.keys(ruleData.annotations || {}));
+                console.log('🔍 Rule has corrective_action:', !!ruleData.annotations?.corrective_action);
+            }
         }
 
         // Breadcrumb and title
@@ -725,13 +735,21 @@ class AlertsView {
 
         // Corrective Actions (check both active alert and rule definition)
         let correctiveActions = alert.annotations?.corrective_actions || alert.annotations?.corrective_action;
+        console.log('🔍 Corrective actions from alert:', correctiveActions ? 'FOUND' : 'NOT FOUND');
         
         // If not found in active alert, try the rule definition
         if (!correctiveActions && ruleData) {
+            console.log('🔍 Checking rule definition for corrective_action...');
             correctiveActions = ruleData.annotations?.corrective_action || ruleData.annotations?.corrective_actions;
+            console.log('🔍 Corrective actions from rule:', correctiveActions ? 'FOUND' : 'NOT FOUND');
+            if (correctiveActions) {
+                console.log('🔍 Corrective action text length:', correctiveActions.length);
+            }
         }
         
         const correctiveActionsCard = document.getElementById('alertDetailsCorrectiveActions');
+        
+        console.log('🔍 Final decision - show corrective actions?', !!correctiveActions);
         
         if (correctiveActions) {
             // Parse corrective actions and render Fix-It UI
@@ -812,11 +830,20 @@ class AlertsView {
                             
                             // Store solution and alert data as base64 to avoid escaping issues
                             const solutionData = btoa(JSON.stringify(solution));
+                            console.log('🔍 Alert before encoding:', alert);
+                            console.log('🔍 Alert fingerprint:', alert.fingerprint);
                             const alertData = btoa(JSON.stringify(alert));
                             
                             // Check if there's undo info for this action
+                            // Note: We should only mark as "executed" if the undo info represents
+                            // the OPPOSITE state. For example, if alert says "volume offline" and
+                            // we have undo info for "bring online", the volume is already offline
+                            // so the undo is not applicable.
                             const undoInfo = this.getUndoInfoForAction(solution.mcp_tool, alert);
-                            const isExecuted = undoInfo !== null;
+                            
+                            // Check if undo represents the opposite state
+                            const isActuallyExecuted = this.isActionCurrentlyApplied(undoInfo, solution, alert);
+                            const isExecuted = isActuallyExecuted;
                             
                             html += `
                                 <button 
@@ -837,7 +864,7 @@ class AlertsView {
                                 html += `
                                     <button 
                                         class="undo-button"
-                                        onclick="alertsView.handleUndoClick('${buttonId}')"
+                                        onclick="alertsView.handleUndoClick('${alert.fingerprint}')"
                                         title="Undo last action"
                                     >
                                         <span class="undo-icon">⏪</span>
@@ -1004,6 +1031,8 @@ class AlertsView {
             const alertData = JSON.parse(atob(button.getAttribute('data-alert')));
             
             console.log('Fix-It button clicked:', solutionData.solution_title);
+            console.log('🔍 Decoded alert:', alertData);
+            console.log('🔍 Decoded alert fingerprint:', alertData.fingerprint);
             
             // Show Fix-It modal
             if (this.fixItModal) {
@@ -1023,21 +1052,17 @@ class AlertsView {
      */
     getUndoInfoForAction(mcpTool, alert) {
         try {
-            const undoInfoStr = sessionStorage.getItem('lastFixItAction');
-            if (!undoInfoStr) return null;
+            // Use UndoManager to check for undo info
+            if (!this.fixItModal || !this.fixItModal.undoManager) {
+                return null;
+            }
             
-            const undoInfo = JSON.parse(undoInfoStr);
+            const undoInfo = this.fixItModal.undoManager.getUndoInfo(alert.fingerprint);
             
-            // Check if undo info matches this tool and alert context
-            const clusterMatch = undoInfo.clusterName === alert.labels?.cluster;
-            const volumeMatch = undoInfo.volumeName === alert.labels?.volume;
-            const toolMatch = undoInfo.originalTool === mcpTool;
+            if (!undoInfo) return null;
             
-            // Check if action was recent (within last 5 minutes)
-            const age = Date.now() - undoInfo.timestamp;
-            const isRecent = age < (5 * 60 * 1000); // 5 minutes
-            
-            if (clusterMatch && volumeMatch && toolMatch && isRecent) {
+            // Check if the executed action matches this tool
+            if (undoInfo.executedAction && undoInfo.executedAction.mcp_tool === mcpTool) {
                 return undoInfo;
             }
             
@@ -1049,20 +1074,58 @@ class AlertsView {
     }
 
     /**
+     * Check if an action is currently applied (i.e., the state change is active)
+     * For example, if we executed "bring online" and the volume is now online,
+     * the action is "currently applied". If the volume went back offline, it's not.
+     */
+    isActionCurrentlyApplied(undoInfo, solution, alert) {
+        if (!undoInfo) return false;
+        
+        // For state changes, check if the NEW state matches what we executed
+        // For example: If we executed "set to online" (undoInfo.executedAction has state: 'online')
+        // and the alert is "volume offline", then the action is NOT currently applied
+        // (volume went back to offline)
+        
+        const executedAction = undoInfo.executedAction;
+        if (!executedAction) return false;
+        
+        // Check if this is a state change action
+        if (executedAction.mcp_params && executedAction.mcp_params.state) {
+            const executedState = executedAction.mcp_params.state;
+            
+            // If alert exists for "offline", the current state is offline
+            // If we executed "online", then action is NOT currently applied
+            if (alert.labels?.alertname === 'VolumeOffline') {
+                return executedState === 'offline'; // Only true if we set it offline
+            }
+            
+            // For other state-based alerts, you'd add similar logic
+        }
+        
+        // For non-state actions (like resize), assume they're still applied
+        // unless we have more sophisticated state tracking
+        return true;
+    }
+
+    /**
      * Handle undo button click
      */
-    handleUndoClick(buttonId) {
+    handleUndoClick(alertFingerprint) {
         try {
-            const undoInfoStr = sessionStorage.getItem('lastFixItAction');
-            if (!undoInfoStr) {
-                window.alert('No undo information available');
+            // Get undo info from UndoManager using alert fingerprint
+            if (!this.fixItModal || !this.fixItModal.undoManager) {
+                window.alert('Undo functionality is not available');
                 return;
             }
             
-            const undoInfo = JSON.parse(undoInfoStr);
+            const undoInfo = this.fixItModal.undoManager.getUndoInfo(alertFingerprint);
+            if (!undoInfo) {
+                window.alert('No undo information available for this alert');
+                return;
+            }
             
             // Execute undo via FixItModal
-            if (this.fixItModal && this.fixItModal.executeUndo) {
+            if (this.fixItModal.executeUndo) {
                 this.fixItModal.executeUndo(undoInfo);
             } else {
                 console.error('FixItModal undo not available');
@@ -1134,6 +1197,23 @@ class AlertsView {
             
             console.log(`Loaded ${alertsData.length} alerts`);
             
+            // Debug: Check if alerts have fingerprints
+            if (alertsData.length > 0) {
+                console.log('🔍 Sample alert object:', alertsData[0]);
+                console.log('🔍 Sample alert keys:', Object.keys(alertsData[0]));
+                console.log('🔍 Sample alert fingerprint:', alertsData[0].fingerprint);
+            }
+            
+            // Add fingerprints if missing (generate from labels)
+            alertsData = alertsData.map(alert => {
+                if (!alert.fingerprint) {
+                    // Generate a simple fingerprint from alert labels
+                    const labelStr = JSON.stringify(alert.labels || {});
+                    alert.fingerprint = this.hashCode(labelStr);
+                }
+                return alert;
+            });
+            
             // Filter alerts to only show registered clusters
             const registeredClusters = window.app?.clusters || [];
             const registeredClusterNames = registeredClusters.map(c => c.name);
@@ -1181,6 +1261,19 @@ class AlertsView {
                 `;
             }
         }
+    }
+    
+    /**
+     * Generate a simple hash code from a string (for fingerprint generation)
+     */
+    hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash).toString(16); // Return as hex string
     }
 }
 

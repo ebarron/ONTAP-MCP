@@ -164,6 +164,15 @@ Available tools: {{TOOLS_COUNT}}`;
         try {
             this.updateStatus('Discovering tools from all MCP servers...');
             
+            // Wait for client manager to be ready (max 10 seconds)
+            let attempts = 0;
+            while (!this.demo.clientManager || !this.demo.clientManager.initialized) {
+                if (attempts++ > 100) {
+                    throw new Error('Timeout waiting for McpClientManager initialization');
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
             // Use client manager to discover tools from ALL connected servers
             const allTools = await this.demo.clientManager.listAllTools();
             

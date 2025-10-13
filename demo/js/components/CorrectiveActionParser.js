@@ -88,7 +88,7 @@ class CorrectiveActionParser {
             // Filter to only NetApp ONTAP tools for corrective actions
             const ontapTools = this.availableTools.filter(tool => {
                 const servers = tool.servers || tool.availableFrom || [];
-                return servers.includes('netapp-ontap-mcp');
+                return servers.includes('netapp-ontap');
             });
             
             toolDocumentation = ontapTools.map(tool => {
@@ -142,6 +142,12 @@ IMPORTANT MAPPING RULES:
 4. "volume autosize" → cluster_enable_volume_autosize
 5. "snapshot delete" → cluster_delete_volume_snapshot
 
+CLI COMMAND EXTRACTION:
+- The corrective action text includes ONTAP CLI commands (usually numbered like "1. volume online...")
+- EXTRACT the CLI command exactly as written
+- Convert placeholders to curly brace format: <vserver_name> → {svm}, <volume_name> → {volume}, <size> → {size}
+- Include the cli_command field with the normalized command
+
 Always extract the solution_description from the CLI command context and provide clear param_hints.
 
 Return ONLY valid JSON in this exact format (no markdown):
@@ -157,15 +163,23 @@ Return ONLY valid JSON in this exact format (no markdown):
           "solution_title": "Specific action name",
           "solution_description": "Detailed explanation of what this will do",
           "mcp_tool": "exact_tool_name",
+          "mcp_params": {
+            "param_name": "param_value"
+          },
           "requires_params": ["cluster_name", "volume_uuid", ...],
           "param_hints": {
             "param_name": "guidance for parameter value"
-          }
+          },
+          "cli_command": "volume online -vserver {svm} -volume {volume}"
         }
       ]
     }
   ]
-}`;
+}
+
+IMPORTANT: 
+- Always include the "cli_command" field by extracting it from the corrective action text and normalizing placeholders.
+- Include "mcp_params" for state changes (e.g., {"state": "online"} for volume online command).`;
     }
 
     buildUserPrompt(correctiveActionText, alertContext) {
@@ -263,10 +277,14 @@ Map any ONTAP CLI commands to the appropriate MCP tools and provide clear parame
                                 solution_title: "Set Volume State to Online",
                                 solution_description: "Update the volume state to 'online' to make it accessible to clients.",
                                 mcp_tool: "cluster_update_volume",
+                                mcp_params: {
+                                    "state": "online"
+                                },
                                 requires_params: ["cluster_name", "volume_uuid", "state"],
                                 param_hints: {
                                     "state": "Set to 'online' to bring the volume back online"
-                                }
+                                },
+                                cli_command: "volume online -vserver {svm} -volume {volume}"
                             }
                         ]
                     }
