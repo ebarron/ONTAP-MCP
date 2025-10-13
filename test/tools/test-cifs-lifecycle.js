@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient } from '../utils/mcp-test-client.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -23,7 +23,7 @@ function sleep(ms) {
 // Load cluster configuration from external file
 function loadClusters() {
   try {
-    const clustersPath = join(__dirname, 'clusters.json');
+    const clustersPath = join(__dirname, '../clusters.json');
     const clustersData = readFileSync(clustersPath, 'utf8');
     return JSON.parse(clustersData);
   } catch (error) {
@@ -39,7 +39,7 @@ async function getClustersFromServer(httpPort = 3000) {
     await mcpClient.initialize();
     
     // Load clusters into session
-    const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+    const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
     await loadClustersIntoSession(mcpClient);
     
     // Add retry mechanism for server startup
@@ -257,7 +257,7 @@ class CifsShareLifecycleTest {
       await this.mcpClient.initialize();
       
       // Load clusters into session
-      const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+      const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
       await loadClustersIntoSession(this.mcpClient);
     }
 

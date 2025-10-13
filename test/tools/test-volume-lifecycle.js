@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from '../utils/mcp-test-client.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -23,7 +23,7 @@ function sleep(ms) {
 // Load cluster configuration from external file
 function loadClusters() {
   try {
-    const clustersPath = join(__dirname, 'clusters.json');
+    const clustersPath = join(__dirname, '../clusters.json');
     const clustersData = readFileSync(clustersPath, 'utf8');
     return JSON.parse(clustersData);
   } catch (error) {
@@ -40,7 +40,7 @@ async function getClustersFromServer(httpPort = 3000) {
     console.log(`[${new Date().toISOString()}] 🆕 Created session for cluster discovery`);
     
     // Load clusters into the session
-    const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+    const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
     const loadResult = await loadClustersIntoSession(client);
     console.log(`[${new Date().toISOString()}] 📦 Loaded ${loadResult.successCount}/${loadResult.total} clusters`);
     
@@ -100,7 +100,7 @@ async function getTestConfig(httpPort = 3000) {
   await mcpClient.initialize();
   
   // Load clusters into session
-  const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+  const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
   await loadClustersIntoSession(mcpClient);
   
   const aggregateList = await mcpClient.callTool('cluster_list_aggregates', {
@@ -537,7 +537,7 @@ class VolumeLifecycleTest {
       
       // Load clusters into this session
       if (this.serverAlreadyRunning) {
-        const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+        const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
         const result = await loadClustersIntoSession(this.mcpClient);
         await this.log(`📦 Loaded ${result.successCount}/${result.total} clusters into session`);
       }

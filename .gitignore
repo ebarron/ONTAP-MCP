@@ -63,6 +63,8 @@ temp/
 # Exclude any files with real cluster credentials
 *.credentials
 cluster-configs/
+# Test files
+# Test configuration (contains real cluster IPs/credentials)
 test/clusters.json
 demo/clusters.json
 

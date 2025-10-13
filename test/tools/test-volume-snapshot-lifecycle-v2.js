@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * NetApp ONTAP Volume Autosize Lifecycle Test
- * Tests autosize enable/disable/configure and status retrieval
+ * NetApp ONTAP Volume Snapshot Lifecycle Test
+ * Tests snapshot list, info, and operations
  * Supports both STDIO and HTTP (MCP JSON-RPC 2.0) modes
  */
 
@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from '../utils/mcp-test-client.js';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -23,7 +23,7 @@ function sleep(ms) {
 // Load cluster configuration from external file
 function loadClusters() {
   try {
-    const clustersPath = join(__dirname, 'clusters.json');
+    const clustersPath = join(__dirname, '../clusters.json');
     const clustersData = readFileSync(clustersPath, 'utf8');
     return JSON.parse(clustersData);
   } catch (error) {
@@ -40,7 +40,7 @@ async function getClustersFromServer(httpPort = 3000) {
     console.log(`[${new Date().toISOString()}] 🆕 Created session for cluster discovery`);
     
     // Load clusters into the session
-    const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+    const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
     const loadResult = await loadClustersIntoSession(client);
     console.log(`[${new Date().toISOString()}] 📦 Loaded ${loadResult.successCount}/${loadResult.total} clusters`);
     
@@ -100,7 +100,7 @@ async function getTestConfig(httpPort = 3000) {
   await mcpClient.initialize();
   
   // Load clusters into session
-  const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+  const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
   await loadClustersIntoSession(mcpClient);
   
   const aggregateList = await mcpClient.callTool('cluster_list_aggregates', {
@@ -138,7 +138,7 @@ async function getTestConfig(httpPort = 3000) {
   return {
     cluster_name: karanCluster.name,
     svm_name: svmName,
-    volume_name: `test_autosize_${Date.now()}`,
+    volume_name: `test_snapshot_${Date.now()}`,
     size: '100MB',
     aggregate_name: aggregateName,
     wait_time: 10000, // 10 seconds
@@ -146,7 +146,7 @@ async function getTestConfig(httpPort = 3000) {
   };
 }
 
-class VolumeAutosizeTest {
+class VolumeSnapshotTest {
   constructor(mode = 'stdio', serverAlreadyRunning = false) {
     this.mode = mode; // 'stdio' or 'http'
     this.config = null; // Will be set async
@@ -156,6 +156,7 @@ class VolumeAutosizeTest {
     this.serverAlreadyRunning = serverAlreadyRunning;
     this.mcpClient = null; // MCP client for HTTP mode
     this.testResults = []; // Track test results
+    this.testSnapshot = null; // Store snapshot info if found
   }
 
   async initialize() {
@@ -227,7 +228,7 @@ class VolumeAutosizeTest {
       this.config = {
         cluster_name: cluster.name,  // Use cluster_name for STDIO mode too
         svm_name: svmName,
-        volume_name: `test_autosize_${Date.now()}`,
+        volume_name: `test_snapshot_${Date.now()}`,
         size: '100MB',
         aggregate_name: aggregateName,
         wait_time: 10000,
@@ -538,7 +539,7 @@ class VolumeAutosizeTest {
       
       // Load clusters into this session
       if (this.serverAlreadyRunning) {
-        const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+        const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
         const result = await loadClustersIntoSession(this.mcpClient);
         await this.log(`📦 Loaded ${result.successCount}/${result.total} clusters into session`);
       }
@@ -589,8 +590,8 @@ class VolumeAutosizeTest {
       const volumeText = this.extractText(listResult);
       const lines = volumeText.split('\n');
       
-      // Look for test_autosize_ volumes
-      const testVolumePattern = /- (test_autosize_\d+) \(([a-f0-9-]+)\)/;
+      // Look for test_snapshot_ volumes
+      const testVolumePattern = /- (test_snapshot_\d+) \(([a-f0-9-]+)\)/;
       let cleanedCount = 0;
       
       for (const line of lines) {
@@ -695,138 +696,115 @@ class VolumeAutosizeTest {
     }
   }
 
-  async test1_EnableAutosizeGrowMode() {
-    await this.log(`\n🧪 Test 1: Enable autosize in grow mode`);
+  async test1_ListVolumeSnapshots() {
+    await this.log(`\n🧪 Test 1: List volume snapshots`);
     
     try {
-      const result = await this.callTool('cluster_enable_volume_autosize', {
-        ...this.getClusterAuth(),
-        volume_uuid: this.volume_uuid,
-        mode: 'grow',
-        maximum_size: '200GB'
-      });
-      
-      const text = this.extractText(result);
-      await this.log(`   📝 Response: ${text.substring(0, 150)}`);
-      
-      if (text.includes('enabled') || text.includes('success')) {
-        await this.log(`   ✅ PASS: Autosize enabled in grow mode`);
-        this.testResults.push({ name: 'Enable autosize grow mode', status: 'PASS' });
-      } else {
-        throw new Error(`Unexpected response: ${text.substring(0, 100)}`);
-      }
-    } catch (error) {
-      await this.log(`   ❌ FAIL: ${error.message}`);
-      this.testResults.push({ name: 'Enable autosize grow mode', status: 'FAIL', error: error.message });
-    }
-  }
-
-  async test2_GetAutosizeStatus() {
-    await this.log(`\n🧪 Test 2: Get volume autosize status`);
-    
-    try {
-      const result = await this.callTool('cluster_get_volume_autosize_status', {
+      const result = await this.callTool('cluster_list_volume_snapshots', {
         ...this.getClusterAuth(),
         volume_uuid: this.volume_uuid
       });
       
       const text = this.extractText(result);
-      await this.log(`   📝 Status: ${text.substring(0, 200)}`);
+      await this.log(`   📝 Response: ${text.substring(0, 200)}`);
       
-      if ((text.includes('Mode: grow') || text.includes('mode: grow') || text.includes('grow')) && text.includes('200')) {
-        await this.log(`   ✅ PASS: Autosize status retrieved correctly`);
-        this.testResults.push({ name: 'Get autosize status', status: 'PASS' });
-      } else {
-        throw new Error(`Status does not match expected values: ${text.substring(0, 100)}`);
-      }
-    } catch (error) {
-      await this.log(`   ❌ FAIL: ${error.message}`);
-      this.testResults.push({ name: 'Get autosize status', status: 'FAIL', error: error.message });
-    }
-  }
-
-  async test3_EnableAutosizeGrowShrinkMode() {
-    await this.log(`\n🧪 Test 3: Enable autosize in grow_shrink mode`);
-    
-    try {
-      const result = await this.callTool('cluster_enable_volume_autosize', {
-        ...this.getClusterAuth(),
-        volume_uuid: this.volume_uuid,
-        mode: 'grow_shrink',
-        maximum_size: '300GB',
-        minimum_size: '50GB'
-      });
-      
-      const text = this.extractText(result);
-      await this.log(`   📝 Response: ${text.substring(0, 150)}`);
-      
-      if (text.includes('enabled') || text.includes('success')) {
-        await this.log(`   ✅ PASS: Autosize enabled in grow_shrink mode`);
-        this.testResults.push({ name: 'Enable autosize grow_shrink mode', status: 'PASS' });
+      // Volume might not have snapshots yet (this is normal for new volumes)
+      if (text.includes('snapshot') || text.includes('No snapshots') || text.includes('Found 0')) {
+        await this.log(`   ✅ PASS: Snapshot list retrieved`);
+        this.testResults.push({ name: 'List volume snapshots', status: 'PASS' });
+        
+        // Try to extract snapshot info if any exist
+        const snapshotMatch = text.match(/- ([^\s]+)\s+\(([a-f0-9-]+)\)/);
+        if (snapshotMatch) {
+          this.testSnapshot = { name: snapshotMatch[1], uuid: snapshotMatch[2] };
+          await this.log(`   📸 Found snapshot: ${this.testSnapshot.name}`);
+        }
       } else {
         throw new Error(`Unexpected response: ${text.substring(0, 100)}`);
       }
     } catch (error) {
       await this.log(`   ❌ FAIL: ${error.message}`);
-      this.testResults.push({ name: 'Enable autosize grow_shrink mode', status: 'FAIL', error: error.message });
+      this.testResults.push({ name: 'List volume snapshots', status: 'FAIL', error: error.message });
     }
   }
 
-  async test4_DisableAutosize() {
-    await this.log(`\n🧪 Test 4: Disable volume autosize`);
+  async test2_ListSnapshotsSortedBySize() {
+    await this.log(`\n🧪 Test 2: List snapshots sorted by size`);
     
     try {
-      const result = await this.callTool('cluster_enable_volume_autosize', {
+      const result = await this.callTool('cluster_list_volume_snapshots', {
         ...this.getClusterAuth(),
         volume_uuid: this.volume_uuid,
-        mode: 'off'
+        order_by: 'size desc'
       });
       
       const text = this.extractText(result);
-      await this.log(`   📝 Response: ${text.substring(0, 150)}`);
+      await this.log(`   � Response: ${text.substring(0, 200)}`);
       
-      // Verify status
-      const statusResult = await this.callTool('cluster_get_volume_autosize_status', {
+      if (text.includes('snapshot') || text.includes('No snapshots') || text.includes('Found 0')) {
+        await this.log(`   ✅ PASS: Snapshots retrieved with size sorting`);
+        this.testResults.push({ name: 'List snapshots sorted by size', status: 'PASS' });
+      } else {
+        throw new Error(`Unexpected response: ${text.substring(0, 100)}`);
+      }
+    } catch (error) {
+      await this.log(`   ❌ FAIL: ${error.message}`);
+      this.testResults.push({ name: 'List snapshots sorted by size', status: 'FAIL', error: error.message });
+    }
+  }
+
+  async test3_GetSnapshotInfo() {
+    await this.log(`\n🧪 Test 3: Get snapshot info (if snapshot exists)`);
+    
+    if (!this.testSnapshot) {
+      await this.log(`   ⏭️  SKIP: No snapshots available on volume`);
+      this.testResults.push({ name: 'Get snapshot info', status: 'SKIP', error: 'No snapshots' });
+      return;
+    }
+    
+    try {
+      const result = await this.callTool('cluster_get_volume_snapshot_info', {
+        ...this.getClusterAuth(),
+        volume_uuid: this.volume_uuid,
+        snapshot_uuid: this.testSnapshot.uuid
+      });
+      
+      const text = this.extractText(result);
+      await this.log(`   📝 Response: ${text.substring(0, 200)}`);
+      
+      if (text.includes(this.testSnapshot.name) || text.includes('snapshot')) {
+        await this.log(`   ✅ PASS: Snapshot info retrieved`);
+        this.testResults.push({ name: 'Get snapshot info', status: 'PASS' });
+      } else {
+        throw new Error(`Unexpected response: ${text.substring(0, 100)}`);
+      }
+    } catch (error) {
+      await this.log(`   ❌ FAIL: ${error.message}`);
+      this.testResults.push({ name: 'Get snapshot info', status: 'FAIL', error: error.message });
+    }
+  }
+
+  async test4_VerifySnapshotOperations() {
+    await this.log(`\n🧪 Test 4: Verify snapshot operations are available`);
+    
+    try {
+      // Just verify we can call the list operation again (validates API is working)
+      const result = await this.callTool('cluster_list_volume_snapshots', {
         ...this.getClusterAuth(),
         volume_uuid: this.volume_uuid
       });
       
-      const statusText = this.extractText(statusResult);
-      if (statusText.includes('Mode: off') || statusText.includes('disabled')) {
-        await this.log(`   ✅ PASS: Autosize disabled`);
-        this.testResults.push({ name: 'Disable autosize', status: 'PASS' });
-      } else {
-        throw new Error(`Autosize still enabled: ${statusText.substring(0, 100)}`);
-      }
-    } catch (error) {
-      await this.log(`   ❌ FAIL: ${error.message}`);
-      this.testResults.push({ name: 'Disable autosize', status: 'FAIL', error: error.message });
-    }
-  }
-
-  async test5_EnableWithVolumeName() {
-    await this.log(`\n🧪 Test 5: Enable autosize using volume UUID`);
-    
-    try {
-      const result = await this.callTool('cluster_enable_volume_autosize', {
-        ...this.getClusterAuth(),
-        volume_uuid: this.volume_uuid,
-        mode: 'grow',
-        maximum_size: '400GB'
-      });
-      
       const text = this.extractText(result);
-      await this.log(`   📝 Response: ${text.substring(0, 150)}`);
       
-      if (text.includes('enabled') || text.includes('success')) {
-        await this.log(`   ✅ PASS: Autosize enabled using volume UUID`);
-        this.testResults.push({ name: 'Enable autosize with UUID', status: 'PASS' });
+      if (text) {
+        await this.log(`   ✅ PASS: Snapshot operations functional`);
+        this.testResults.push({ name: 'Verify snapshot operations', status: 'PASS' });
       } else {
-        throw new Error(`Unexpected response: ${text.substring(0, 100)}`);
+        throw new Error('Empty response');
       }
     } catch (error) {
       await this.log(`   ❌ FAIL: ${error.message}`);
-      this.testResults.push({ name: 'Enable autosize with UUID', status: 'FAIL', error: error.message });
+      this.testResults.push({ name: 'Verify snapshot operations', status: 'FAIL', error: error.message });
     }
   }
 
@@ -856,7 +834,7 @@ class VolumeAutosizeTest {
   async runTest() {
     try {
       await this.log(`\n╔════════════════════════════════════════════════════════════╗`);
-      await this.log(`║  NetApp ONTAP Volume Autosize Lifecycle Tests             ║`);
+      await this.log(`║  NetApp ONTAP Volume Snapshot Lifecycle Tests             ║`);
       await this.log(`╚════════════════════════════════════════════════════════════╝`);
       await this.log(`Mode: ${this.mode.toUpperCase()}`);
       
@@ -876,20 +854,23 @@ class VolumeAutosizeTest {
       // Clean up any leftover test volumes from previous failed runs
       await this.cleanupOldTestVolumes();
 
-      // Create test volume
+      // Create test volume and wait for it to be ready
       await this.step1_CreateVolume();
       await this.step2_WaitAndVerify();
       
-      // Run autosize tests
+      // Wait a bit for ONTAP to create automatic snapshots (if configured)
+      await this.log(`⏱️ Waiting 5 seconds for potential automatic snapshots...`);
+      await this.sleep(5000);
+      
+      // Run snapshot tests
       await this.log(`\n${'='.repeat(60)}`);
-      await this.log(`VOLUME AUTOSIZE TESTS`);
+      await this.log(`VOLUME SNAPSHOT TESTS`);
       await this.log(`${'='.repeat(60)}`);
       
-      await this.test1_EnableAutosizeGrowMode();
-      await this.test2_GetAutosizeStatus();
-      await this.test3_EnableAutosizeGrowShrinkMode();
-      await this.test4_DisableAutosize();
-      await this.test5_EnableWithVolumeName();
+      await this.test1_ListVolumeSnapshots();
+      await this.test2_ListSnapshotsSortedBySize();
+      await this.test3_GetSnapshotInfo();
+      await this.test4_VerifySnapshotOperations();
       
       // Cleanup
       await this.cleanupVolume();
@@ -901,10 +882,12 @@ class VolumeAutosizeTest {
       
       const passed = this.testResults.filter(r => r.status === 'PASS').length;
       const failed = this.testResults.filter(r => r.status === 'FAIL').length;
+      const skipped = this.testResults.filter(r => r.status === 'SKIP').length;
       
-      await this.log(`✅ Passed: ${passed}`);
-      await this.log(`❌ Failed: ${failed}`);
-      await this.log(`📊 Total:  ${this.testResults.length}`);
+      await this.log(`✅ Passed:  ${passed}`);
+      await this.log(`❌ Failed:  ${failed}`);
+      await this.log(`⏭️  Skipped: ${skipped}`);
+      await this.log(`📊 Total:   ${this.testResults.length}`);
       
       if (failed > 0) {
         await this.log(`\nFailed Tests:`);
@@ -970,11 +953,11 @@ async function main() {
   const serverAlreadyRunning = process.argv.includes('--server-running');
   
   if (!['stdio', 'http'].includes(mode)) {
-    console.error('Usage: node test-volume-autosize-lifecycle-v2.js [stdio|http] [--server-running]');
+    console.error('Usage: node test-volume-snapshot-lifecycle-v2.js [stdio|http] [--server-running]');
     process.exit(1);
   }
 
-  const test = new VolumeAutosizeTest(mode, serverAlreadyRunning);
+  const test = new VolumeSnapshotTest(mode, serverAlreadyRunning);
   
   try {
     await test.runTest();

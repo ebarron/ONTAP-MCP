@@ -9,7 +9,7 @@
  * 4. Each session maintains completely isolated cluster registries
  */
 
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient } from '../utils/mcp-test-client.js';
 
 async function testSessionIsolation() {
     console.log('\n=== Testing Session-Scoped Cluster Isolation ===\n');

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient } from '../utils/mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +29,7 @@ class ClusterInfoTester {
 
   async callToolStdio(toolName, params) {
     return new Promise((resolve, reject) => {
-      const buildPath = path.join(__dirname, '..', 'build', 'index.js');
+      const buildPath = path.join(__dirname, '..', '..', 'build', 'index.js');
       const child = spawn('node', [buildPath], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env }
@@ -134,7 +134,7 @@ class ClusterInfoTester {
     }
     
     return new Promise((resolve, reject) => {
-      const buildPath = path.join(__dirname, '..', 'build', 'index.js');
+      const buildPath = path.join(__dirname, '..', '..', 'build', 'index.js');
       this.serverProcess = spawn('node', [buildPath, '--http=3000'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { 

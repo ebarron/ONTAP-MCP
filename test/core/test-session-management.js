@@ -15,7 +15,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient } from '../utils/mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,7 +31,7 @@ const TEST_CONFIG = {
 // Load clusters from test configuration
 let clustersData;
 try {
-  const clustersPath = path.join(__dirname, 'clusters.json');
+  const clustersPath = path.join(__dirname, '../clusters.json');
   clustersData = JSON.parse(readFileSync(clustersPath, 'utf8'));
 } catch (error) {
   console.error('❌ Failed to load test/clusters.json:', error.message);

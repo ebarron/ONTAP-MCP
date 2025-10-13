@@ -5,7 +5,7 @@
  * Uses unique timestamped policy names to avoid conflicts
  */
 
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient } from '../utils/mcp-test-client.js';
 
 // Generate unique test names with timestamp to avoid conflicts
 const TEST_RUN_ID = Date.now();
@@ -95,7 +95,7 @@ async function runFormatTests() {
   await client.initialize();
   
   // Load clusters into session
-  const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+  const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
   await loadClustersIntoSession(client);
   
   const createdPolicies = []; // Track only policies WE created

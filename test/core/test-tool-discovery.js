@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'child_process';
-import { McpTestClient } from './mcp-test-client.js';
+import { McpTestClient } from '../utils/mcp-test-client.js';
 import { readFileSync } from 'fs';
 
 // Base ONTAP tools: 51 (removed cluster_offline_volume, state now in cluster_update_volume)

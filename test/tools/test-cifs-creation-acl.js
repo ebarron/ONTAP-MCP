@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { OntapApiClient } from '../build/ontap-client.js';
+import { OntapApiClient } from '../../build/ontap-client.js';
 import fs from 'fs';
 
 async function testCifsCreationWithAcl() {

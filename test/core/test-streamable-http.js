@@ -19,7 +19,7 @@ const MCP_ENDPOINT = `${BASE_URL}/mcp`;
 // Load cluster configuration
 function loadClusters() {
   try {
-    const clustersPath = join(__dirname, 'clusters.json');
+    const clustersPath = join(__dirname, '../clusters.json');
     const clustersData = readFileSync(clustersPath, 'utf8');
     return JSON.parse(clustersData);
   } catch (error) {

@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from '../utils/mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,7 +18,7 @@ const __dirname = dirname(__filename);
 // Load cluster configuration
 function loadClusters() {
   try {
-    const clustersPath = join(__dirname, 'clusters.json');
+    const clustersPath = join(__dirname, '../clusters.json');
     const clustersData = readFileSync(clustersPath, 'utf8');
     return JSON.parse(clustersData);
   } catch (error) {

@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { McpTestClient, MCP_PROTOCOL_VERSION } from './mcp-test-client.js';
+import { McpTestClient, MCP_PROTOCOL_VERSION } from '../utils/mcp-test-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,7 +21,7 @@ const __dirname = path.dirname(__filename);
 
 // Initialize test based on transport mode
 async function initializeTest(mode, serverAlreadyRunning = false) {
-  const clustersPath = path.join(__dirname, 'clusters.json');
+  const clustersPath = path.join(__dirname, '../clusters.json');
   
   if (!fs.existsSync(clustersPath)) {
     throw new Error(`Clusters configuration not found at ${clustersPath}`);
@@ -143,7 +143,7 @@ const mcpClient = new McpTestClient(baseUrl);
 await mcpClient.initialize();
 
 // Load clusters into session
-const { loadClustersIntoSession } = await import('./mcp-test-client.js');
+const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
 await loadClustersIntoSession(mcpClient);
 
 // Store MCP client for cleanup

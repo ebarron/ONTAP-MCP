@@ -90,73 +90,73 @@ echo ""
 log "=== Running All Tests ==="
 
 # Test 1: Volume Lifecycle (STDIO Mode)
-run_test "Volume Lifecycle (STDIO Mode)" "node test/test-volume-lifecycle.js stdio"
+run_test "Volume Lifecycle (STDIO Mode)" "node test/tools/test-volume-lifecycle.js stdio"
 
 # Test 2: Volume Lifecycle (HTTP Mode) 
-run_test "Volume Lifecycle (HTTP Mode)" "node test/test-volume-lifecycle.js http --server-running"
+run_test "Volume Lifecycle (HTTP Mode)" "node test/tools/test-volume-lifecycle.js http --server-running"
 
 # Test 3: Export Policy Lifecycle (STDIO Mode)
-run_test "Export Policy Lifecycle (STDIO Mode)" "node test/test-export-policy-lifecycle.js stdio"
+run_test "Export Policy Lifecycle (STDIO Mode)" "node test/tools/test-export-policy-lifecycle.js stdio"
 
 # Test 4: Export Policy Lifecycle (HTTP Mode)
-run_test "Export Policy Lifecycle (HTTP Mode)" "node test/test-export-policy-lifecycle.js http --server-running"
+run_test "Export Policy Lifecycle (HTTP Mode)" "node test/tools/test-export-policy-lifecycle.js http --server-running"
 
 # Test 5: Tool Discovery (STDIO vs HTTP)
-run_test "Tool Discovery (STDIO vs HTTP)" "node test/test-tool-discovery.js"
+run_test "Tool Discovery (STDIO vs HTTP)" "node test/core/test-tool-discovery.js"
 
 # Test 6: Tool Count Verification (Legacy)  
-run_test "Tool Count Verification (Legacy)" "bash test/verify-tool-count.sh"
+run_test "Tool Count Verification (Legacy)" "bash test/core/verify-tool-count.sh"
 
 # Test 7: Tool Count Verification (Dynamic)
-run_test "Tool Count Verification (Dynamic)" "node test/dynamic-tool-count.js"
+run_test "Tool Count Verification (Dynamic)" "node test/core/dynamic-tool-count.js"
 
 # Test 8: Parameter Filtering Test
-run_test "Parameter Filtering Test" "node test/test-param-filtering.js"
+run_test "Parameter Filtering Test" "node test/core/test-param-filtering.js"
 
 # Test 9: Snapshot Policy Formats (MCP)
-run_test "Snapshot Policy Formats (MCP)" "node test/test-snapshot-policy-formats.js"
+run_test "Snapshot Policy Formats (MCP)" "node test/tools/test-snapshot-policy-formats.js"
 
 # Test 10: Comprehensive Test Suite
-run_test "Comprehensive Test Suite" "node test/test-comprehensive.js"
+run_test "Comprehensive Test Suite" "node test/integration/test-comprehensive.js"
 
 # Test 11: Policy Management (Shell)
-run_test "Policy Management (Shell)" "bash test/test-policy-management.sh"
+run_test "Policy Management (Shell)" "bash test/integration/test-policy-management.sh"
 
 # Test 12: CIFS ACL Creation Test
-run_test "CIFS ACL Creation Test" "node test/test-cifs-creation-acl.js"
+run_test "CIFS ACL Creation Test" "node test/tools/test-cifs-creation-acl.js"
 
 # Test 13: User Scenario Test (Original CIFS Workflow)
-run_test "User Scenario Test" "node test/test-user-scenario.js"
+run_test "User Scenario Test" "node test/tools/test-user-scenario.js"
 
 # Test 14: CIFS Lifecycle Test (STDIO Mode)
-run_test "CIFS Lifecycle (STDIO Mode)" "node test/test-cifs-lifecycle.js stdio"
+run_test "CIFS Lifecycle (STDIO Mode)" "node test/tools/test-cifs-lifecycle.js stdio"
 
 # Test 15: CIFS Lifecycle Test (HTTP Mode) - Now fully working with JSON-RPC support!
-run_test "CIFS Lifecycle (HTTP Mode)" "node test/test-cifs-lifecycle.js http --server-running"
+run_test "CIFS Lifecycle (HTTP Mode)" "node test/tools/test-cifs-lifecycle.js http --server-running"
 
 # Test 16: Cluster Info Test (STDIO Mode)
-run_test "Cluster Info Test (STDIO Mode)" "node test/test-cluster-info.js stdio"
+run_test "Cluster Info Test (STDIO Mode)" "node test/tools/test-cluster-info.js stdio"
 
 # Test 17: Cluster Info Test (HTTP Mode)
-run_test "Cluster Info Test (HTTP Mode)" "node test/test-cluster-info.js http --server-running"
+run_test "Cluster Info Test (HTTP Mode)" "node test/tools/test-cluster-info.js http --server-running"
 
 # Test 18: QoS Policy Lifecycle Test (STDIO Mode)
-run_test "QoS Policy Lifecycle (STDIO Mode)" "node test/test-qos-lifecycle.js stdio"
+run_test "QoS Policy Lifecycle (STDIO Mode)" "node test/tools/test-qos-lifecycle.js stdio"
 
 # Test 19: QoS Policy Lifecycle Test (HTTP Mode)
-run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/test-qos-lifecycle.js http --server-running"
+run_test "QoS Policy Lifecycle (HTTP Mode)" "node test/tools/test-qos-lifecycle.js http --server-running"
 
 # Test 20: Volume Autosize Lifecycle Test (STDIO Mode)
-run_test "Volume Autosize Lifecycle (STDIO Mode)" "node test/test-volume-autosize-lifecycle-v2.js stdio"
+run_test "Volume Autosize Lifecycle (STDIO Mode)" "node test/tools/test-volume-autosize-lifecycle-v2.js stdio"
 
 # Test 21: Volume Autosize Lifecycle Test (HTTP Mode)
-run_test "Volume Autosize Lifecycle (HTTP Mode)" "node test/test-volume-autosize-lifecycle-v2.js http --server-running"
+run_test "Volume Autosize Lifecycle (HTTP Mode)" "node test/tools/test-volume-autosize-lifecycle-v2.js http --server-running"
 
 # Test 22: Volume Snapshot Lifecycle Test (STDIO Mode)
-run_test "Volume Snapshot Lifecycle (STDIO Mode)" "node test/test-volume-snapshot-lifecycle-v2.js stdio"
+run_test "Volume Snapshot Lifecycle (STDIO Mode)" "node test/tools/test-volume-snapshot-lifecycle-v2.js stdio"
 
 # Test 23: Volume Snapshot Lifecycle Test (HTTP Mode)
-run_test "Volume Snapshot Lifecycle (HTTP Mode)" "node test/test-volume-snapshot-lifecycle-v2.js http --server-running"
+run_test "Volume Snapshot Lifecycle (HTTP Mode)" "node test/tools/test-volume-snapshot-lifecycle-v2.js http --server-running"
 
 # Test 24: Session Management (HTTP Mode Only)
 # Note: This test starts its own server with custom timeouts, so we stop the shared server first
@@ -166,7 +166,7 @@ kill $SERVER_PID 2>/dev/null || true
 wait $SERVER_PID 2>/dev/null || true
 log "Shared server stopped"
 
-run_test "Session Management (HTTP Mode)" "node test/test-session-management.js"
+run_test "Session Management (HTTP Mode)" "node test/core/test-session-management.js"
 
 # Test 25: Session Isolation (HTTP Mode Only)
 # This test validates that sessions cannot access each other's clusters
@@ -191,7 +191,7 @@ for i in {1..20}; do
     sleep 0.5
 done
 
-run_test "Session Isolation (HTTP Mode)" "node test/test-session-isolation.js"
+run_test "Session Isolation (HTTP Mode)" "node test/core/test-session-isolation.js"
 
 # Stop the isolation test server
 kill $SERVER_PID 2>/dev/null || true
