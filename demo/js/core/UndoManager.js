@@ -46,6 +46,11 @@ class UndoManager {
                 volume_uuid: volumeUuid
             });
             
+            // DEBUG: Log the raw response text
+            console.log('🔍 DEBUG: Raw get_volume_configuration response:');
+            console.log(config);
+            console.log('🔍 DEBUG: Response length:', config ? config.length : 0);
+            
             // Parse the text response to extract current values
             const state = {
                 volume_uuid: volumeUuid,
@@ -84,13 +89,41 @@ class UndoManager {
                     if (snapValue !== '-' && snapValue !== 'None') state.snapshot_policy = snapValue;
                 }
                 
-                // Parse autosize mode (not in current formatVolumeConfig, but keep for future)
-                const autosizeMatch = config.match(/Autosize Mode:\*\*\s*(\w+)|Autosize Mode:\s*(\w+)/i);
-                if (autosizeMatch) state.autosize_mode = (autosizeMatch[1] || autosizeMatch[2]).toLowerCase();
-                
-                // Parse autosize maximum (not in current formatVolumeConfig, but keep for future)
-                const maxMatch = config.match(/Autosize Maximum:\*\*\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)|Autosize Maximum:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
-                if (maxMatch) state.autosize_maximum = `${maxMatch[1] || maxMatch[3]}${maxMatch[2] || maxMatch[4]}`;
+                // Parse autosize configuration (matches format from formatVolumeConfig)
+                // Check for disabled state first: "📏 **Autosize:** Disabled"
+                if (config.match(/Autosize:\*\*\s*Disabled|Autosize:\s*Disabled/i)) {
+                    state.autosize_mode = 'off';
+                } else {
+                    // Parse mode: "   • Mode: grow"
+                    const autosizeMatch = config.match(/•\s*Mode:\s*(\w+)/i);
+                    if (autosizeMatch) {
+                        state.autosize_mode = autosizeMatch[1].toLowerCase();
+                    }
+                    
+                    // Parse maximum size: "   • Maximum Size: 190.00MB"
+                    const maxMatch = config.match(/•\s*Maximum Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
+                    if (maxMatch) {
+                        state.autosize_maximum = `${maxMatch[1]}${maxMatch[2]}`;
+                    }
+                    
+                    // Parse minimum size: "   • Minimum Size: 95.00MB"
+                    const minMatch = config.match(/•\s*Minimum Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
+                    if (minMatch) {
+                        state.autosize_minimum = `${minMatch[1]}${minMatch[2]}`;
+                    }
+                    
+                    // Parse grow threshold: "   • Grow Threshold: 85%"
+                    const growMatch = config.match(/•\s*Grow Threshold:\s*(\d+)%/i);
+                    if (growMatch) {
+                        state.autosize_grow_threshold = parseInt(growMatch[1]);
+                    }
+                    
+                    // Parse shrink threshold: "   • Shrink Threshold: 50%"
+                    const shrinkMatch = config.match(/•\s*Shrink Threshold:\s*(\d+)%/i);
+                    if (shrinkMatch) {
+                        state.autosize_shrink_threshold = parseInt(shrinkMatch[1]);
+                    }
+                }
             }
             
             console.log('✅ State captured via get_volume_configuration:', state);
@@ -169,8 +202,23 @@ class UndoManager {
         const canRestore = [];
         const cannotRestore = [];
         
+        // Parameter name mapping: action param name → captured state param name
+        // TEMPORARY FIX: This maps parameter names between MCP action params and captured state
+        // TODO: Replace with structured JSON responses from get_volume_configuration
+        const paramMapping = {
+            'mode': 'autosize_mode',              // autosize mode
+            'maximum_size': 'autosize_maximum',   // autosize max size
+            'minimum_size': 'autosize_minimum',   // autosize min size
+            'grow_threshold': 'autosize_grow_threshold',     // autosize grow %
+            'shrink_threshold': 'autosize_shrink_threshold'  // autosize shrink %
+        };
+        
         // Analyze actual MCP parameters being changed (from mcp_params)
         const paramsToCheck = action.mcp_params ? Object.keys(action.mcp_params) : [];
+        
+        console.log('🔍 DEBUG: Checking parameters for reversibility');
+        console.log('   paramsToCheck:', paramsToCheck);
+        console.log('   originalState keys:', Object.keys(originalState));
         
         for (const param of paramsToCheck) {
             // Skip identifiers (not reversible by nature)
@@ -178,8 +226,13 @@ class UndoManager {
                 continue;
             }
             
-            // Check if we have the original value
-            if (originalState[param] !== undefined && originalState[param] !== null) {
+            // Map action parameter name to state parameter name
+            const stateParamName = paramMapping[param] || param;
+            
+            console.log(`   Checking param "${param}" (maps to "${stateParamName}"): originalState has it? ${originalState[stateParamName] !== undefined}`);
+            
+            // Check if we have the original value (using mapped name)
+            if (originalState[stateParamName] !== undefined && originalState[stateParamName] !== null) {
                 canRestore.push(param);
             } else {
                 cannotRestore.push(param);
@@ -212,6 +265,15 @@ class UndoManager {
     generateUndoAction(action, originalState, resolvedParams) {
         console.log('🔄 Generating undo action...');
         
+        // Parameter name mapping (same as in determineReversibility)
+        const paramMapping = {
+            'mode': 'autosize_mode',
+            'maximum_size': 'autosize_maximum',
+            'minimum_size': 'autosize_minimum',
+            'grow_threshold': 'autosize_grow_threshold',
+            'shrink_threshold': 'autosize_shrink_threshold'
+        };
+        
         const undoParams = {
             cluster_name: resolvedParams.cluster_name,
             volume_uuid: resolvedParams.volume_uuid
@@ -227,9 +289,12 @@ class UndoManager {
                 continue;
             }
             
+            // Map action parameter name to state parameter name
+            const stateParamName = paramMapping[key] || key;
+            
             // If we have the original value, revert to it
-            if (originalState[key] !== undefined && originalState[key] !== null) {
-                undoParams[key] = originalState[key];
+            if (originalState[stateParamName] !== undefined && originalState[stateParamName] !== null) {
+                undoParams[key] = originalState[stateParamName];
                 changedParams.push(key);
             }
         }

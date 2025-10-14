@@ -261,6 +261,26 @@ function formatVolumeConfig(volume: any): string {
     result += `📦 **Deduplication:** ${volume.efficiency.dedupe}\\n`;
   }
 
+  // Autosize configuration
+  if (volume.autosize) {
+    result += `\\n📏 **Autosize Configuration:**\\n`;
+    result += `   • Mode: ${volume.autosize.mode || 'off'}\\n`;
+    if (volume.autosize.maximum) {
+      result += `   • Maximum Size: ${formatBytes(volume.autosize.maximum)}\\n`;
+    }
+    if (volume.autosize.minimum) {
+      result += `   • Minimum Size: ${formatBytes(volume.autosize.minimum)}\\n`;
+    }
+    if (volume.autosize.grow_threshold) {
+      result += `   • Grow Threshold: ${volume.autosize.grow_threshold}%\\n`;
+    }
+    if (volume.autosize.shrink_threshold) {
+      result += `   • Shrink Threshold: ${volume.autosize.shrink_threshold}%\\n`;
+    }
+  } else {
+    result += `\\n📏 **Autosize:** Disabled\\n`;
+  }
+
   return result;
 }
 
@@ -774,8 +794,8 @@ export async function handleGetVolumeConfiguration(args: any, clusterManager: On
   
       const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
     
-    // Get detailed volume information with all fields
-    const endpoint = `/storage/volumes/${params.volume_uuid}?fields=uuid,name,size,state,type,comment,svm,aggregates,nas,snapshot_policy,efficiency,space`;
+    // Get detailed volume information with all fields including autosize
+    const endpoint = `/storage/volumes/${params.volume_uuid}?fields=uuid,name,size,state,type,comment,svm,aggregates,nas,snapshot_policy,efficiency,space,autosize`;
     const volume = await (client as any).makeRequest(endpoint);
     
     return formatVolumeConfig(volume);
