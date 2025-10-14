@@ -370,6 +370,23 @@ class AlertsView {
         // Insert at the beginning so it appears before chatbot
         parentElement.insertAdjacentHTML('afterbegin', viewHTML);
     }
+    
+    // Synchronize horizontal scrolling between header and body
+    setupScrollSync() {
+        const tableBody = document.querySelector('#alertsView .Table-module_rows-group-container__Mi4wLjYtaW50ZXJuYWw');
+        const tableHeader = document.querySelector('#alertsView .Table-module_headers-group-container__Mi4wLjYtaW50ZXJuYWw');
+        
+        console.log('AlertsView - setupScrollSync: tableBody =', tableBody, 'tableHeader =', tableHeader);
+        
+        if (tableBody && tableHeader) {
+            tableBody.addEventListener('scroll', () => {
+                tableHeader.scrollLeft = tableBody.scrollLeft;
+            });
+            console.log('AlertsView - Scroll sync enabled successfully');
+        } else {
+            console.error('AlertsView - Failed to setup scroll sync: missing elements');
+        }
+    }
 
     // Update alert count
     updateAlertCount(count) {
@@ -1269,6 +1286,12 @@ class AlertsView {
                     </div>
                 `;
             }
+
+            // Setup scroll synchronization after table is populated
+            // Use requestAnimationFrame to ensure DOM is fully rendered
+            requestAnimationFrame(() => {
+                this.setupScrollSync();
+            });
 
         } catch (error) {
             console.error('Error loading alerts:', error);

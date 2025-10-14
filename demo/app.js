@@ -507,6 +507,11 @@ class OntapMcpDemo {
         if (clustersView) clustersView.style.display = 'none';
         if (storageClassesView) storageClassesView.style.display = 'none';
         
+        // Hide volumes view if present
+        if (typeof volumesView !== 'undefined') {
+            volumesView.hide();
+        }
+        
         // Show AlertsView using component (if available)
         if (typeof alertsView !== 'undefined') {
             alertsView.show();
@@ -533,6 +538,46 @@ class OntapMcpDemo {
         
         // Future: Load alerts from Prometheus
         // await this.loadAlerts();
+    }
+
+    showVolumesView() {
+        console.log('Switching to volumes view');
+        
+        // Hide other views
+        const clustersView = document.getElementById('clustersView');
+        const storageClassesView = document.getElementById('storageClassesView');
+        
+        if (clustersView) clustersView.style.display = 'none';
+        if (storageClassesView) storageClassesView.style.display = 'none';
+        
+        // Hide alerts view if present
+        if (typeof alertsView !== 'undefined') {
+            alertsView.hide();
+        }
+        
+        // Show VolumesView using component (if available)
+        if (typeof volumesView !== 'undefined') {
+            volumesView.show();
+            // Load volumes data from Harvest MCP
+            volumesView.loadVolumes();
+            console.log('Volumes view is now visible (via component)');
+        } else {
+            // Fallback to direct DOM manipulation
+            const volumesViewElement = document.getElementById('volumesView');
+            if (volumesViewElement) {
+                volumesViewElement.style.display = 'block';
+                console.log('Volumes view is now visible (fallback)');
+            }
+        }
+        
+        // Hide chatbot in volumes view
+        const chatbotContainer = document.getElementById('chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.style.display = 'none';
+        }
+        
+        // Update tab navigation
+        this.updateTabNavigation('volumes');
     }
 
     updateTabNavigation(activeView) {
