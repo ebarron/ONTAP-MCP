@@ -177,8 +177,8 @@ class OntapMcpDemo {
         try {
             console.log('📁 Loading clusters from demo/clusters.json...');
             
-            // Fetch clusters.json from demo directory
-            const response = await fetch('/clusters.json');
+            // Fetch clusters.json from demo directory with cache-busting parameter
+            const response = await fetch('/clusters.json?v=' + Date.now());
             
             if (response.status === 404) {
                 console.warn('⚠️  clusters.json not found - copy clusters.json.example to get started');

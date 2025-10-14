@@ -1,0 +1,62 @@
+# Build artifacts
+build/
+dist/
+*.log
+
+# Dependencies (will be installed in container)
+node_modules/
+
+# Development files
+.git/
+.github/
+.vscode/
+*.md
+!README.md
+
+# Test files and data
+test/
+demo/test/
+*.test.js
+*.test.ts
+test-output.txt
+
+# Environment and config files
+.env
+.env.*
+*.json.example
+test/clusters.json
+demo/clusters.json
+demo/chatgpt-config*.json
+!demo/clusters.json.example
+
+# Logs
+*.log
+mcp-server.log
+demo-server.log
+demo-startup.log
+start-demo.log
+
+# macOS
+.DS_Store
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Demo UI (built separately)
+demo/
+!demo/Dockerfile
+
+# Scripts
+*.sh
+!docker-entrypoint.sh
+
+# Documentation (except README)
+docs/
+*.md
+!README.md
+
+# Temporary files
+tmp/
+temp/

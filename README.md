@@ -64,6 +64,27 @@ node build/index.js --http=3000
 **For STDIO Mode:** Clusters are loaded globally from `ONTAP_CLUSTERS` env var (single-user context).
 **For HTTP Mode:** Each session maintains isolated clusters (multi-tenant security).
 
+#### Option C: Docker Deployment (HTTP Mode)
+```bash
+# Quick start with Make
+make run-demo          # Start MCP server + demo UI
+
+# Or use Docker Compose directly
+docker-compose up -d   # Start all services
+docker-compose logs -f # View logs
+
+# Access:
+# - MCP Server: http://localhost:3000
+# - Demo UI:    http://localhost:8080
+# - Health:     http://localhost:3000/health
+```
+
+**🐳 Docker Features:**
+- Multi-stage builds for minimal image size (~150MB)
+- Built-in health checks for orchestration
+- Session-isolated cluster management (no credentials in container)
+- See [docs/DOCKER.md](docs/DOCKER.md) for complete deployment guide
+
 ## 🛠️ MCP Tools (55 Total)
 
 ### Core Volume Operations (18 tools)

@@ -185,9 +185,27 @@ class AlertsView {
                                 </div>
                                 <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
                             </div>
-                            <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" data-testid="table-column-header-Source name" style="flex: 1 0 230px;">
-                                <div id="Source name-alertObjectName" class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
-                                    <span>Source name</span>
+                            <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" data-testid="table-column-header-Cluster" style="flex: 1 0 180px;">
+                                <div id="Cluster-cluster" class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>Cluster</span>
+                                </div>
+                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
+                                    <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw">
+                                        <svg role="img" aria-labelledby="ic-table-sort-asc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-asc">Sort ascending</desc>
+                                            <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                        <svg role="img" aria-labelledby="ic-table-sort-desc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-desc">Sort descending</desc>
+                                            <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
+                            </div>
+                            <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" data-testid="table-column-header-Source Name" style="flex: 1 0 230px;">
+                                <div id="Source Name-alertObjectName" class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>Source Name</span>
                                 </div>
                                 <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
                                     <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw">
@@ -419,6 +437,7 @@ class AlertsView {
         const triggeredTime = this.formatTimestamp(alert.activeAt);
         const alertName = alert.labels.alertname || 'Unknown Alert';
         const impactArea = alert.annotations?.impact || '-';
+        const cluster = alert.labels.cluster || '-';
         
         // Determine source type and name from labels
         let sourceType = '-';
@@ -449,7 +468,10 @@ class AlertsView {
                 <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Source type" style="flex: 1 0 170px;">
                     ${sourceType}
                 </div>
-                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Source name" style="flex: 1 0 230px;">
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Cluster" style="flex: 1 0 180px;">
+                    ${cluster}
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Source Name" style="flex: 1 0 230px;">
                     ${sourceName}
                 </div>
                 <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Impact Area" style="flex: 1 0 170px;">
