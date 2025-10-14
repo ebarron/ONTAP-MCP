@@ -411,26 +411,29 @@ class ProvisioningPanel {
         try {
             this.setDropdownLoading('aggregateSelect', 'Loading aggregates...');
             
+            // Get aggregates assigned to this SVM
             const response = await this.apiClient.callMcp('cluster_list_aggregates', {
-                cluster_name: this.demo.selectedCluster.name
+                cluster_name: this.demo.selectedCluster.name,
+                svm_name: svmName
             });
 
             const aggregateSelect = document.getElementById('aggregateSelect');
             aggregateSelect.disabled = false;
             
-            // Response is now text from Streamable HTTP client
+            // Parse text response for aggregates
+            // Format: "- aggregate_name (uuid) - State: xxx, Available: xxx, Used: xxx"
             if (response && typeof response === 'string') {
                 let aggregates = [];
-                
-                // Parse text response for aggregates
                 const lines = response.split('\n');
+                
                 for (const line of lines) {
-                    // Look for aggregate names in the format: "- aggregate_name (uuid) - State: online"
-                    const aggregateMatch = line.match(/^-\s+([^\s(]+)\s*\(/);
-                    if (aggregateMatch) {
-                        const aggregateName = aggregateMatch[1].trim();
-                        if (aggregateName && !aggregates.find(a => a.name === aggregateName)) {
-                            aggregates.push({ name: aggregateName });
+                    if (line.startsWith('- ')) {
+                        const aggregateMatch = line.match(/^-\s+([^\s(]+)\s*\(/);
+                        if (aggregateMatch) {
+                            const aggregateName = aggregateMatch[1].trim();
+                            if (aggregateName && !aggregates.find(a => a.name === aggregateName)) {
+                                aggregates.push({ name: aggregateName });
+                            }
                         }
                     }
                 }
@@ -441,7 +444,7 @@ class ProvisioningPanel {
                             `<option value="${aggregate.name}">${aggregate.name}</option>`
                         ).join('');
                 } else {
-                    aggregateSelect.innerHTML = '<option value="">No aggregates found</option>';
+                    aggregateSelect.innerHTML = '<option value="">No aggregates assigned to this SVM</option>';
                 }
             } else {
                 aggregateSelect.innerHTML = '<option value="">Error loading aggregates</option>';

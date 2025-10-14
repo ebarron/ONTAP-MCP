@@ -320,22 +320,36 @@ export class OntapApiClient {
       let jobAttempts = 0;
       const maxJobAttempts = 10;
       
+      console.log(`[DEBUG] Volume creation job started: ${response.job.uuid}`);
+      
       while (!jobComplete && jobAttempts < maxJobAttempts) {
         jobAttempts++;
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between job checks
         
         try {
           const jobStatus = await this.makeRequest<any>(`/cluster/jobs/${response.job.uuid}`);
+          console.log(`[DEBUG] Job status check ${jobAttempts}/${maxJobAttempts}: state=${jobStatus.state}, message=${jobStatus.message || 'none'}`);
           
           if (jobStatus.state === 'success') {
+            console.log(`[DEBUG] Job completed successfully after ${jobAttempts} checks`);
             jobComplete = true;
           } else if (jobStatus.state === 'failure') {
+            console.log(`[DEBUG] Job failed: ${jobStatus.message || 'Unknown error'}`);
             throw new Error(`Volume creation job failed: ${jobStatus.message || 'Unknown error'}`);
           }
           // If state is 'running' or 'queued', continue waiting
         } catch (error) {
-          // Continue polling - don't break the loop on transient errors
+          // If it's a volume creation failure, re-throw immediately
+          if (error instanceof Error && error.message.includes('Volume creation job failed')) {
+            throw error;
+          }
+          // For other errors (network issues, etc), log and continue polling
+          console.log(`[DEBUG] Error checking job status: ${error}`);
         }
+      }
+      
+      if (!jobComplete) {
+        console.log(`[DEBUG] Job did not complete after ${maxJobAttempts} attempts`);
       }
       
       // Now find the volume by name
@@ -349,15 +363,19 @@ export class OntapApiClient {
         await new Promise(resolve => setTimeout(resolve, delay));
         
         const volumes = await this.listVolumes(params.svm_name);
+        console.log(`[DEBUG] Searching for volume '${params.volume_name}' on SVM '${params.svm_name}' (attempt ${attempts}/${maxAttempts})`);
+        console.log(`[DEBUG] Found ${volumes.length} volumes on SVM:`, volumes.map(v => v.name).join(', '));
         const newVolume = volumes.find(v => v.name === params.volume_name);
         
         if (newVolume) {
+          console.log(`[DEBUG] Found volume '${params.volume_name}' with UUID: ${newVolume.uuid}`);
           foundVolumeUuid = newVolume.uuid;
           break;
         }
       }
       
       if (!foundVolumeUuid) {
+        console.log(`[DEBUG] Failed to find volume '${params.volume_name}' on SVM '${params.svm_name}' after ${maxAttempts} attempts`);
         throw new Error(`Volume '${params.volume_name}' was not found after creation job completed (tried ${maxAttempts} times)`);
       }
       
@@ -428,6 +446,20 @@ export class OntapApiClient {
     const endpoint = '/svm/svms?fields=uuid,name,state';
     const response = await this.makeRequest<{ records: Array<{ uuid: string; name: string; state: string }> }>(endpoint);
     return response.records || [];
+  }
+
+  /**
+   * Get SVM details including assigned aggregates
+   */
+  async getSvmDetails(svmName: string): Promise<{ uuid: string; name: string; state: string; aggregates?: Array<{ name: string; uuid: string }> }> {
+    const endpoint = `/svm/svms?name=${encodeURIComponent(svmName)}&fields=uuid,name,state,aggregates`;
+    const response = await this.makeRequest<{ records: Array<any> }>(endpoint);
+    
+    if (!response.records || response.records.length === 0) {
+      throw new Error(`SVM '${svmName}' not found`);
+    }
+    
+    return response.records[0];
   }
 
   /**

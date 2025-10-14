@@ -158,11 +158,12 @@ export function createClusterListSvmsToolDefinition(): Tool {
 export function createClusterListAggregatesToolDefinition(): Tool {
   return {
     name: "cluster_list_aggregates",
-    description: "List aggregates from a registered cluster by cluster name",
+    description: "List aggregates from a registered cluster. Optionally filter to show only aggregates assigned to a specific SVM (the SVM's aggr-list).",
     inputSchema: {
       type: "object",
       properties: {
         cluster_name: { type: "string", description: "Name of the registered cluster" },
+        svm_name: { type: "string", description: "Optional: Filter to show only aggregates assigned to this SVM" },
       },
       required: ["cluster_name"],
     }
@@ -300,15 +301,32 @@ export async function handleClusterListSvms(args: any, clusterManager: OntapClus
 }
 
 export async function handleClusterListAggregates(args: any, clusterManager: OntapClusterManager): Promise<string> {
-  const { cluster_name } = ClusterOperationSchema.parse(args);
+  const { cluster_name, svm_name } = z.object({
+    cluster_name: z.string(),
+    svm_name: z.string().optional()
+  }).parse(args);
+  
   const client = clusterManager.getClient(cluster_name);
-  const aggregates = await client.listAggregates();
+  
+  let aggregates: any[];
+  let description: string;
+  
+  if (svm_name) {
+    // Get SVM details to find assigned aggregates
+    const svmDetails = await client.getSvmDetails(svm_name);
+    aggregates = svmDetails.aggregates || [];
+    description = `Aggregates assigned to SVM '${svm_name}' on cluster '${cluster_name}'`;
+  } else {
+    // Get all aggregates
+    aggregates = await client.listAggregates();
+    description = `All aggregates on cluster '${cluster_name}'`;
+  }
   
   const aggrList = aggregates.map((aggr: any) => 
-    `- ${aggr.name} (${aggr.uuid}) - State: ${aggr.state}, Available: ${aggr.space?.block_storage?.available || 'N/A'}, Used: ${aggr.space?.block_storage?.used || 'N/A'}`
+    `- ${aggr.name} (${aggr.uuid})${aggr.state ? ` - State: ${aggr.state}` : ''}${aggr.space?.block_storage ? `, Available: ${aggr.space.block_storage.available || 'N/A'}, Used: ${aggr.space.block_storage.used || 'N/A'}` : ''}`
   ).join('\n');
 
-  return `Aggregates on cluster '${cluster_name}': ${aggregates.length}\n\n${aggrList}`;
+  return `${description}: ${aggregates.length}\n\n${aggrList}`;
 }
 
 export async function handleClusterListVolumes(args: any, clusterManager: OntapClusterManager): Promise<string> {

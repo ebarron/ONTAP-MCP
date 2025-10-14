@@ -624,7 +624,29 @@ class OntapMcpDemo {
     }
 
     async getClusterInfo(clusterName) {
-        return await this.apiClient.getClusterInfo(clusterName);
+        // Call the MCP tool to get all clusters info
+        const response = await this.apiClient.callMcp('get_all_clusters_info', {});
+        
+        // Parse the text response to find the specific cluster
+        const lines = response.split('\n');
+        const clusterSection = [];
+        let inCluster = false;
+        
+        for (const line of lines) {
+            if (line.includes(`Cluster: ${clusterName}`)) {
+                inCluster = true;
+            }
+            if (inCluster) {
+                clusterSection.push(line);
+                // Stop at the next cluster or end
+                if (line.startsWith('---') && clusterSection.length > 1) {
+                    break;
+                }
+            }
+        }
+        
+        // Return the cluster info section
+        return clusterSection.join('\n');
     }
 
     openAddClusterModal() {
