@@ -376,15 +376,20 @@ class AlertsView {
         const tableBody = document.querySelector('#alertsView .Table-module_rows-group-container__Mi4wLjYtaW50ZXJuYWw');
         const tableHeader = document.querySelector('#alertsView .Table-module_headers-group-container__Mi4wLjYtaW50ZXJuYWw');
         
-        console.log('AlertsView - setupScrollSync: tableBody =', tableBody, 'tableHeader =', tableHeader);
-        
         if (tableBody && tableHeader) {
+            // Enable horizontal scrolling on the header container
+            tableHeader.style.overflowX = 'auto';
+            tableHeader.style.overflowY = 'hidden';
+            
+            // Sync body scroll → header scroll
             tableBody.addEventListener('scroll', () => {
                 tableHeader.scrollLeft = tableBody.scrollLeft;
             });
-            console.log('AlertsView - Scroll sync enabled successfully');
-        } else {
-            console.error('AlertsView - Failed to setup scroll sync: missing elements');
+            
+            // Sync header scroll → body scroll (bidirectional)
+            tableHeader.addEventListener('scroll', () => {
+                tableBody.scrollLeft = tableHeader.scrollLeft;
+            });
         }
     }
 
