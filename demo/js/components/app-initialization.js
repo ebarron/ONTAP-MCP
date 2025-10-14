@@ -16,6 +16,7 @@ let storageClassesViewComponent;
 let alertsViewComponent;
 let volumesViewComponent;
 let svmsViewComponent;
+let nfsSharesViewComponent;
 
 // Initialize modal/flyout components
 let chatbotSectionComponent;
@@ -65,6 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mainContent && typeof svmsView !== 'undefined') {
         svmsViewComponent = svmsView;
         svmsViewComponent.init(mainContent);
+    }
+    
+    if (mainContent && typeof nfsSharesView !== 'undefined') {
+        nfsSharesViewComponent = nfsSharesView;
+        nfsSharesViewComponent.init(mainContent);
     }
     
     // Initialize chatbot section

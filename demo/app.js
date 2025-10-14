@@ -523,6 +523,11 @@ class OntapMcpDemo {
             svmsView.hide();
         }
         
+        // Hide NFS shares view if present
+        if (typeof nfsSharesView !== 'undefined') {
+            nfsSharesView.hide();
+        }
+        
         // Show AlertsView using component (if available)
         if (typeof alertsView !== 'undefined') {
             alertsView.show();
@@ -571,6 +576,11 @@ class OntapMcpDemo {
             svmsView.hide();
         }
         
+        // Hide NFS shares view if present
+        if (typeof nfsSharesView !== 'undefined') {
+            nfsSharesView.hide();
+        }
+        
         // Show VolumesView using component (if available)
         if (typeof volumesView !== 'undefined') {
             volumesView.show();
@@ -616,6 +626,11 @@ class OntapMcpDemo {
             volumesView.hide();
         }
         
+        // Hide NFS shares view if present
+        if (typeof nfsSharesView !== 'undefined') {
+            nfsSharesView.hide();
+        }
+        
         // Show SVMsView using component (if available)
         if (typeof svmsView !== 'undefined') {
             svmsView.show();
@@ -639,6 +654,56 @@ class OntapMcpDemo {
         
         // Update tab navigation
         this.updateTabNavigation('svms');
+    }
+
+    showNFSSharesView() {
+        console.log('Switching to NFS Shares view');
+        
+        // Hide other views
+        const clustersView = document.getElementById('clustersView');
+        const storageClassesView = document.getElementById('storageClassesView');
+        
+        if (clustersView) clustersView.style.display = 'none';
+        if (storageClassesView) storageClassesView.style.display = 'none';
+        
+        // Hide alerts view if present
+        if (typeof alertsView !== 'undefined') {
+            alertsView.hide();
+        }
+        
+        // Hide volumes view if present
+        if (typeof volumesView !== 'undefined') {
+            volumesView.hide();
+        }
+        
+        // Hide SVMs view if present
+        if (typeof svmsView !== 'undefined') {
+            svmsView.hide();
+        }
+        
+        // Show NFS Shares view using component (if available)
+        if (typeof nfsSharesView !== 'undefined') {
+            nfsSharesView.show();
+            // Load NFS shares data from Harvest MCP
+            nfsSharesView.loadShares();
+            console.log('NFS Shares view is now visible (via component)');
+        } else {
+            // Fallback to direct DOM manipulation
+            const nfsSharesViewElement = document.getElementById('nfs-shares-view');
+            if (nfsSharesViewElement) {
+                nfsSharesViewElement.style.display = 'block';
+                console.log('NFS Shares view is now visible (fallback)');
+            }
+        }
+        
+        // Hide chatbot in NFS Shares view
+        const chatbotContainer = document.getElementById('chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.style.display = 'none';
+        }
+        
+        // Update tab navigation
+        this.updateTabNavigation('nfs-shares');
     }
 
     updateTabNavigation(activeView) {

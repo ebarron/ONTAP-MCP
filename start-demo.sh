@@ -149,15 +149,15 @@ pkill -f "node build/index.js" 2>/dev/null || true
 pkill -f "python3 -m http.server" 2>/dev/null || true
 sleep 2
 
-# Check for port conflicts
-if lsof -i :3000 >/dev/null 2>&1; then
+# Check for port conflicts (only check for LISTEN state, not established connections)
+if lsof -i :3000 -sTCP:LISTEN >/dev/null 2>&1; then
     print_error "Port 3000 is in use by another process:"
-    lsof -i :3000
+    lsof -i :3000 -sTCP:LISTEN
     print_error "Please stop the conflicting process and try again"
     exit 1
 fi
 
-if lsof -i :8080 >/dev/null 2>&1; then
+if lsof -i :8080 -sTCP:LISTEN >/dev/null 2>&1; then
     print_warning "Port 8080 is in use. Attempting to free it..."
     lsof -ti :8080 | xargs kill -9 2>/dev/null || true
     sleep 2

@@ -31,6 +31,9 @@ class LeftNavBar {
                     <a href="#" class="service-link" data-page="svms">
                         SVMs
                     </a>
+                    <a href="#" class="service-link" data-page="nfs-shares">
+                        NFS Shares
+                    </a>
                 </div>
             </div>
         </nav>
@@ -79,6 +82,8 @@ class LeftNavBar {
                         window.app.showVolumesView();
                     } else if (page === 'svms') {
                         window.app.showSVMsView();
+                    } else if (page === 'nfs-shares') {
+                        window.app.showNFSSharesView();
                     }
                 } else {
                     console.warn('App not initialized yet, navigation handler not available');
