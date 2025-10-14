@@ -15,6 +15,7 @@ let clustersViewComponent;
 let storageClassesViewComponent;
 let alertsViewComponent;
 let volumesViewComponent;
+let svmsViewComponent;
 
 // Initialize modal/flyout components
 let chatbotSectionComponent;
@@ -59,6 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mainContent && typeof volumesView !== 'undefined') {
         volumesViewComponent = volumesView;
         volumesViewComponent.init(mainContent);
+    }
+    
+    if (mainContent && typeof svmsView !== 'undefined') {
+        svmsViewComponent = svmsView;
+        svmsViewComponent.init(mainContent);
     }
     
     // Initialize chatbot section

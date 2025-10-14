@@ -28,6 +28,9 @@ class LeftNavBar {
                     <a href="#" class="service-link" data-page="volumes">
                         Volumes
                     </a>
+                    <a href="#" class="service-link" data-page="svms">
+                        SVMs
+                    </a>
                 </div>
             </div>
         </nav>
@@ -74,6 +77,8 @@ class LeftNavBar {
                         window.app.showAlertsView();
                     } else if (page === 'volumes') {
                         window.app.showVolumesView();
+                    } else if (page === 'svms') {
+                        window.app.showSVMsView();
                     }
                 } else {
                     console.warn('App not initialized yet, navigation handler not available');

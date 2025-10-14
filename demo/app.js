@@ -79,6 +79,12 @@ class OntapMcpDemo {
             console.log(`� Default client set to: ${connectedServers[0]}`);
         }
         
+        // Expose Harvest client separately for views that need it
+        this.harvestApiClient = this.clientManager.getClient('harvest-remote');
+        if (this.harvestApiClient) {
+            console.log('✅ Harvest monitoring tools available via: harvest-remote');
+        }
+        
         // Log statistics
         const stats = this.clientManager.getStats();
         console.log(`📊 MCP Stats: ${stats.connectedServers} server(s), ${stats.totalTools} tool(s)`);
@@ -512,6 +518,11 @@ class OntapMcpDemo {
             volumesView.hide();
         }
         
+        // Hide SVMs view if present
+        if (typeof svmsView !== 'undefined') {
+            svmsView.hide();
+        }
+        
         // Show AlertsView using component (if available)
         if (typeof alertsView !== 'undefined') {
             alertsView.show();
@@ -555,6 +566,11 @@ class OntapMcpDemo {
             alertsView.hide();
         }
         
+        // Hide SVMs view if present
+        if (typeof svmsView !== 'undefined') {
+            svmsView.hide();
+        }
+        
         // Show VolumesView using component (if available)
         if (typeof volumesView !== 'undefined') {
             volumesView.show();
@@ -578,6 +594,51 @@ class OntapMcpDemo {
         
         // Update tab navigation
         this.updateTabNavigation('volumes');
+    }
+
+    showSVMsView() {
+        console.log('Switching to SVMs view');
+        
+        // Hide other views
+        const clustersView = document.getElementById('clustersView');
+        const storageClassesView = document.getElementById('storageClassesView');
+        
+        if (clustersView) clustersView.style.display = 'none';
+        if (storageClassesView) storageClassesView.style.display = 'none';
+        
+        // Hide alerts view if present
+        if (typeof alertsView !== 'undefined') {
+            alertsView.hide();
+        }
+        
+        // Hide volumes view if present
+        if (typeof volumesView !== 'undefined') {
+            volumesView.hide();
+        }
+        
+        // Show SVMsView using component (if available)
+        if (typeof svmsView !== 'undefined') {
+            svmsView.show();
+            // Load SVMs data from Harvest MCP
+            svmsView.loadSVMs();
+            console.log('SVMs view is now visible (via component)');
+        } else {
+            // Fallback to direct DOM manipulation
+            const svmsViewElement = document.getElementById('svmsView');
+            if (svmsViewElement) {
+                svmsViewElement.style.display = 'block';
+                console.log('SVMs view is now visible (fallback)');
+            }
+        }
+        
+        // Hide chatbot in SVMs view
+        const chatbotContainer = document.getElementById('chatbot-container');
+        if (chatbotContainer) {
+            chatbotContainer.style.display = 'none';
+        }
+        
+        // Update tab navigation
+        this.updateTabNavigation('svms');
     }
 
     updateTabNavigation(activeView) {
