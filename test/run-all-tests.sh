@@ -2,6 +2,8 @@
 
 # Comprehensive regression test suite for NetApp ONTAP MCP Server
 # Runs all available tests to validate functionality
+# Usage: ./run-all-tests.sh [test_number]
+#   test_number: Optional - run only specific test (e.g., 1, 18, 20)
 
 set -e
 
@@ -11,6 +13,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Parse command line arguments
+SPECIFIC_TEST="$1"
 
 log() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
@@ -32,22 +37,30 @@ error() {
 TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
+CURRENT_TEST_NUM=0
 
 # Function to run a test and track results
 run_test() {
     local test_name="$1"
     local test_command="$2"
     
-    TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    log "Running Test $TOTAL_TESTS: $test_name"
+    CURRENT_TEST_NUM=$((CURRENT_TEST_NUM + 1))
     
-    if eval "$test_command" > /tmp/test_output_$TOTAL_TESTS.log 2>&1; then
-        success "Test $TOTAL_TESTS PASSED: $test_name"
+    # Skip if specific test requested and this isn't it
+    if [ ! -z "$SPECIFIC_TEST" ] && [ "$CURRENT_TEST_NUM" != "$SPECIFIC_TEST" ]; then
+        return
+    fi
+    
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    log "Running Test $CURRENT_TEST_NUM: $test_name"
+    
+    if eval "$test_command" > /tmp/test_output_$CURRENT_TEST_NUM.log 2>&1; then
+        success "Test $CURRENT_TEST_NUM PASSED: $test_name"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
-        error "Test $TOTAL_TESTS FAILED: $test_name"
+        error "Test $CURRENT_TEST_NUM FAILED: $test_name"
         echo "Error output:"
-        cat /tmp/test_output_$TOTAL_TESTS.log
+        cat /tmp/test_output_$CURRENT_TEST_NUM.log
         FAILED_TESTS=$((FAILED_TESTS + 1))
     fi
 }
@@ -55,7 +68,12 @@ run_test() {
 # Change to project root
 cd "$(dirname "$0")/.."
 
-log "🚀 Starting Comprehensive Regression Test Suite"
+if [ ! -z "$SPECIFIC_TEST" ]; then
+    log "🎯 Running Specific Test #$SPECIFIC_TEST"
+else
+    log "🚀 Starting Comprehensive Regression Test Suite"
+fi
+
 log "Building project first..."
 npm run build
 

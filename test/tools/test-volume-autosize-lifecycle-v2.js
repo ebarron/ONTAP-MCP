@@ -86,11 +86,9 @@ async function getTestConfig(httpPort = 3000) {
     throw new Error('No clusters found in MCP server configuration');
   }
 
-  // Find karan-ontap-1 cluster specifically since user confirmed it's working
-  const karanCluster = clusters.find(c => c.name === 'karan-ontap-1');
-  if (!karanCluster) {
-    throw new Error('karan-ontap-1 cluster not found in configuration');
-  }
+  // Use first available cluster
+  const testCluster = clusters[0];
+  console.log(`[${new Date().toISOString()}] 🎯 Using cluster: ${testCluster.name} (${testCluster.cluster_ip})`);
   
   // Discover aggregates and SVMs from the cluster
   console.log(`[${new Date().toISOString()}] 🔍 Discovering aggregates and SVMs from cluster...`);
@@ -104,12 +102,21 @@ async function getTestConfig(httpPort = 3000) {
   await loadClustersIntoSession(mcpClient);
   
   const aggregateList = await mcpClient.callTool('cluster_list_aggregates', {
-    cluster_name: karanCluster.name
+    cluster_name: testCluster.name
   });
   
-  const aggregateText = mcpClient.parseContent(aggregateList);
-  const aggregateMatch = aggregateText.match(/- ([^\s(]+)/);
-  const aggregateName = aggregateMatch ? aggregateMatch[1] : null;
+  // Parse hybrid format (new format with {summary, data})
+  const aggregateResult = mcpClient.parseHybridFormat(aggregateList);
+  let aggregateName = null;
+  
+  if (aggregateResult.isHybrid && aggregateResult.data && aggregateResult.data.length > 0) {
+    // Use structured data from hybrid format
+    aggregateName = aggregateResult.data[0].name;
+  } else {
+    // Fallback to regex parsing for old format
+    const aggregateMatch = aggregateResult.summary.match(/- ([^\s(]+)/);
+    aggregateName = aggregateMatch ? aggregateMatch[1] : null;
+  }
   
   if (!aggregateName) {
     await mcpClient.close();
@@ -120,12 +127,21 @@ async function getTestConfig(httpPort = 3000) {
   
   // Get SVMs
   const svmList = await mcpClient.callTool('cluster_list_svms', {
-    cluster_name: karanCluster.name
+    cluster_name: testCluster.name
   });
   
-  const svmText = mcpClient.parseContent(svmList);
-  const svmMatch = svmText.match(/- ([^\s(]+)/);
-  const svmName = svmMatch ? svmMatch[1] : null;
+  // Parse hybrid format
+  const svmResult = mcpClient.parseHybridFormat(svmList);
+  let svmName = null;
+  
+  if (svmResult.isHybrid && svmResult.data && svmResult.data.length > 0) {
+    // Use structured data from hybrid format
+    svmName = svmResult.data[0].name;
+  } else {
+    // Fallback to regex parsing for old format
+    const svmMatch = svmResult.summary.match(/- ([^\s(]+)/);
+    svmName = svmMatch ? svmMatch[1] : null;
+  }
   
   await mcpClient.close();
   
@@ -136,14 +152,78 @@ async function getTestConfig(httpPort = 3000) {
   console.log(`[${new Date().toISOString()}] ✅ Using SVM: ${svmName}`);
   
   return {
-    cluster_name: karanCluster.name,
+    cluster_name: testCluster.name,
     svm_name: svmName,
     volume_name: `test_autosize_${Date.now()}`,
     size: '100MB',
     aggregate_name: aggregateName,
     wait_time: 10000, // 10 seconds
-    cluster_info: karanCluster
+    cluster_info: testCluster
   };
+}
+
+/**
+ * Helper function to parse hybrid format responses
+ * Handles both object format {summary, data} and string format
+ * @param {object|string} textOrObj - The .text property from MCP response
+ * @param {RegExp} regex - Regex to extract name from summary text
+ * @returns {string|null} - Extracted name or null
+ */
+function parseHybridResponse(textOrObj, regex) {
+  if (typeof textOrObj === 'object' && textOrObj !== null) {
+    // Hybrid format: { summary: "...", data: [...] }
+    if (textOrObj.data && Array.isArray(textOrObj.data) && textOrObj.data.length > 0) {
+      return textOrObj.data[0].name;
+    } else if (textOrObj.summary) {
+      // Fallback to parsing summary text
+      const match = textOrObj.summary.match(regex);
+      return match ? match[1] : null;
+    }
+  } else {
+    // Old format: text string
+    const textStr = String(textOrObj || '');
+    try {
+      const parsed = JSON.parse(textStr);
+      if (parsed && parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+        return parsed.data[0].name;
+      } else if (parsed && parsed.summary) {
+        const match = parsed.summary.match(regex);
+        return match ? match[1] : null;
+      }
+    } catch (e) {
+      // Not JSON, use regex on raw text
+      const match = textStr.match(regex);
+      return match ? match[1] : null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Helper: Extract summary text from hybrid format response
+ * Converts object format {summary, data} to plain text for compatibility
+ */
+function extractTextFromHybridFormat(textOrObj) {
+  if (typeof textOrObj === 'object' && textOrObj !== null) {
+    // Hybrid format: { summary: "...", data: [...] }
+    // Return the summary text for backward compatibility
+    return textOrObj.summary || '';
+  } else {
+    // Old format: already a string or JSON string
+    const textStr = String(textOrObj || '');
+    try {
+      const parsed = JSON.parse(textStr);
+      // If it's a parsed hybrid format, return the summary
+      if (parsed && parsed.summary) {
+        return parsed.summary;
+      }
+      // Otherwise return original string
+      return textStr;
+    } catch (e) {
+      // Not JSON, return as-is
+      return textStr;
+    }
+  }
 }
 
 class VolumeAutosizeTest {
@@ -182,7 +262,9 @@ class VolumeAutosizeTest {
         throw new Error('No clusters found in clusters.json');
       }
       
-      const cluster = clusters.find(c => c.name === 'karan-ontap-1') || clusters[0];
+      // Use first available cluster
+      const cluster = clusters[0];
+      await this.log(`🎯 Using cluster: ${cluster.name}`);
       
       // Discover aggregates and SVMs from the cluster
       await this.log('🔍 Discovering aggregates and SVMs from cluster...');
@@ -191,13 +273,12 @@ class VolumeAutosizeTest {
         cluster_name: cluster.name
       }, clustersData);
       
-      const aggregateText = aggregateList.content && aggregateList.content[0] 
+      // Parse hybrid format
+      const aggregateTextOrObj = aggregateList.content && aggregateList.content[0] 
         ? aggregateList.content[0].text 
         : '';
       
-      // Parse aggregate name from response (format: "- aggregate_name (uuid)")
-      const aggregateMatch = aggregateText.match(/- ([^\s(]+)/);
-      const aggregateName = aggregateMatch ? aggregateMatch[1] : null;
+      const aggregateName = parseHybridResponse(aggregateTextOrObj, /- ([^\s(]+)/);
       
       if (!aggregateName) {
         throw new Error('Could not find any aggregates on cluster');
@@ -210,13 +291,12 @@ class VolumeAutosizeTest {
         cluster_name: cluster.name
       }, clustersData);
       
-      const svmText = svmList.content && svmList.content[0] 
+      // Parse hybrid format
+      const svmTextOrObj = svmList.content && svmList.content[0] 
         ? svmList.content[0].text 
         : '';
       
-      // Parse SVM name from response (format: "- svm_name (uuid) - State: running")
-      const svmMatch = svmText.match(/- ([^\s(]+)/);
-      const svmName = svmMatch ? svmMatch[1] : null;
+      const svmName = parseHybridResponse(svmTextOrObj, /- ([^\s(]+)/);
       
       if (!svmName) {
         throw new Error('Could not find any SVMs on cluster');
@@ -299,9 +379,6 @@ class VolumeAutosizeTest {
             name: 'test-client',
             version: '1.0.0'
           },
-          initializationOptions: {
-            ONTAP_CLUSTERS: clustersConfig
-          }
         }
       };
 
@@ -406,9 +483,6 @@ class VolumeAutosizeTest {
             name: 'test-client',
             version: '1.0.0'
           },
-          initializationOptions: {
-            ONTAP_CLUSTERS: clustersConfig
-          }
         }
       };
 
@@ -561,13 +635,15 @@ class VolumeAutosizeTest {
   extractText(result) {
     if (this.mode === 'stdio') {
       // STDIO returns direct result with content array
-      return result.content && result.content[0] ? result.content[0].text : '';
+      const textOrObj = result.content && result.content[0] ? result.content[0].text : '';
+      return extractTextFromHybridFormat(textOrObj);
     } else {
-      // HTTP/MCP returns result with content array
+      // HTTP/MCP mode - mcpClient.parseContent already handles hybrid format
       if (this.mcpClient) {
         return this.mcpClient.parseContent(result);
       }
-      return result.content && result.content[0] ? result.content[0].text : '';
+      const textOrObj = result.content && result.content[0] ? result.content[0].text : '';
+      return extractTextFromHybridFormat(textOrObj);
     }
   }
 

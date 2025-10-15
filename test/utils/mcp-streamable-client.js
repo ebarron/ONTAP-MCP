@@ -257,7 +257,14 @@ export class McpStreamableClient {
 
     // If result has content array (MCP format), extract text
     if (result?.content?.[0]?.text) {
-      return result.content[0].text;
+      const textValue = result.content[0].text;
+      
+      // Handle hybrid format: {summary: "...", data: [...]}
+      if (typeof textValue === 'object' && textValue !== null && 'summary' in textValue) {
+        return textValue.summary;
+      }
+      
+      return textValue;
     }
 
     // If result is an object, stringify it
@@ -266,6 +273,45 @@ export class McpStreamableClient {
     }
 
     return String(result);
+  }
+
+  /**
+   * Parse hybrid format tool response
+   * Handles both old text format and new {summary, data} hybrid format
+   * Returns: { summary: string, data: array|null, isHybrid: boolean }
+   */
+  parseHybridFormat(result) {
+    const text = this.parseContent(result);
+    
+    try {
+      const parsed = JSON.parse(text);
+      
+      // Check if it's hybrid format
+      if (parsed && typeof parsed === 'object' && 'summary' in parsed && 'data' in parsed) {
+        return {
+          summary: parsed.summary,
+          data: parsed.data,
+          isHybrid: true,
+          raw: parsed
+        };
+      }
+      
+      // Not hybrid format, but valid JSON - return as text
+      return {
+        summary: text,
+        data: null,
+        isHybrid: false,
+        raw: text
+      };
+    } catch (e) {
+      // Not JSON, return as plain text
+      return {
+        summary: text,
+        data: null,
+        isHybrid: false,
+        raw: text
+      };
+    }
   }
 }
 

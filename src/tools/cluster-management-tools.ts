@@ -11,7 +11,13 @@ import {
   SvmInfo,
   AggregateInfo,
   RegisteredCluster,
-  ClusterApiResponse
+  ClusterApiResponse,
+  VolumeListInfo,
+  VolumeListResult,
+  SvmListInfo,
+  SvmListResult,
+  AggregateListInfo,
+  AggregateListResult
 } from "../types/cluster-types.js";
 
 // ===== SCHEMAS =====
@@ -288,19 +294,35 @@ export async function handleGetAllClustersInfo(args: any, clusterManager: OntapC
   return `Cluster Information:\n\n${infoText}`;
 }
 
-export async function handleClusterListSvms(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleClusterListSvms(args: any, clusterManager: OntapClusterManager): Promise<SvmListResult> {
   const { cluster_name } = ClusterOperationSchema.parse(args);
   const client = clusterManager.getClient(cluster_name);
   const svms = await client.listSvms();
   
-  const svmList = svms.map((svm: any) => 
+  // Build structured data array
+  const data: SvmListInfo[] = svms.map((svm: any) => ({
+    uuid: svm.uuid,
+    name: svm.name,
+    state: svm.state,
+    subtype: svm.subtype,
+    aggregates: svm.aggregates?.map((aggr: any) => ({
+      name: aggr.name,
+      uuid: aggr.uuid
+    }))
+  }));
+  
+  // Build human-readable summary (for LLMs)
+  const svmList = data.map(svm => 
     `- ${svm.name} (${svm.uuid}) - State: ${svm.state}`
   ).join('\n');
-
-  return `SVMs on cluster '${cluster_name}': ${svms.length}\n\n${svmList}`;
+  
+  const summary = `SVMs on cluster '${cluster_name}': ${svms.length}\n\n${svmList}`;
+  
+  // Return hybrid format (Phase 2, Step 2)
+  return { summary, data };
 }
 
-export async function handleClusterListAggregates(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleClusterListAggregates(args: any, clusterManager: OntapClusterManager): Promise<AggregateListResult> {
   const { cluster_name, svm_name } = z.object({
     cluster_name: z.string(),
     svm_name: z.string().optional()
@@ -322,21 +344,69 @@ export async function handleClusterListAggregates(args: any, clusterManager: Ont
     description = `All aggregates on cluster '${cluster_name}'`;
   }
   
-  const aggrList = aggregates.map((aggr: any) => 
-    `- ${aggr.name} (${aggr.uuid})${aggr.state ? ` - State: ${aggr.state}` : ''}${aggr.space?.block_storage ? `, Available: ${aggr.space.block_storage.available || 'N/A'}, Used: ${aggr.space.block_storage.used || 'N/A'}` : ''}`
-  ).join('\n');
-
-  return `${description}: ${aggregates.length}\n\n${aggrList}`;
+  // Build structured data array
+  const data: AggregateListInfo[] = aggregates.map((aggr: any) => ({
+    uuid: aggr.uuid,
+    name: aggr.name,
+    state: aggr.state,
+    space: aggr.space?.block_storage ? {
+      available: aggr.space.block_storage.available,
+      used: aggr.space.block_storage.used,
+      size: aggr.space.block_storage.size,
+      percent_used: aggr.space.block_storage.size > 0 
+        ? Math.round((aggr.space.block_storage.used / aggr.space.block_storage.size) * 100)
+        : undefined
+    } : undefined,
+    node: aggr.node ? {
+      name: aggr.node.name,
+      uuid: aggr.node.uuid
+    } : undefined
+  }));
+  
+  // Build human-readable summary (for LLMs)
+  const aggrList = data.map(aggr => {
+    let line = `- ${aggr.name} (${aggr.uuid})`;
+    if (aggr.state) line += ` - State: ${aggr.state}`;
+    if (aggr.space?.available !== undefined && aggr.space?.used !== undefined) {
+      line += `, Available: ${aggr.space.available}, Used: ${aggr.space.used}`;
+    }
+    return line;
+  }).join('\n');
+  
+  const summary = `${description}: ${aggregates.length}\n\n${aggrList}`;
+  
+  // Return hybrid format (Phase 2, Step 3)
+  return { summary, data };
 }
 
-export async function handleClusterListVolumes(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleClusterListVolumes(args: any, clusterManager: OntapClusterManager): Promise<VolumeListResult> {
   const { cluster_name, svm_name } = ClusterListVolumesSchema.parse(args);
   const client = clusterManager.getClient(cluster_name);
   const volumes = await client.listVolumes(svm_name);
   
-  const volumeList = volumes.map((vol: any) => 
-    `- ${vol.name} (${vol.uuid}) - Size: ${vol.size}, State: ${vol.state}, SVM: ${vol.svm?.name || 'N/A'}`
+  // Build structured data array
+  const data: VolumeListInfo[] = volumes.map((vol: any) => ({
+    uuid: vol.uuid,
+    name: vol.name,
+    size: vol.size,
+    state: vol.state,
+    svm: {
+      name: vol.svm?.name || 'N/A',
+      uuid: vol.svm?.uuid
+    },
+    aggregate: vol.aggregates?.[0] ? {
+      name: vol.aggregates[0].name,
+      uuid: vol.aggregates[0].uuid
+    } : undefined
+  }));
+  
+  // Build human-readable summary (for LLMs)
+  const volumeList = data.map(vol => 
+    `- ${vol.name} (${vol.uuid}) - Size: ${vol.size}, State: ${vol.state}, SVM: ${vol.svm.name}`
   ).join('\n');
-
-  return `Volumes on cluster '${cluster_name}': ${volumes.length}\n\n${volumeList}`;
+  
+  const summary = `Volumes on cluster '${cluster_name}': ${volumes.length}\n\n${volumeList}`;
+  
+  // Return hybrid format (Phase 2)
+  return { summary, data };
 }

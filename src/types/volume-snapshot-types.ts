@@ -25,3 +25,20 @@ export interface VolumeSnapshotResponse {
   records: VolumeSnapshot[];
   num_records?: number;
 }
+
+// Hybrid format types for cluster_list_volume_snapshots
+export interface SnapshotListInfo {
+  uuid: string;
+  name: string;
+  create_time: string;
+  size: number;
+  volume_uuid: string;
+  volume_name?: string;
+  state?: string;
+  comment?: string;
+}
+
+export interface SnapshotListResult {
+  summary: string;  // For LLMs
+  data: SnapshotListInfo[];  // For programmatic use
+}

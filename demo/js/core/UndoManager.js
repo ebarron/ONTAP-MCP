@@ -46,88 +46,25 @@ class UndoManager {
                 volume_uuid: volumeUuid
             });
             
-            // DEBUG: Log the raw response text
-            console.log('🔍 DEBUG: Raw get_volume_configuration response:');
-            console.log(config);
-            console.log('🔍 DEBUG: Response length:', config ? config.length : 0);
+            console.log('🔍 DEBUG: Raw get_volume_configuration response (first 200 chars):');
+            console.log(config ? config.substring(0, 200) : 'null');
             
-            // Parse the text response to extract current values
-            const state = {
-                volume_uuid: volumeUuid,
-                captureMethod: 'get_volume_configuration',
-                captureTime: Date.now()
-            };
-            
-            // Extract state from response text
-            if (config && typeof config === 'string') {
-                // Parse state: online/offline/restricted (handle emoji and markdown)
-                // Format can be: "📈 **State:** online" or "State: online"
-                const stateMatch = config.match(/State:\*\*\s*(\w+)|State:\s*(\w+)/i);
-                if (stateMatch) {
-                    state.state = (stateMatch[1] || stateMatch[2]).toLowerCase();
+            // Try to parse as JSON first (new hybrid format)
+            try {
+                const parsed = JSON.parse(config);
+                
+                if (parsed.data && parsed.summary) {
+                    // New hybrid format detected!
+                    console.log('✅ Detected hybrid JSON format from get_volume_configuration');
+                    return this.parseStructuredVolumeState(parsed.data, volumeUuid);
                 }
-                
-                // Parse size (handle markdown bold)
-                const sizeMatch = config.match(/Size:\*\*\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)|Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
-                if (sizeMatch) state.size = `${sizeMatch[1] || sizeMatch[3]}${sizeMatch[2] || sizeMatch[4]}`;
-                
-                // Parse comment (handle markdown bold)
-                const commentMatch = config.match(/Comment:\*\*\s*(.+)|Comment:\s*(.+)/i);
-                if (commentMatch) state.comment = (commentMatch[1] || commentMatch[2]).trim();
-                
-                // Parse QoS policy (not in current formatVolumeConfig, but keep for future)
-                const qosMatch = config.match(/QoS Policy:\*\*\s*(\S+)|QoS Policy:\s*(\S+)/i);
-                if (qosMatch) {
-                    const qosValue = qosMatch[1] || qosMatch[2];
-                    if (qosValue !== '-') state.qos_policy = qosValue;
-                }
-                
-                // Parse snapshot policy (handle markdown bold)
-                const snapMatch = config.match(/Snapshot Policy:\*\*\s*(\S+)|Snapshot Policy:\s*(\S+)/i);
-                if (snapMatch) {
-                    const snapValue = snapMatch[1] || snapMatch[2];
-                    if (snapValue !== '-' && snapValue !== 'None') state.snapshot_policy = snapValue;
-                }
-                
-                // Parse autosize configuration (matches format from formatVolumeConfig)
-                // Check for disabled state first: "📏 **Autosize:** Disabled"
-                if (config.match(/Autosize:\*\*\s*Disabled|Autosize:\s*Disabled/i)) {
-                    state.autosize_mode = 'off';
-                } else {
-                    // Parse mode: "   • Mode: grow"
-                    const autosizeMatch = config.match(/•\s*Mode:\s*(\w+)/i);
-                    if (autosizeMatch) {
-                        state.autosize_mode = autosizeMatch[1].toLowerCase();
-                    }
-                    
-                    // Parse maximum size: "   • Maximum Size: 190.00MB"
-                    const maxMatch = config.match(/•\s*Maximum Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
-                    if (maxMatch) {
-                        state.autosize_maximum = `${maxMatch[1]}${maxMatch[2]}`;
-                    }
-                    
-                    // Parse minimum size: "   • Minimum Size: 95.00MB"
-                    const minMatch = config.match(/•\s*Minimum Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
-                    if (minMatch) {
-                        state.autosize_minimum = `${minMatch[1]}${minMatch[2]}`;
-                    }
-                    
-                    // Parse grow threshold: "   • Grow Threshold: 85%"
-                    const growMatch = config.match(/•\s*Grow Threshold:\s*(\d+)%/i);
-                    if (growMatch) {
-                        state.autosize_grow_threshold = parseInt(growMatch[1]);
-                    }
-                    
-                    // Parse shrink threshold: "   • Shrink Threshold: 50%"
-                    const shrinkMatch = config.match(/•\s*Shrink Threshold:\s*(\d+)%/i);
-                    if (shrinkMatch) {
-                        state.autosize_shrink_threshold = parseInt(shrinkMatch[1]);
-                    }
-                }
+            } catch (jsonError) {
+                // Not JSON or not hybrid format - fall through to text parsing
+                console.log('ℹ️ Response is not JSON, using text parsing');
             }
             
-            console.log('✅ State captured via get_volume_configuration:', state);
-            return state;
+            // Fall back to text parsing (old format or summary-only)
+            return this.parseTextVolumeState(config, volumeUuid);
             
         } catch (error) {
             console.warn('❌ get_volume_configuration failed:', error);
@@ -136,6 +73,136 @@ class UndoManager {
     }
 
     /**
+     * Parse structured JSON volume state (new hybrid format)
+     * Uses MCP parameter names directly - NO MAPPING NEEDED!
+     */
+    parseStructuredVolumeState(data, volumeUuid) {
+        console.log('� Parsing structured volume state from JSON...');
+        
+        const state = {
+            volume_uuid: volumeUuid,
+            captureMethod: 'get_volume_configuration_json',
+            captureTime: Date.now()
+        };
+        
+        // Basic volume info
+        if (data.volume) {
+            if (data.volume.state) state.state = data.volume.state;
+            if (data.volume.size) state.size = `${(data.volume.size / (1024**3)).toFixed(2)}GB`;
+            if (data.volume.comment) state.comment = data.volume.comment;
+        }
+        
+        // Autosize config - uses MCP parameter names directly!
+        if (data.autosize) {
+            state.mode = data.autosize.mode;  // Direct mapping!
+            if (data.autosize.maximum_size) {
+                state.maximum_size = `${(data.autosize.maximum_size / (1024**3)).toFixed(2)}GB`;
+            }
+            if (data.autosize.minimum_size) {
+                state.minimum_size = `${(data.autosize.minimum_size / (1024**3)).toFixed(2)}GB`;
+            }
+            if (data.autosize.grow_threshold_percent !== undefined) {
+                state.grow_threshold_percent = data.autosize.grow_threshold_percent;
+            }
+            if (data.autosize.shrink_threshold_percent !== undefined) {
+                state.shrink_threshold_percent = data.autosize.shrink_threshold_percent;
+            }
+        }
+        
+        // Policies
+        if (data.qos?.policy_name) state.qos_policy = data.qos.policy_name;
+        if (data.snapshot_policy?.name) state.snapshot_policy = data.snapshot_policy.name;
+        if (data.nfs?.export_policy) state.export_policy = data.nfs.export_policy;
+        if (data.nfs?.security_style) state.security_style = data.nfs.security_style;
+        
+        console.log('✅ State parsed from structured JSON:', state);
+        return state;
+    }
+
+    /**
+     * Parse text format volume state (old format - for backwards compatibility)
+     */
+    parseTextVolumeState(config, volumeUuid) {
+        console.log('📝 Parsing text format volume state...');
+        
+        // Parse the text response to extract current values
+        const state = {
+            volume_uuid: volumeUuid,
+            captureMethod: 'get_volume_configuration_text',
+            captureTime: Date.now()
+        };
+        
+        // Extract state from response text
+        if (config && typeof config === 'string') {
+            // Parse state: online/offline/restricted (handle emoji and markdown)
+            // Format can be: "📈 **State:** online" or "State: online"
+            const stateMatch = config.match(/State:\*\*\s*(\w+)|State:\s*(\w+)/i);
+            if (stateMatch) {
+                state.state = (stateMatch[1] || stateMatch[2]).toLowerCase();
+            }
+            
+            // Parse size (handle markdown bold)
+            const sizeMatch = config.match(/Size:\*\*\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)|Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
+            if (sizeMatch) state.size = `${sizeMatch[1] || sizeMatch[3]}${sizeMatch[2] || sizeMatch[4]}`;
+            
+            // Parse comment (handle markdown bold)
+            const commentMatch = config.match(/Comment:\*\*\s*(.+)|Comment:\s*(.+)/i);
+            if (commentMatch) state.comment = (commentMatch[1] || commentMatch[2]).trim();
+            
+            // Parse QoS policy (not in current formatVolumeConfig, but keep for future)
+            const qosMatch = config.match(/QoS Policy:\*\*\s*(\S+)|QoS Policy:\s*(\S+)/i);
+            if (qosMatch) {
+                const qosValue = qosMatch[1] || qosMatch[2];
+                if (qosValue !== '-') state.qos_policy = qosValue;
+            }
+            
+            // Parse snapshot policy (handle markdown bold)
+            const snapMatch = config.match(/Snapshot Policy:\*\*\s*(\S+)|Snapshot Policy:\s*(\S+)/i);
+            if (snapMatch) {
+                const snapValue = snapMatch[1] || snapMatch[2];
+                if (snapValue !== '-' && snapValue !== 'None') state.snapshot_policy = snapValue;
+            }
+            
+            // Parse autosize configuration (matches format from formatVolumeConfig)
+            // Check for disabled state first: "📏 **Autosize:** Disabled"
+            if (config.match(/Autosize:\*\*\s*Disabled|Autosize:\s*Disabled/i)) {
+                state.autosize_mode = 'off';
+            } else {
+                // Parse mode: "   • Mode: grow"
+                const autosizeMatch = config.match(/•\s*Mode:\s*(\w+)/i);
+                if (autosizeMatch) {
+                    state.autosize_mode = autosizeMatch[1].toLowerCase();
+                }
+                
+                // Parse maximum size: "   • Maximum Size: 190.00MB"
+                const maxMatch = config.match(/•\s*Maximum Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
+                if (maxMatch) {
+                    state.autosize_maximum = `${maxMatch[1]}${maxMatch[2]}`;
+                }
+                
+                // Parse minimum size: "   • Minimum Size: 95.00MB"
+                const minMatch = config.match(/•\s*Minimum Size:\s*(\d+(?:\.\d+)?)\s*(GB|TB|MB)/i);
+                if (minMatch) {
+                    state.autosize_minimum = `${minMatch[1]}${minMatch[2]}`;
+                }
+                
+                // Parse grow threshold: "   • Grow Threshold: 85%"
+                const growMatch = config.match(/•\s*Grow Threshold:\s*(\d+)%/i);
+                if (growMatch) {
+                    state.autosize_grow_threshold = parseInt(growMatch[1]);
+                }
+                
+                // Parse shrink threshold: "   • Shrink Threshold: 50%"
+                const shrinkMatch = config.match(/•\s*Shrink Threshold:\s*(\d+)%/i);
+                if (shrinkMatch) {
+                    state.autosize_shrink_threshold = parseInt(shrinkMatch[1]);
+                }
+            }
+        }
+        
+        console.log('✅ State parsed from text format:', state);
+        return state;
+    }    /**
      * Fallback: Capture state using ParameterResolver + Prometheus metrics
      */
     async captureFallback(alert, resolvedParams) {
@@ -202,21 +269,24 @@ class UndoManager {
         const canRestore = [];
         const cannotRestore = [];
         
-        // Parameter name mapping: action param name → captured state param name
-        // TEMPORARY FIX: This maps parameter names between MCP action params and captured state
-        // TODO: Replace with structured JSON responses from get_volume_configuration
-        const paramMapping = {
+        // Check if we're using the new JSON format (no parameter mapping needed!)
+        const isJsonFormat = originalState.captureMethod === 'get_volume_configuration_json';
+        
+        // Parameter name mapping for OLD text format only
+        // NEW JSON format uses MCP parameter names directly - NO MAPPING NEEDED!
+        const paramMapping = isJsonFormat ? {} : {
             'mode': 'autosize_mode',              // autosize mode
-            'maximum_size': 'autosize_maximum',   // autosize max size
+            'maximum_size': 'autosize_maximum',   // autosize max size  
             'minimum_size': 'autosize_minimum',   // autosize min size
-            'grow_threshold': 'autosize_grow_threshold',     // autosize grow %
-            'shrink_threshold': 'autosize_shrink_threshold'  // autosize shrink %
+            'grow_threshold_percent': 'autosize_grow_threshold',     // autosize grow %
+            'shrink_threshold_percent': 'autosize_shrink_threshold'  // autosize shrink %
         };
         
         // Analyze actual MCP parameters being changed (from mcp_params)
         const paramsToCheck = action.mcp_params ? Object.keys(action.mcp_params) : [];
         
         console.log('🔍 DEBUG: Checking parameters for reversibility');
+        console.log('   Format:', isJsonFormat ? 'JSON (direct mapping)' : 'TEXT (requires mapping)');
         console.log('   paramsToCheck:', paramsToCheck);
         console.log('   originalState keys:', Object.keys(originalState));
         
@@ -226,7 +296,7 @@ class UndoManager {
                 continue;
             }
             
-            // Map action parameter name to state parameter name
+            // Map action parameter name to state parameter name (for text format only)
             const stateParamName = paramMapping[param] || param;
             
             console.log(`   Checking param "${param}" (maps to "${stateParamName}"): originalState has it? ${originalState[stateParamName] !== undefined}`);
@@ -265,13 +335,17 @@ class UndoManager {
     generateUndoAction(action, originalState, resolvedParams) {
         console.log('🔄 Generating undo action...');
         
-        // Parameter name mapping (same as in determineReversibility)
-        const paramMapping = {
+        // Check if we're using the new JSON format (no parameter mapping needed!)
+        const isJsonFormat = originalState.captureMethod === 'get_volume_configuration_json';
+        
+        // Parameter name mapping for OLD text format only
+        // NEW JSON format uses MCP parameter names directly - NO MAPPING NEEDED!
+        const paramMapping = isJsonFormat ? {} : {
             'mode': 'autosize_mode',
             'maximum_size': 'autosize_maximum',
             'minimum_size': 'autosize_minimum',
-            'grow_threshold': 'autosize_grow_threshold',
-            'shrink_threshold': 'autosize_shrink_threshold'
+            'grow_threshold_percent': 'autosize_grow_threshold',
+            'shrink_threshold_percent': 'autosize_shrink_threshold'
         };
         
         const undoParams = {

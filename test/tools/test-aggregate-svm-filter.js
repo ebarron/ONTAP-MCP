@@ -168,11 +168,22 @@ class AggregateListTester {
               if (toolResponse.error) {
                 reject(new Error(`Tool error: ${JSON.stringify(toolResponse.error)}`));
               } else if (toolResponse.result && toolResponse.result.content) {
-                const textContent = toolResponse.result.content
+                // Extract text from content items
+                // Handle hybrid format: .text may be object {summary, data} or string
+                const textItems = toolResponse.result.content
                   .filter(item => item.type === 'text')
-                  .map(item => item.text)
-                  .join('');
-                resolve(textContent);
+                  .map(item => item.text);
+                
+                // If there's only one text item and it's an object (hybrid format), return it as-is
+                if (textItems.length === 1 && typeof textItems[0] === 'object') {
+                  resolve(textItems[0]);
+                } else {
+                  // Old format: join string items
+                  const textContent = textItems
+                    .map(item => typeof item === 'object' ? (item.summary || '') : String(item))
+                    .join('');
+                  resolve(textContent);
+                }
               } else {
                 reject(new Error('Unexpected response format'));
               }
@@ -324,7 +335,10 @@ class AggregateListTester {
           
           // Test 5: Verify response format
           console.log('\nTest 5: Verify response format');
-          if (svmAggregatesText.includes(`Aggregates assigned to SVM '${testSvm}'`)) {
+          const svmAggregatesTextStr = typeof svmAggregatesText === 'object' && svmAggregatesText.summary 
+            ? svmAggregatesText.summary 
+            : String(svmAggregatesText);
+          if (svmAggregatesTextStr.includes(`Aggregates assigned to SVM '${testSvm}'`)) {
             console.log('✅ PASSED: Response contains correct description for SVM filter');
             results.push({ test: 'verify_format', passed: true });
           } else {
@@ -344,8 +358,30 @@ class AggregateListTester {
   }
 
   parseAggregateNames(text) {
+    // Handle object format (hybrid) vs string format
+    if (typeof text === 'object' && text !== null) {
+      // Hybrid format object: {summary: "...", data: [...]}
+      if (text.data && Array.isArray(text.data)) {
+        return text.data.map(agg => agg.name);
+      }
+      // Fallback to parsing summary if available
+      text = text.summary || '';
+    }
+    
+    // Try parsing as JSON string
+    const textStr = String(text || '');
+    try {
+      const parsed = JSON.parse(textStr);
+      if (parsed && parsed.data && Array.isArray(parsed.data)) {
+        return parsed.data.map(agg => agg.name);
+      }
+    } catch (e) {
+      // Not JSON, fall through to regex parsing
+    }
+    
+    // Fallback to regex parsing for old format
     const names = [];
-    const lines = text.split('\n');
+    const lines = textStr.split('\n');
     
     for (const line of lines) {
       // Match pattern: "- aggregate_name (uuid)"
@@ -359,8 +395,30 @@ class AggregateListTester {
   }
 
   parseSvmNames(text) {
+    // Handle object format (hybrid) vs string format
+    if (typeof text === 'object' && text !== null) {
+      // Hybrid format object: {summary: "...", data: [...]}
+      if (text.data && Array.isArray(text.data)) {
+        return text.data.map(svm => svm.name);
+      }
+      // Fallback to parsing summary if available
+      text = text.summary || '';
+    }
+    
+    // Try parsing as JSON string
+    const textStr = String(text || '');
+    try {
+      const parsed = JSON.parse(textStr);
+      if (parsed && parsed.data && Array.isArray(parsed.data)) {
+        return parsed.data.map(svm => svm.name);
+      }
+    } catch (e) {
+      // Not JSON, fall through to regex parsing
+    }
+    
+    // Fallback to regex parsing for old format
     const names = [];
-    const lines = text.split('\n');
+    const lines = textStr.split('\n');
     
     for (const line of lines) {
       // Match pattern: "- svm_name (uuid) - State: xxx"

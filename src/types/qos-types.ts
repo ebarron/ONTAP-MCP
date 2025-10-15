@@ -167,3 +167,47 @@ export interface SingleQosPolicyResponse extends QosPolicy {
     peak_iops_allocation?: QosAllocation;
   };
 }
+
+/**
+ * QoS policy list information (for hybrid format)
+ * Simplified structure for UI dropdown population
+ */
+export interface QosPolicyListInfo {
+  /** Policy UUID */
+  uuid?: string;
+  /** Policy name */
+  name: string;
+  /** SVM name */
+  svm_name?: string;
+  /** SVM UUID */
+  svm_uuid?: string;
+  /** Policy type (fixed or adaptive) */
+  type?: QosPolicyType;
+  /** Whether limits are shared across workloads */
+  is_shared?: boolean;
+  /** Number of workloads using this policy */
+  workload_count?: number;
+  /** Fixed policy limits */
+  fixed?: {
+    max_throughput?: string;
+    min_throughput?: string;
+  };
+  /** Adaptive policy limits */
+  adaptive?: {
+    expected_iops?: string;
+    peak_iops?: string;
+    expected_iops_allocation?: QosAllocation;
+    peak_iops_allocation?: QosAllocation;
+  };
+}
+
+/**
+ * QoS policy list result (hybrid format)
+ * Returns both human-readable summary and structured data
+ */
+export interface QosPolicyListResult {
+  /** Human-readable summary */
+  summary: string;
+  /** Structured array of QoS policies */
+  data: QosPolicyListInfo[];
+}

@@ -150,12 +150,26 @@ export class StreamableHttpTransport implements BaseTransport {
         const result = await handler(args || {}, clusterManager);
         
         // Wrap result in MCP content format
-        // Tools return strings - wrap them in content array
+        // Handle different result types:
+        // - string: plain text response
+        // - object with {summary, data}: hybrid format (keep as object)
+        // - other objects: stringify for backwards compatibility
+        let text: any;
+        if (typeof result === 'string') {
+          text = result;
+        } else if (result && typeof result === 'object' && 'summary' in result && 'data' in result) {
+          // Hybrid format - keep as object for client to use directly
+          text = result;
+        } else {
+          // Legacy: stringify other objects
+          text = JSON.stringify(result, null, 2);
+        }
+        
         return {
           content: [
             {
               type: 'text',
-              text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+              text: text
             }
           ]
         };

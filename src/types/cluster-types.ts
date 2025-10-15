@@ -258,3 +258,110 @@ export interface ClusterApiResponse<T = any> {
   /** API version used */
   version?: string;
 }
+
+/**
+ * Volume information for list operations (Phase 2)
+ * Structured data format for UI dropdowns and programmatic access
+ */
+export interface VolumeListInfo {
+  /** Volume UUID */
+  uuid: string;
+  /** Volume name */
+  name: string;
+  /** Size in bytes */
+  size: number;
+  /** Volume state */
+  state: string;
+  /** SVM information */
+  svm: {
+    name: string;
+    uuid?: string;
+  };
+  /** Aggregate information (optional) */
+  aggregate?: {
+    name: string;
+    uuid?: string;
+  };
+}
+
+/**
+ * Hybrid format result for cluster_list_volumes (Phase 2)
+ * Returns both human-readable summary and structured data array
+ */
+export interface VolumeListResult {
+  /** Human-readable summary for LLMs */
+  summary: string;
+  /** Structured array of volume information for programmatic use */
+  data: VolumeListInfo[];
+}
+
+/**
+ * SVM information for list operations (Phase 2, Step 2)
+ * Structured data format for UI dropdowns and programmatic access
+ */
+export interface SvmListInfo {
+  /** SVM UUID */
+  uuid: string;
+  /** SVM name */
+  name: string;
+  /** SVM state (running, stopped, starting, stopping) */
+  state: string;
+  /** SVM subtype (optional) */
+  subtype?: string;
+  /** Aggregates assigned to this SVM (optional) */
+  aggregates?: Array<{
+    name: string;
+    uuid: string;
+  }>;
+}
+
+/**
+ * Hybrid format result for cluster_list_svms (Phase 2, Step 2)
+ * Returns both human-readable summary and structured data array
+ */
+export interface SvmListResult {
+  /** Human-readable summary for LLMs */
+  summary: string;
+  /** Structured array of SVM information for programmatic use */
+  data: SvmListInfo[];
+}
+
+/**
+ * Aggregate information for list operations (Phase 2, Step 3)
+ * Structured data format for UI dropdowns and programmatic access
+ */
+export interface AggregateListInfo {
+  /** Aggregate UUID */
+  uuid: string;
+  /** Aggregate name */
+  name: string;
+  /** Aggregate state (online, offline, etc.) */
+  state: string;
+  /** Space information (optional) */
+  space?: {
+    /** Available space in bytes */
+    available?: number;
+    /** Used space in bytes */
+    used?: number;
+    /** Total size in bytes */
+    size?: number;
+    /** Percentage used */
+    percent_used?: number;
+  };
+  /** Node information (optional) */
+  node?: {
+    name: string;
+    uuid?: string;
+  };
+}
+
+/**
+ * Hybrid format result for cluster_list_aggregates (Phase 2, Step 3)
+ * Returns both human-readable summary and structured data array
+ */
+export interface AggregateListResult {
+  /** Human-readable summary for LLMs */
+  summary: string;
+  /** Structured array of aggregate information for programmatic use */
+  data: AggregateListInfo[];
+}

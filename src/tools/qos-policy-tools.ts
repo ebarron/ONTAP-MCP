@@ -8,6 +8,8 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapClusterManager } from '../ontap-client.js';
 import type { 
   QosPolicy,
+  QosPolicyListInfo,
+  QosPolicyListResult,
   FixedQosPolicy,
   AdaptiveQosPolicy,
   CreateFixedQosPolicyRequest,
@@ -257,7 +259,7 @@ export function createClusterDeleteQosPolicyToolDefinition(): Tool {
 /**
  * Handle listing QoS policies
  */
-export async function handleClusterListQosPolicies(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleClusterListQosPolicies(args: any, clusterManager: OntapClusterManager): Promise<QosPolicyListResult> {
   const validated = ClusterListQosPoliciesSchema.parse(args);
   const client = clusterManager.getClient(validated.cluster_name);
 
@@ -278,41 +280,64 @@ export async function handleClusterListQosPolicies(args: any, clusterManager: On
 
     const policies = await client.listQosPolicies(params);
 
+    // Build structured data array
+    const data: QosPolicyListInfo[] = policies.map(policy => ({
+      uuid: policy.uuid,
+      name: policy.name || 'Unknown',
+      svm_name: policy.svm?.name,
+      svm_uuid: policy.svm?.uuid,
+      type: policy.type,
+      is_shared: policy.is_shared,
+      workload_count: policy.workload_count,
+      fixed: policy.fixed ? {
+        max_throughput: policy.fixed.max_throughput,
+        min_throughput: policy.fixed.min_throughput
+      } : undefined,
+      adaptive: policy.adaptive ? {
+        expected_iops: policy.adaptive.expected_iops,
+        peak_iops: policy.adaptive.peak_iops,
+        expected_iops_allocation: policy.adaptive.expected_iops_allocation,
+        peak_iops_allocation: policy.adaptive.peak_iops_allocation
+      } : undefined
+    }));
+
+    // Build human-readable summary
+    let summary = '';
     if (policies.length === 0) {
-      return `No QoS policies found on cluster ${validated.cluster_name}${validated.svm_name ? ` in SVM ${validated.svm_name}` : ''}.`;
+      summary = `No QoS policies found on cluster ${validated.cluster_name}${validated.svm_name ? ` in SVM ${validated.svm_name}` : ''}.`;
+    } else {
+      summary = `📊 **QoS Policies on ${validated.cluster_name}** (${policies.length} policies):\n\n`;
+
+      policies.forEach(policy => {
+        summary += `🎛️ **${policy.name || 'Unknown'}** (${policy.uuid || 'No UUID'})\n`;
+        summary += `   • SVM: ${policy.svm?.name || 'Unknown'}\n`;
+        summary += `   • Type: ${policy.type || 'unknown'}\n`;
+        summary += `   • Shared: ${policy.is_shared ? 'Yes' : 'No'}\n`;
+        summary += `   • Workloads: ${policy.workload_count || 0}\n`;
+
+        if (policy.fixed) {
+          if (policy.fixed.max_throughput) {
+            summary += `   • Max Throughput: ${policy.fixed.max_throughput}\n`;
+          }
+          if (policy.fixed.min_throughput) {
+            summary += `   • Min Throughput: ${policy.fixed.min_throughput}\n`;
+          }
+        }
+
+        if (policy.adaptive) {
+          if (policy.adaptive.expected_iops) {
+            summary += `   • Expected IOPS: ${policy.adaptive.expected_iops}\n`;
+          }
+          if (policy.adaptive.peak_iops) {
+            summary += `   • Peak IOPS: ${policy.adaptive.peak_iops}\n`;
+          }
+        }
+        
+        summary += '\n';
+      });
     }
 
-    let result = `📊 **QoS Policies on ${validated.cluster_name}** (${policies.length} policies):\n\n`;
-
-    policies.forEach(policy => {
-      result += `🎛️ **${policy.name || 'Unknown'}** (${policy.uuid || 'No UUID'})\n`;
-      result += `   • SVM: ${policy.svm?.name || 'Unknown'}\n`;
-      result += `   • Type: ${policy.type || 'unknown'}\n`;
-      result += `   • Shared: ${policy.is_shared ? 'Yes' : 'No'}\n`;
-      result += `   • Workloads: ${policy.workload_count || 0}\n`;
-
-      if (policy.fixed) {
-        if (policy.fixed.max_throughput) {
-          result += `   • Max Throughput: ${policy.fixed.max_throughput}\n`;
-        }
-        if (policy.fixed.min_throughput) {
-          result += `   • Min Throughput: ${policy.fixed.min_throughput}\n`;
-        }
-      }
-
-      if (policy.adaptive) {
-        if (policy.adaptive.expected_iops) {
-          result += `   • Expected IOPS: ${policy.adaptive.expected_iops}\n`;
-        }
-        if (policy.adaptive.peak_iops) {
-          result += `   • Peak IOPS: ${policy.adaptive.peak_iops}\n`;
-        }
-      }
-      
-      result += '\n';
-    });
-
-    return result;
+    return { summary, data };
   } catch (error: any) {
     throw new Error(`Failed to list QoS policies: ${error.message}`);
   }

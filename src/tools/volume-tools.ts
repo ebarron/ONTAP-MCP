@@ -21,7 +21,9 @@ import type {
   ResizeVolumeParams,
   UpdateVolumeCommentParams,
   UpdateVolumeSecurityStyleParams,
-  VolumeNfsConfig
+  VolumeNfsConfig,
+  VolumeConfigurationResult,
+  VolumeConfigurationData
 } from '../types/volume-types.js';
 
 // ================================
@@ -789,17 +791,73 @@ export function createGetVolumeConfigurationToolDefinition(): Tool {
   };
 }
 
-export async function handleGetVolumeConfiguration(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleGetVolumeConfiguration(args: any, clusterManager: OntapClusterManager): Promise<VolumeConfigurationResult> {
   const params = GetVolumeConfigurationSchema.parse(args);
   
-      const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
-    
-    // Get detailed volume information with all fields including autosize
-    const endpoint = `/storage/volumes/${params.volume_uuid}?fields=uuid,name,size,state,type,comment,svm,aggregates,nas,snapshot_policy,efficiency,space,autosize`;
-    const volume = await (client as any).makeRequest(endpoint);
-    
-    return formatVolumeConfig(volume);
-
+  const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
+  
+  // Get detailed volume information with all fields including autosize
+  const endpoint = `/storage/volumes/${params.volume_uuid}?fields=uuid,name,size,state,type,comment,svm,aggregates,nas,snapshot_policy,efficiency,space,autosize,qos`;
+  const volume = await (client as any).makeRequest(endpoint);
+  
+  // Build structured data with MCP parameter names
+  const data: VolumeConfigurationData = {
+    volume: {
+      uuid: volume.uuid,
+      name: volume.name,
+      size: volume.size,
+      state: volume.state,
+      type: volume.type,
+      comment: volume.comment || undefined
+    },
+    svm: {
+      name: volume.svm?.name || '',
+      uuid: volume.svm?.uuid || ''
+    },
+    aggregate: volume.aggregates && volume.aggregates.length > 0 ? {
+      name: volume.aggregates[0].name,
+      uuid: volume.aggregates[0].uuid
+    } : undefined,
+    autosize: {
+      mode: volume.autosize?.mode || 'off',
+      maximum_size: volume.autosize?.maximum,
+      minimum_size: volume.autosize?.minimum,
+      grow_threshold_percent: volume.autosize?.grow_threshold,
+      shrink_threshold_percent: volume.autosize?.shrink_threshold
+    },
+    snapshot_policy: {
+      name: volume.snapshot_policy?.name,
+      uuid: volume.snapshot_policy?.uuid
+    },
+    qos: {
+      policy_name: volume.qos?.policy?.name,
+      policy_uuid: volume.qos?.policy?.uuid
+    },
+    nfs: {
+      export_policy: volume.nas?.export_policy?.name,
+      security_style: volume.nas?.security_style
+    },
+    space: volume.space ? {
+      size: volume.space.size,
+      available: volume.space.available,
+      used: volume.space.used,
+      used_percent: volume.space.used && volume.space.size ? 
+        Math.round((volume.space.used / volume.space.size) * 100) : undefined
+    } : undefined,
+    efficiency: {
+      compression: volume.efficiency?.compression,
+      dedupe: volume.efficiency?.dedupe
+    }
+  };
+  
+  // Generate human-readable summary (for LLM consumption)
+  const summary = formatVolumeConfig(volume);
+  
+  // Return hybrid format
+  return {
+    summary,
+    data
+  };
 }
 
 export function createUpdateVolumeSecurityStyleToolDefinition(): Tool {

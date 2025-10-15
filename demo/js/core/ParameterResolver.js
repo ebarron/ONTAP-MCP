@@ -16,6 +16,48 @@ class ParameterResolver {
     }
 
     /**
+     * Extract text from MCP response (handles hybrid format)
+     * @param {any} result - MCP result (string, object, or hybrid format)
+     * @returns {string} - Extracted text
+     * @private
+     */
+    _extractText(result) {
+        // Handle string results - could be JSON or plain text
+        if (typeof result === 'string') {
+            // Try to parse as JSON (might be hybrid format as JSON string)
+            try {
+                const parsed = JSON.parse(result);
+                if (parsed && typeof parsed === 'object' && 'summary' in parsed) {
+                    return parsed.summary;
+                }
+                // Not hybrid format JSON, return original string
+                return result;
+            } catch (e) {
+                // Not JSON, return as-is
+                return result;
+            }
+        }
+        
+        if (result && typeof result === 'object') {
+            // Hybrid format object {summary: "...", data: [...]}
+            if (result.summary) {
+                return result.summary;
+            }
+            
+            // MCP envelope format
+            if (result.content && result.content[0] && result.content[0].text) {
+                const textValue = result.content[0].text;
+                // Recursively extract from nested structure
+                return this._extractText(textValue);
+            }
+            
+            return JSON.stringify(result);
+        }
+        
+        return String(result);
+    }
+
+    /**
      * Resolve volume name to UUID by querying the cluster
      * @param {string} clusterName - Cluster name
      * @param {string} svmName - SVM name
@@ -32,10 +74,11 @@ class ParameterResolver {
             });
 
             // Parse the text response to find volumes
-            const text = typeof result === 'string' ? result : result.content[0].text;
+            const text = this._extractText(result);
             const lines = text.split('\n');
             
             console.log(`📋 Searching through ${lines.length} lines for volume "${volumeName}"`);
+            console.log(`📋 First 10 lines of response:`, lines.slice(0, 10));
             const foundVolumes = [];
             
             for (const line of lines) {
@@ -87,7 +130,7 @@ class ParameterResolver {
             const result = await this.harvestClient.callMcp('metrics_query', { query });
             
             // Parse the text response
-            const text = typeof result === 'string' ? result : result.content[0].text;
+            const text = this._extractText(result);
             console.log(`📊 Metrics response:`, text.substring(0, 200));
             
             // Try to parse JSON - could be wrapped in markdown or plain JSON
@@ -133,7 +176,7 @@ class ParameterResolver {
             const result = await this.harvestClient.callMcp('metrics_query', { query });
             
             // Parse the text response
-            const text = typeof result === 'string' ? result : result.content[0].text;
+            const text = this._extractText(result);
             
             // Try to parse JSON - could be wrapped in markdown or plain JSON
             let data;
@@ -243,10 +286,20 @@ class ParameterResolver {
                 order: 'asc' // Oldest first
             });
 
-            // Parse snapshot list from text response
-            const text = typeof result === 'string' ? result : result.content[0].text;
-            const snapshots = this.parseSnapshotList(text);
+            // Handle hybrid format response
+            if (result && typeof result === 'object' && result.data && Array.isArray(result.data)) {
+                // NEW: Use structured data directly (no parsing!)
+                return result.data.slice(0, count).map(snap => ({
+                    name: snap.name,
+                    uuid: snap.uuid,
+                    created: snap.create_time,
+                    size: this.formatBytes(snap.size)
+                }));
+            }
 
+            // LEGACY: Parse text response (backward compatibility)
+            const text = this._extractText(result);
+            const snapshots = this.parseSnapshotList(text);
             return snapshots.slice(0, count);
         } catch (error) {
             console.error('Error getting snapshot suggestions:', error);

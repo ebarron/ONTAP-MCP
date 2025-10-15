@@ -248,23 +248,56 @@ class McpStreamableClient {
     /**
      * Parse content from tool call result (for backwards compatibility)
      * Returns the text content from a tool call result
+     * Handles hybrid format {summary, data} for dual consumption
      */
     parseContent(result) {
+        console.log('🔍 [McpStreamableClient] parseContent called with result type:', typeof result);
+        
         // If result is a string, return it
         if (typeof result === 'string') {
+            console.log('  → Returning string result');
             return result;
         }
 
         // If result has content array (MCP format), extract text
         if (result?.content?.[0]?.text) {
-            return result.content[0].text;
+            let textValue = result.content[0].text;
+            console.log('  → Found textValue, type:', typeof textValue, 'length:', textValue?.length);
+            
+            // If textValue is a string, try parsing it as JSON (hybrid format might be stringified)
+            if (typeof textValue === 'string') {
+                try {
+                    const parsed = JSON.parse(textValue);
+                    if (parsed && typeof parsed === 'object' && 'summary' in parsed) {
+                        console.log('  → HYBRID FORMAT DETECTED in JSON string! Extracting .summary field');
+                        console.log('  → Summary length:', parsed.summary?.length, 'chars');
+                        return parsed.summary;
+                    }
+                } catch (e) {
+                    // Not JSON, continue with original string
+                    console.log('  → Not JSON, returning string as-is');
+                }
+                return textValue;
+            }
+            
+            // Handle hybrid format object: {summary: "...", data: [...]}
+            if (typeof textValue === 'object' && textValue !== null && 'summary' in textValue) {
+                console.log('  → HYBRID FORMAT DETECTED as object! Extracting .summary field');
+                console.log('  → Summary length:', textValue.summary?.length, 'chars');
+                return textValue.summary;
+            }
+            
+            console.log('  → Returning textValue as-is');
+            return textValue;
         }
 
         // If result is an object, stringify it
         if (typeof result === 'object') {
+            console.log('  → Stringifying object fallback');
             return JSON.stringify(result, null, 2);
         }
 
+        console.log('  → Converting to string fallback');
         return String(result);
     }
 }

@@ -595,3 +595,19 @@ runTest().catch(console.error);
 - ✅ Resource cleanup confirmed
 - ✅ Zero false positives
 - ✅ Complete coverage of 55+ tools
+
+## TODO / Future Enhancements
+
+### High Priority
+- [ ] **Hybrid Format Structure Validation Test** - Add test to validate hybrid format `{summary, data}` is returned as object (not stringified) in HTTP mode. This would have caught the recent JSON serialization bug where the transport layer was calling `JSON.stringify()` on hybrid objects. Test should verify:
+  - Response is an object (not string)
+  - Has `summary` field (string)
+  - Has `data` field (array)
+  - Data items have expected structure (name, uuid, etc.)
+  - Applies to: `cluster_list_svms`, `cluster_list_volumes`, `cluster_list_aggregates`, `cluster_list_cifs_shares`, `cluster_list_qos_policies`, `list_export_policies`, `cluster_list_volume_snapshots`
+
+### Medium Priority
+- [ ] Browser-based integration tests for demo UI
+- [ ] Performance benchmarking for large result sets
+- [ ] Stress testing with concurrent requests
+- [ ] Network failure simulation and retry logic

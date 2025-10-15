@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
+import type { SnapshotListInfo, SnapshotListResult } from '../types/volume-snapshot-types.js';
 import type { VolumeSnapshot } from '../types/volume-snapshot-types.js';
 
 // ================================
@@ -79,17 +80,19 @@ const ClusterDeleteVolumeSnapshotSchema = z.object({
 // ================================
 
 /**
- * List volume snapshots
+ * List volume snapshots with hybrid format support
  */
 export async function handleClusterListVolumeSnapshots(
   args: any,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<SnapshotListResult> {
   const validated = ClusterListVolumeSnapshotsSchema.parse(args);
   const client = getApiClient(clusterManager, validated.cluster_name, validated.cluster_ip, validated.username, validated.password);
 
   // Resolve volume UUID if name provided
   let volumeUuid = validated.volume_uuid;
+  let volumeName = validated.volume_name;
+  
   if (validated.volume_name && validated.svm_name) {
     const volumes = await client.listVolumes(validated.svm_name);
     const volume = volumes.find((v: any) => v.name === validated.volume_name);
@@ -97,6 +100,7 @@ export async function handleClusterListVolumeSnapshots(
       throw new Error(`Volume '${validated.volume_name}' not found in SVM '${validated.svm_name}'`);
     }
     volumeUuid = volume.uuid;
+    volumeName = volume.name;
   }
 
   const snapshots = await client.listVolumeSnapshots({
@@ -106,19 +110,35 @@ export async function handleClusterListVolumeSnapshots(
   });
 
   if (snapshots.length === 0) {
-    return `No snapshots found for volume ${volumeUuid}`;
+    const summary = `No snapshots found for volume ${volumeName || volumeUuid}`;
+    return { summary, data: [] };
   }
 
-  let result = `Volume Snapshots (${snapshots.length} total):\n\n`;
-  snapshots.forEach((snap: any, index: number) => {
-    result += `${index + 1}. ${snap.name}\n`;
-    result += `   UUID: ${snap.uuid}\n`;
-    result += `   Created: ${snap.create_time}\n`;
-    result += `   Size: ${formatBytes(snap.size)}\n`;
-    result += `\n`;
+  // Build structured data array
+  const data: SnapshotListInfo[] = snapshots.map((snap: any) => ({
+    uuid: snap.uuid,
+    name: snap.name,
+    create_time: snap.create_time,
+    size: snap.size,
+    volume_uuid: volumeUuid,
+    volume_name: volumeName || snap.volume?.name,
+    state: snap.state,
+    comment: snap.comment
+  }));
+
+  // Build human-readable summary
+  let summary = `📸 **Volume Snapshots** (${snapshots.length} total):\n\n`;
+  data.forEach((snap, index) => {
+    summary += `${index + 1}. **${snap.name}**\n`;
+    summary += `   • UUID: ${snap.uuid}\n`;
+    summary += `   • Created: ${snap.create_time}\n`;
+    summary += `   • Size: ${formatBytes(snap.size)}\n`;
+    if (snap.comment) summary += `   • Comment: ${snap.comment}\n`;
+    summary += `\n`;
   });
 
-  return result;
+  // Return hybrid format
+  return { summary, data };
 }
 
 /**

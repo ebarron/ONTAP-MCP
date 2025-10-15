@@ -358,3 +358,85 @@ export interface VolumeOperationResult {
   /** Job UUID for async operations */
   job_uuid?: string;
 }
+
+/**
+ * Volume autosize configuration (matches MCP parameter names)
+ */
+export interface VolumeAutosizeConfig {
+  /** Autosize mode: 'off', 'grow', or 'grow_shrink' */
+  mode: string;
+  /** Maximum size in bytes */
+  maximum_size?: number;
+  /** Minimum size in bytes */
+  minimum_size?: number;
+  /** Grow threshold percentage */
+  grow_threshold_percent?: number;
+  /** Shrink threshold percentage */
+  shrink_threshold_percent?: number;
+}
+
+/**
+ * Structured volume configuration data (using MCP parameter names)
+ * This format enables programmatic parsing for UI components and undo functionality
+ */
+export interface VolumeConfigurationData {
+  /** Basic volume information */
+  volume: {
+    uuid: string;
+    name: string;
+    size: number;
+    state: string;
+    type?: string;
+    comment?: string;
+  };
+  /** SVM information */
+  svm: {
+    name: string;
+    uuid: string;
+  };
+  /** Aggregate information */
+  aggregate?: {
+    name: string;
+    uuid?: string;
+  };
+  /** Autosize configuration (matches MCP tool parameter names) */
+  autosize: VolumeAutosizeConfig;
+  /** Snapshot policy configuration */
+  snapshot_policy: {
+    name?: string;
+    uuid?: string;
+  };
+  /** QoS policy configuration */
+  qos: {
+    policy_name?: string;
+    policy_uuid?: string;
+  };
+  /** NFS export policy configuration */
+  nfs: {
+    export_policy?: string;
+    security_style?: string;
+  };
+  /** Space utilization */
+  space?: {
+    size: number;
+    available: number;
+    used: number;
+    used_percent?: number;
+  };
+  /** Storage efficiency */
+  efficiency?: {
+    compression?: string;
+    dedupe?: string;
+  };
+}
+
+/**
+ * Hybrid format for volume configuration (Pattern C: Text + JSON)
+ * Serves dual consumers: LLMs (summary) and UI/API (structured data)
+ */
+export interface VolumeConfigurationResult {
+  /** Human-readable summary for LLM consumption */
+  summary: string;
+  /** Structured data for programmatic use (UI, undo system, validation) */
+  data: VolumeConfigurationData;
+}

@@ -129,6 +129,51 @@ async function testStdioMode(cluster) {
   // Wait for initialization response
   await sleep(2000);
   
+  // Discover first available SVM
+  console.log('📋 Discovering available SVM...');
+  const svmListMessage = {
+    jsonrpc: "2.0",
+    id: 1.5,
+    method: "tools/call",
+    params: {
+      name: "cluster_list_svms",
+      arguments: {
+        cluster_name: cluster.name
+      }
+    }
+  };
+  
+  mcpProcess.stdin.write(JSON.stringify(svmListMessage) + '\n');
+  await sleep(2000);
+  
+  // Parse SVM from response
+  let discoveredSvm = null;
+  try {
+    const svmResponses = stdoutData.split('\n').filter(line => line.trim() && line.includes('"id":1.5'));
+    if (svmResponses.length > 0) {
+      const response = JSON.parse(svmResponses[0]);
+      if (response.result && response.result.content && response.result.content[0]) {
+        const content = response.result.content[0].text;
+        // Try hybrid format first
+        try {
+          const parsed = JSON.parse(content);
+          if (parsed && parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+            discoveredSvm = parsed.data[0].name;
+          }
+        } catch (e) {
+          // Fallback to regex
+          const match = content.match(/^-\s+([^\s(]+)\s*\(/m);
+          if (match) discoveredSvm = match[1].trim();
+        }
+      }
+    }
+  } catch (e) {
+    console.log(`⚠️  Could not parse SVM response, using fallback`);
+  }
+  
+  const testSvm = discoveredSvm || 'vs0'; // Fallback to vs0 if discovery fails
+  console.log(`✅ Using SVM: ${testSvm}`);
+  
   const timestamp = Date.now();
   const policyName = `test-policy-stdio-${timestamp}`;
   
@@ -143,7 +188,7 @@ async function testStdioMode(cluster) {
       arguments: {
         cluster_name: cluster.name,
         policy_name: policyName,
-        svm_name: "svm143"
+        svm_name: testSvm
       }
     }
   };
@@ -162,7 +207,7 @@ async function testStdioMode(cluster) {
       arguments: {
         cluster_name: cluster.name,
         policy_name: policyName,
-        svm_name: "svm143",
+        svm_name: testSvm,
         clients: [{ match: "192.168.1.0/24" }],
         ro_rule: ["sys"],
         rw_rule: ["sys"],
@@ -186,7 +231,7 @@ async function testStdioMode(cluster) {
       arguments: {
         cluster_name: cluster.name,
         policy_name: policyName,
-        svm_name: "svm143"
+        svm_name: testSvm
       }
     }
   };
@@ -205,7 +250,7 @@ async function testStdioMode(cluster) {
       arguments: {
         cluster_name: cluster.name,
         policy_name: policyName,
-        svm_name: "svm143"
+        svm_name: testSvm
       }
     }
   };
@@ -281,7 +326,31 @@ await mcpClient.initialize();
 
 // Load clusters into session
 const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
-await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
+await loadClustersIntoSession(mcpClient);
+
+  // Discover first available SVM
+  console.log('📋 Discovering available SVM...');
+  const svmListResult = await mcpClient.callTool('cluster_list_svms', {
+    cluster_name: cluster.name
+  });
+  
+  const svmContent = mcpClient.parseContent(svmListResult);
+  let discoveredSvm = null;
+  try {
+    const parsed = JSON.parse(svmContent);
+    if (parsed && parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+      discoveredSvm = parsed.data[0].name;
+    }
+  } catch (e) {
+    // Fallback to regex
+    const match = svmContent.match(/^-\s+([^\s(]+)\s*\(/m);
+    if (match) discoveredSvm = match[1].trim();
+  }
+  
+  const testSvm = discoveredSvm || 'vs0';
+  console.log(`✅ Using SVM: ${testSvm}`);
+
+  const timestamp = Date.now();
   const policyName = `test-policy-rest-${timestamp}`;
   
   try {
@@ -290,7 +359,7 @@ await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
     const createResult = await mcpClient.callTool('create_export_policy', {
       cluster_name: cluster.name,
       policy_name: policyName,
-      svm_name: "svm143"
+      svm_name: testSvm
     });
     console.log('✅ Create policy response received');
     
@@ -299,7 +368,7 @@ await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
     const addRuleResult = await mcpClient.callTool('add_export_rule', {
       cluster_name: cluster.name,
       policy_name: policyName,
-      svm_name: "svm143",
+      svm_name: testSvm,
       clients: [{ match: "192.168.1.0/24" }],
       ro_rule: ["sys"],
       rw_rule: ["sys"],
@@ -313,7 +382,7 @@ await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
     const getResult = await mcpClient.callTool('get_export_policy', {
       cluster_name: cluster.name,
       policy_name: policyName,
-      svm_name: "svm143"
+      svm_name: testSvm
     });
     console.log('✅ Get policy response received');
     
@@ -321,17 +390,32 @@ await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
     console.log(`📋 Listing export policies to verify ${policyName} exists`);
     const listResult = await mcpClient.callTool('list_export_policies', {
       cluster_name: cluster.name,
-      svm_name: "svm143"
+      svm_name: testSvm
     });
     console.log('✅ List policies response received');
     
-    // Validate response format
-    if (!listResult.content || !Array.isArray(listResult.content) || !listResult.content[0] || !listResult.content[0].text) {
-      throw new Error('List policies response format invalid - missing content[0].text');
+    // Handle hybrid format response
+    let listText;
+    if (listResult && typeof listResult === 'object' && listResult.summary) {
+      // Hybrid format - use summary
+      listText = listResult.summary;
+    } else if (listResult.content && Array.isArray(listResult.content) && listResult.content[0] && listResult.content[0].text) {
+      // MCP envelope format
+      const textValue = listResult.content[0].text;
+      if (typeof textValue === 'object' && textValue.summary) {
+        listText = textValue.summary;
+      } else {
+        listText = textValue;
+      }
+    } else {
+      throw new Error('List policies response format invalid - unable to extract text');
+    }
+    
+    if (!listText || typeof listText !== 'string') {
+      throw new Error(`List policies returned non-string: ${typeof listText}`);
     }
     
     // Check if our policy appears in the list
-    const listText = listResult.content[0].text;
     if (!listText.includes(policyName)) {
       throw new Error(`Created policy ${policyName} not found in list response`);
     }
@@ -343,7 +427,7 @@ await loadClustersIntoSession(mcpClient);  const timestamp = Date.now();
     const deleteResult = await mcpClient.callTool('delete_export_policy', {
       cluster_name: cluster.name,
       policy_name: policyName,
-      svm_name: "svm143"
+      svm_name: testSvm
     });
     console.log('✅ Delete policy response received');
     
@@ -410,7 +494,8 @@ async function main() {
       throw new Error('No clusters found');
     }
     
-    const testCluster = clusters.find(c => c.name === 'karan-ontap-1') || clusters[0];
+    // Use first available cluster
+    const testCluster = clusters[0];
     console.log(`🎯 Using cluster: ${testCluster.name} (${testCluster.cluster_ip})`);
     
     let stdioSuccess = true;

@@ -182,3 +182,42 @@ export interface UpdateCifsShareAclParams {
   /** Access control entries to add/update */
   access_control: CifsAccessControlEntry[];
 }
+
+/**
+ * CIFS share list information (for hybrid format)
+ * Simplified structure for UI dropdown population
+ */
+export interface CifsShareListInfo {
+  /** Share name */
+  name: string;
+  /** Share path */
+  path: string;
+  /** SVM name */
+  svm_name?: string;
+  /** SVM UUID */
+  svm_uuid?: string;
+  /** Volume name */
+  volume_name?: string;
+  /** Volume UUID */
+  volume_uuid?: string;
+  /** Share comment/description */
+  comment?: string;
+  /** Key share properties */
+  properties?: {
+    encryption?: boolean;
+    oplocks?: boolean;
+    offline_files?: string;
+    access_based_enumeration?: boolean;
+  };
+}
+
+/**
+ * CIFS share list result (hybrid format)
+ * Returns both human-readable summary and structured data
+ */
+export interface CifsShareListResult {
+  /** Human-readable summary */
+  summary: string;
+  /** Structured array of CIFS shares */
+  data: CifsShareListInfo[];
+}

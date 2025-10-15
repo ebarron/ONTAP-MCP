@@ -98,6 +98,40 @@ async function runFormatTests() {
   const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
   await loadClustersIntoSession(client);
   
+  // Get first cluster and SVM dynamically
+  const { getClustersFromServer } = await import('../utils/mcp-test-client.js');
+  const clusters = await getClustersFromServer(3000);
+  if (clusters.length === 0) {
+    throw new Error('No clusters found');
+  }
+  const testCluster = clusters[0];
+  console.log(`🎯 Using cluster: ${testCluster.name}\n`);
+  
+  // Get first SVM
+  const svmList = await client.callTool('cluster_list_svms', {
+    cluster_name: testCluster.name
+  });
+  const svmResult = client.parseHybridFormat(svmList);
+  let testSvm = null;
+  if (svmResult.isHybrid && svmResult.data && svmResult.data.length > 0) {
+    testSvm = svmResult.data[0].name;
+  } else {
+    const svmMatch = svmResult.summary.match(/- ([^\s(]+)/);
+    testSvm = svmMatch ? svmMatch[1] : null;
+  }
+  if (!testSvm) {
+    throw new Error('No SVMs found on cluster');
+  }
+  console.log(`✅ Using SVM: ${testSvm}\n`);
+  
+  // Update test data with discovered cluster/SVM
+  for (const format of TEST_FORMATS) {
+    format.data.cluster_name = testCluster.name;
+    if (format.data.svm_name) {
+      format.data.svm_name = testSvm;
+    }
+  }
+  
   const createdPolicies = []; // Track only policies WE created
   
   try {
@@ -123,9 +157,9 @@ async function runFormatTests() {
       for (const policyName of createdPolicies) {
         try {
           await client.callTool('delete_snapshot_policy', {
-            cluster_name: 'karan-ontap-1',
+            cluster_name: testCluster.name,
             policy_name: policyName,
-            svm_name: 'vs123'
+            svm_name: testSvm
           });
           console.log(`   ✅ Deleted: ${policyName}`);
         } catch (error) {
@@ -146,9 +180,9 @@ async function runFormatTests() {
       for (const policyName of createdPolicies) {
         try {
           await client.callTool('delete_snapshot_policy', {
-            cluster_name: 'karan-ontap-1',
+            cluster_name: testCluster.name,
             policy_name: policyName,
-            svm_name: 'vs123'
+            svm_name: testSvm
           });
         } catch (e) {
           // Ignore cleanup errors

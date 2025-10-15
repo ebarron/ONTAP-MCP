@@ -274,10 +274,18 @@ class ProvisioningPanel {
 
             const svmSelect = document.getElementById('svmSelect');
             
-            // Response is now text from Streamable HTTP client
-            if (response && typeof response === 'string') {
-                // Parse text response - look for data SVMs specifically
-                const svms = [];
+            // Handle hybrid format {summary, data} or legacy string response
+            let svms = [];
+            
+            if (response && typeof response === 'object' && response.data) {
+                // NEW: Hybrid format - use structured data array
+                svms = response.data.map(svm => ({
+                    name: svm.name,
+                    uuid: svm.uuid,
+                    state: svm.state
+                }));
+            } else if (response && typeof response === 'string') {
+                // LEGACY: Parse text response - look for data SVMs specifically
                 const lines = response.split('\n');
                 for (const line of lines) {
                     // Look for lines that start with "- " and contain SVM info
@@ -290,8 +298,10 @@ class ProvisioningPanel {
                         }
                     }
                 }
-
-                if (svms.length > 0) {
+            }
+            
+            // Populate dropdown with SVMs
+            if (svms.length > 0) {
                     svmSelect.innerHTML = '<option value="">Select SVM...</option>' + 
                         svms.map(svm => 
                             `<option value="${svm.name || svm}">${svm.name || svm}</option>`
@@ -332,10 +342,6 @@ class ProvisioningPanel {
                     svmSelect.innerHTML = '<option value="">No data SVMs found</option>';
                 }
                 this.setDropdownReady('svmSelect');
-            } else {
-                svmSelect.innerHTML = '<option value="">Error loading SVMs</option>';
-                this.setDropdownReady('svmSelect');
-            }
         } catch (error) {
             console.error('Error loading SVMs:', error);
             const svmSelect = document.getElementById('svmSelect');
@@ -420,10 +426,21 @@ class ProvisioningPanel {
             const aggregateSelect = document.getElementById('aggregateSelect');
             aggregateSelect.disabled = false;
             
-            // Parse text response for aggregates
-            // Format: "- aggregate_name (uuid) - State: xxx, Available: xxx, Used: xxx"
-            if (response && typeof response === 'string') {
-                let aggregates = [];
+            // Handle hybrid format {summary, data} or legacy string response
+            let aggregates = [];
+            
+            if (response && typeof response === 'object' && response.data) {
+                // NEW: Hybrid format - use structured data array
+                aggregates = response.data.map(aggr => ({
+                    name: aggr.name,
+                    uuid: aggr.uuid,
+                    state: aggr.state,
+                    available: aggr.available,
+                    used: aggr.used
+                }));
+            } else if (response && typeof response === 'string') {
+                // LEGACY: Parse text response for aggregates
+                // Format: "- aggregate_name (uuid) - State: xxx, Available: xxx, Used: xxx"
                 const lines = response.split('\n');
                 
                 for (const line of lines) {
@@ -437,17 +454,16 @@ class ProvisioningPanel {
                         }
                     }
                 }
-
-                if (aggregates.length > 0) {
-                    aggregateSelect.innerHTML = '<option value="">Select aggregate...</option>' +
-                        aggregates.map(aggregate => 
-                            `<option value="${aggregate.name}">${aggregate.name}</option>`
-                        ).join('');
-                } else {
-                    aggregateSelect.innerHTML = '<option value="">No aggregates assigned to this SVM</option>';
-                }
+            }
+            
+            // Populate dropdown
+            if (aggregates.length > 0) {
+                aggregateSelect.innerHTML = '<option value="">Select aggregate...</option>' +
+                    aggregates.map(aggregate => 
+                        `<option value="${aggregate.name}">${aggregate.name}</option>`
+                    ).join('');
             } else {
-                aggregateSelect.innerHTML = '<option value="">Error loading aggregates</option>';
+                aggregateSelect.innerHTML = '<option value="">No aggregates assigned to this SVM</option>';
             }
             
             this.setDropdownReady('aggregateSelect');

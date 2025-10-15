@@ -13,6 +13,8 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
 import type {
   CifsShareInfo,
+  CifsShareListInfo,
+  CifsShareListResult,
   CreateCifsShareRequest,
   UpdateCifsShareRequest,
   DeleteCifsShareParams,
@@ -466,7 +468,7 @@ export function createClusterListCifsSharesToolDefinition(): Tool {
   };
 }
 
-export async function handleClusterListCifsShares(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleClusterListCifsShares(args: any, clusterManager: OntapClusterManager): Promise<CifsShareListResult> {
   const validated = ClusterListCifsSharesSchema.parse(args);
   const client = getApiClient(clusterManager, validated.cluster_name);
   
@@ -477,22 +479,41 @@ export async function handleClusterListCifsShares(args: any, clusterManager: Ont
   
   const shares = await client.listCifsShares(params);
   
+  // Build structured data array
+  const data: CifsShareListInfo[] = shares.map(share => ({
+    name: share.name,
+    path: share.path,
+    svm_name: share.svm?.name,
+    svm_uuid: share.svm?.uuid,
+    volume_name: share.volume?.name,
+    volume_uuid: share.volume?.uuid,
+    comment: share.comment,
+    properties: share.properties ? {
+      encryption: share.properties.encryption,
+      oplocks: share.properties.oplocks,
+      offline_files: share.properties.offline_files,
+      access_based_enumeration: share.properties.access_based_enumeration
+    } : undefined
+  }));
+  
+  // Build human-readable summary
+  let summary = '';
   if (shares.length === 0) {
-    return `No CIFS shares found in cluster '${validated.cluster_name}' matching the criteria.`;
+    summary = `No CIFS shares found in cluster '${validated.cluster_name}' matching the criteria.`;
+  } else {
+    summary = `Found ${shares.length} CIFS share(s) in cluster '${validated.cluster_name}':\n\n`;
+    
+    for (const share of shares) {
+      summary += `📁 **${share.name}**\n`;
+      summary += `   Path: ${share.path}\n`;
+      summary += `   SVM: ${share.svm?.name || 'Unknown'}\n`;
+      if (share.comment) summary += `   Comment: ${share.comment}\n`;
+      if (share.volume) summary += `   Volume: ${share.volume.name}\n`;
+      summary += '\n';
+    }
   }
   
-  let result = `Found ${shares.length} CIFS share(s) in cluster '${validated.cluster_name}':\n\n`;
-  
-  for (const share of shares) {
-    result += `📁 **${share.name}**\n`;
-    result += `   Path: ${share.path}\n`;
-    result += `   SVM: ${share.svm?.name || 'Unknown'}\n`;
-    if (share.comment) result += `   Comment: ${share.comment}\n`;
-    if (share.volume) result += `   Volume: ${share.volume.name}\n`;
-    result += '\n';
-  }
-  
-  return result;
+  return { summary, data };
 }
 
 export function createClusterCreateCifsShareToolDefinition(): Tool {

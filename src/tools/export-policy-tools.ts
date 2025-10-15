@@ -7,7 +7,9 @@ import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
 import type { 
-  CreateExportPolicyRequest, 
+  CreateExportPolicyRequest,
+  ExportPolicyListInfo,
+  ExportPolicyListResult,
   CreateExportRuleRequest, 
   UpdateExportRuleRequest,
   NfsProtocol,
@@ -195,7 +197,7 @@ export function createListExportPoliciesToolDefinition(): Tool {
 export async function handleListExportPolicies(
   args: unknown,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<ExportPolicyListResult> {
   const params = ListExportPoliciesSchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
@@ -205,32 +207,48 @@ export async function handleListExportPolicies(
 
   const policies = await client.listExportPolicies(queryParams);
 
+  // Build structured data array
+  const data: ExportPolicyListInfo[] = policies.map(policy => ({
+    id: policy.id,
+    name: policy.name,
+    svm_name: policy.svm?.name,
+    svm_uuid: policy.svm?.uuid,
+    rule_count: policy.rules?.length || 0,
+    comment: policy.comment,
+    rules_preview: policy.rules?.slice(0, 3).map(rule => ({
+      index: rule.index,
+      clients: rule.clients?.map(c => c.match).join(', ')
+    }))
+  }));
+
+  // Build human-readable summary
+  let summary = '';
   if (policies.length === 0) {
-    return "No export policies found matching the specified criteria.";
-  }
-
-  let result = `Found ${policies.length} export policies:\n\n`;
-  
-  for (const policy of policies) {
-    result += `🔐 **${policy.name}** (ID: ${policy.id})\n`;
-    if (policy.svm) result += `   🏢 SVM: ${policy.svm.name}\n`;
-    if (policy.comment) result += `   📝 Description: ${policy.comment}\n`;
+    summary = "No export policies found matching the specified criteria.";
+  } else {
+    summary = `Found ${policies.length} export policies:\n\n`;
     
-    if (policy.rules && policy.rules.length > 0) {
-      result += `   📏 Rules: ${policy.rules.length}\n`;
-      for (const rule of policy.rules.slice(0, 3)) { // Show first 3 rules
-        result += `     • Rule ${rule.index}: ${rule.clients?.map((c: any) => c.match).join(', ')}\n`;
+    for (const policy of policies) {
+      summary += `🔐 **${policy.name}** (ID: ${policy.id})\n`;
+      if (policy.svm) summary += `   🏢 SVM: ${policy.svm.name}\n`;
+      if (policy.comment) summary += `   📝 Description: ${policy.comment}\n`;
+      
+      if (policy.rules && policy.rules.length > 0) {
+        summary += `   📏 Rules: ${policy.rules.length}\n`;
+        for (const rule of policy.rules.slice(0, 3)) { // Show first 3 rules
+          summary += `     • Rule ${rule.index}: ${rule.clients?.map((c: any) => c.match).join(', ')}\n`;
+        }
+        if (policy.rules.length > 3) {
+          summary += `     • ... and ${policy.rules.length - 3} more rules\n`;
+        }
+      } else {
+        summary += `   📏 Rules: None\n`;
       }
-      if (policy.rules.length > 3) {
-        result += `     • ... and ${policy.rules.length - 3} more rules\n`;
-      }
-    } else {
-      result += `   📏 Rules: None\n`;
+      summary += `\n`;
     }
-    result += `\n`;
   }
 
-  return result;
+  return { summary, data };
 }
 
 /**

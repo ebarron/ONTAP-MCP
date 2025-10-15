@@ -129,27 +129,72 @@ async function getTestConfig(mode = 'stdio', httpPort = 3000) {
     throw new Error('No clusters found in configuration');
   }
 
-  // Find a working cluster - prefer karan-ontap-1 as it was successful in other tests
-  let testCluster = clusters.find(c => c.name === 'karan-ontap-1');
-  if (!testCluster) {
-    // Fallback to greg-vsim-1 
-    testCluster = clusters.find(c => c.name === 'greg-vsim-1');
+  // Use first available cluster
+  const testCluster = clusters[0];
+  console.log(`[${new Date().toISOString()}] 🎯 Using cluster: ${testCluster.name}`);
+  
+  // Discover SVM and aggregate dynamically
+  console.log(`[${new Date().toISOString()}] 🔍 Discovering SVM and aggregate from cluster...`);
+  
+  const mcpClient = new McpTestClient(`http://localhost:${httpPort}`);
+  await mcpClient.initialize();
+  
+  // Load clusters into session
+  const { loadClustersIntoSession } = await import('../utils/mcp-test-client.js');
+  await loadClustersIntoSession(mcpClient);
+  
+  // Get aggregates
+  const aggregateList = await mcpClient.callTool('cluster_list_aggregates', {
+    cluster_name: testCluster.name
+  });
+  
+  const aggregateResult = mcpClient.parseHybridFormat(aggregateList);
+  let aggregateName = null;
+  
+  if (aggregateResult.isHybrid && aggregateResult.data && aggregateResult.data.length > 0) {
+    aggregateName = aggregateResult.data[0].name;
+  } else {
+    const aggregateMatch = aggregateResult.summary.match(/- ([^\s(]+)/);
+    aggregateName = aggregateMatch ? aggregateMatch[1] : null;
   }
-  if (!testCluster) {
-    // Fallback to any available cluster
-    testCluster = clusters[0];
+  
+  if (!aggregateName) {
+    await mcpClient.close();
+    throw new Error('Could not find any aggregates on cluster');
   }
-  if (!testCluster) {
-    throw new Error('No suitable cluster found in configuration');
+  
+  console.log(`[${new Date().toISOString()}] ✅ Using aggregate: ${aggregateName}`);
+  
+  // Get SVMs
+  const svmList = await mcpClient.callTool('cluster_list_svms', {
+    cluster_name: testCluster.name
+  });
+  
+  const svmResult = mcpClient.parseHybridFormat(svmList);
+  let svmName = null;
+  
+  if (svmResult.isHybrid && svmResult.data && svmResult.data.length > 0) {
+    svmName = svmResult.data[0].name;
+  } else {
+    const svmMatch = svmResult.summary.match(/- ([^\s(]+)/);
+    svmName = svmMatch ? svmMatch[1] : null;
   }
+  
+  await mcpClient.close();
+  
+  if (!svmName) {
+    throw new Error('Could not find any SVMs on cluster');
+  }
+  
+  console.log(`[${new Date().toISOString()}] ✅ Using SVM: ${svmName}`);
   
   return {
     cluster_name: testCluster.name,
     cluster_ip: testCluster.cluster_ip,
     username: testCluster.username, 
     password: testCluster.password,
-    test_svm: testCluster.name === 'karan-ontap-1' ? 'vs123' : 'vs0',  // Use correct SVM name per cluster
-    aggregate_name: testCluster.name === 'karan-ontap-1' ? 'sti248_vsim_ocvs076k_aggr1' : 'aggr1',  // Use correct aggregate per cluster
+    test_svm: svmName,
+    aggregate_name: aggregateName,
     test_volume_name: `test_cifs_vol_${Date.now()}`,
     test_volume_size: '1GB',
     test_share_name: `test_cifs_share_${Date.now()}`,
@@ -572,11 +617,30 @@ class CifsShareLifecycleTest {
         svm_name: config.test_svm
       });
 
-      if (volumesResult.content && volumesResult.content[0]) {
-        const volumeText = volumesResult.content[0].text;
-        const uuidMatch = volumeText.match(new RegExp(`${config.test_volume_name}.*?UUID: ([a-f0-9-]+)`, 'i'));
-        if (uuidMatch) {
-          volumeUuid = uuidMatch[1];
+      // Handle hybrid format response
+      if (volumesResult && typeof volumesResult === 'object' && volumesResult.data && Array.isArray(volumesResult.data)) {
+        // NEW: Direct structured data (STDIO mode)
+        const volume = volumesResult.data.find(v => v.name === config.test_volume_name);
+        if (volume) {
+          volumeUuid = volume.uuid;
+        }
+      } else if (volumesResult && volumesResult.content && volumesResult.content[0]) {
+        // MCP envelope - extract inner value
+        const innerValue = volumesResult.content[0].text;
+        
+        // Check if inner value is hybrid object
+        if (typeof innerValue === 'object' && innerValue.data && Array.isArray(innerValue.data)) {
+          // NEW: Structured data wrapped in MCP envelope (HTTP mode)
+          const volume = innerValue.data.find(v => v.name === config.test_volume_name);
+          if (volume) {
+            volumeUuid = volume.uuid;
+          }
+        } else if (typeof innerValue === 'string') {
+          // LEGACY: Plain text response
+          const uuidMatch = innerValue.match(new RegExp(`${config.test_volume_name}.*?UUID: ([a-f0-9-]+)`, 'i'));
+          if (uuidMatch) {
+            volumeUuid = uuidMatch[1];
+          }
         }
       }
 

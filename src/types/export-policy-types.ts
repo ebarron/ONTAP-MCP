@@ -239,3 +239,38 @@ export const NFS_RULE_TEMPLATES = {
     allow_suid: true
   })
 };
+
+/**
+ * Export policy list information (for hybrid format)
+ * Simplified structure for UI dropdown population
+ */
+export interface ExportPolicyListInfo {
+  /** Policy ID */
+  id?: number;
+  /** Policy name */
+  name: string;
+  /** SVM name */
+  svm_name?: string;
+  /** SVM UUID */
+  svm_uuid?: string;
+  /** Number of rules in this policy */
+  rule_count?: number;
+  /** Policy comment/description */
+  comment?: string;
+  /** Summary of first few rules (for quick reference) */
+  rules_preview?: Array<{
+    index?: number;
+    clients?: string; // Comma-separated client matches
+  }>;
+}
+
+/**
+ * Export policy list result (hybrid format)
+ * Returns both human-readable summary and structured data
+ */
+export interface ExportPolicyListResult {
+  /** Human-readable summary */
+  summary: string;
+  /** Structured array of export policies */
+  data: ExportPolicyListInfo[];
+}
