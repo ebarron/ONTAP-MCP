@@ -15,6 +15,8 @@ import type {
   CifsShareInfo,
   CifsShareListInfo,
   CifsShareListResult,
+  CifsShareData,
+  CifsShareResult,
   CreateCifsShareRequest,
   UpdateCifsShareRequest,
   DeleteCifsShareParams,
@@ -217,38 +219,52 @@ export function createGetCifsShareToolDefinition(): Tool {
   };
 }
 
-export async function handleGetCifsShare(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleGetCifsShare(args: any, clusterManager: OntapClusterManager): Promise<CifsShareResult> {
   const validated = GetCifsShareSchema.parse(args);
   const client = getApiClient(clusterManager, undefined, validated.cluster_ip, validated.username, validated.password);
   
   const share = await client.getCifsShare(validated.name, validated.svm_name);
   
-  let result = `📁 **CIFS Share: ${share.name}**\n\n`;
-  result += `**Basic Information:**\n`;
-  result += `- Path: ${share.path}\n`;
-  result += `- SVM: ${share.svm?.name || 'Unknown'}\n`;
-  if (share.comment) result += `- Comment: ${share.comment}\n`;
-  if (share.volume) result += `- Volume: ${share.volume.name} (${share.volume.uuid})\n`;
+  // Build structured data object with MCP parameter names
+  const data: CifsShareData = {
+    name: share.name,
+    path: share.path,
+    svm_name: share.svm?.name || '',
+    svm_uuid: share.svm?.uuid,
+    comment: share.comment,
+    volume_name: share.volume?.name,
+    volume_uuid: share.volume?.uuid,
+    access_control: share.acls?.access_control,
+    properties: share.properties
+  };
+  
+  // Build summary text (existing formatting)
+  let summary = `📁 **CIFS Share: ${share.name}**\n\n`;
+  summary += `**Basic Information:**\n`;
+  summary += `- Path: ${share.path}\n`;
+  summary += `- SVM: ${share.svm?.name || 'Unknown'}\n`;
+  if (share.comment) summary += `- Comment: ${share.comment}\n`;
+  if (share.volume) summary += `- Volume: ${share.volume.name} (${share.volume.uuid})\n`;
   
   if (share.properties) {
-    result += `\n**Share Properties:**\n`;
+    summary += `\n**Share Properties:**\n`;
     Object.entries(share.properties).forEach(([key, value]) => {
       if (value !== undefined) {
-        result += `- ${key}: ${value}\n`;
+        summary += `- ${key}: ${value}\n`;
       }
     });
   }
   
   if (share.acls?.access_control && share.acls.access_control.length > 0) {
-    result += `\n**Access Control:**\n`;
+    summary += `\n**Access Control:**\n`;
     share.acls.access_control.forEach(ace => {
-      result += `- ${ace.user_or_group}: ${ace.permission}`;
-      if (ace.type) result += ` (${ace.type})`;
-      result += '\n';
+      summary += `- ${ace.user_or_group}: ${ace.permission}`;
+      if (ace.type) summary += ` (${ace.type})`;
+      summary += '\n';
     });
   }
   
-  return result;
+  return { summary, data };
 }
 
 export function createCreateCifsShareToolDefinition(): Tool {

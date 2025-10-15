@@ -211,3 +211,48 @@ export interface QosPolicyListResult {
   /** Structured array of QoS policies */
   data: QosPolicyListInfo[];
 }
+
+/**
+ * QoS policy configuration data (for get operations - uses MCP parameter names)
+ * This format enables undo/reversibility for QoS policy changes
+ */
+export interface QosPolicyData {
+  /** Policy UUID */
+  uuid: string;
+  /** Policy name */
+  name: string;
+  /** SVM information */
+  svm: {
+    name: string;
+    uuid: string;
+  };
+  /** Policy type */
+  type: QosPolicyType;
+  /** Whether limits are shared across workloads (true) or per workload (false) */
+  is_shared: boolean;
+  /** Number of workloads using this policy */
+  workload_count?: number;
+  /** Fixed QoS limits (only for type='fixed') - uses MCP parameter names! */
+  fixed?: {
+    max_throughput?: string;  // Matches cluster_create_qos_policy parameter
+    min_throughput?: string;  // Matches cluster_create_qos_policy parameter
+  };
+  /** Adaptive QoS limits (only for type='adaptive') - uses MCP parameter names! */
+  adaptive?: {
+    expected_iops?: string;              // Matches cluster_create_qos_policy parameter
+    peak_iops?: string;                  // Matches cluster_create_qos_policy parameter
+    expected_iops_allocation?: QosAllocation;  // Matches cluster_create_qos_policy parameter
+    peak_iops_allocation?: QosAllocation;      // Matches cluster_create_qos_policy parameter
+  };
+}
+
+/**
+ * QoS policy get result (hybrid format - Pattern C)
+ * Serves dual consumers: LLMs (summary) and undo system (structured data)
+ */
+export interface QosPolicyResult {
+  /** Human-readable summary for LLM consumption */
+  summary: string;
+  /** Structured data for programmatic use (undo, UI, validation) */
+  data: QosPolicyData;
+}

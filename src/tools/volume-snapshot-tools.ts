@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
-import type { SnapshotListInfo, SnapshotListResult } from '../types/volume-snapshot-types.js';
+import type { SnapshotListInfo, SnapshotListResult, SnapshotDetailData, SnapshotDetailResult } from '../types/volume-snapshot-types.js';
 import type { VolumeSnapshot } from '../types/volume-snapshot-types.js';
 
 // ================================
@@ -147,7 +147,7 @@ export async function handleClusterListVolumeSnapshots(
 export async function handleClusterGetVolumeSnapshotInfo(
   args: any,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<SnapshotDetailResult> {
   const validated = ClusterGetVolumeSnapshotInfoSchema.parse(args);
   const client = getApiClient(clusterManager, validated.cluster_name, validated.cluster_ip, validated.username, validated.password);
 
@@ -164,7 +164,20 @@ export async function handleClusterGetVolumeSnapshotInfo(
 
   const snapshot = await client.getVolumeSnapshotInfo(validated.volume_uuid, snapshotUuid);
 
-  return `Snapshot Details:
+  // Build structured data object with MCP parameter names
+  const data: SnapshotDetailData = {
+    uuid: snapshot.uuid,
+    name: snapshot.name,
+    create_time: snapshot.create_time,
+    size: snapshot.size,
+    state: snapshot.state,
+    comment: snapshot.comment,
+    volume_uuid: snapshot.volume?.uuid,
+    volume_name: snapshot.volume?.name
+  };
+
+  // Build summary text
+  const summary = `Snapshot Details:
 
 Name: ${snapshot.name}
 UUID: ${snapshot.uuid}
@@ -173,6 +186,8 @@ Size: ${formatBytes(snapshot.size)}
 State: ${snapshot.state || 'N/A'}
 Comment: ${snapshot.comment || 'None'}
 Volume: ${snapshot.volume?.name || 'N/A'} (${snapshot.volume?.uuid || 'N/A'})`;
+
+  return { summary, data };
 }
 
 /**

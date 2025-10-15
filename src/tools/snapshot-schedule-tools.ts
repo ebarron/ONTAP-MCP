@@ -8,7 +8,9 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapClusterManager, OntapApiClient } from '../ontap-client.js';
 import type { 
   CreateSnapshotScheduleRequest,
-  UpdateSnapshotScheduleRequest 
+  UpdateSnapshotScheduleRequest,
+  SnapshotScheduleData,
+  SnapshotScheduleResult
 } from '../types/schedule-types.js';
 
 // ================================
@@ -191,37 +193,55 @@ export function createGetSnapshotScheduleToolDefinition(): Tool {
 export async function handleGetSnapshotSchedule(
   args: unknown,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<SnapshotScheduleResult> {
   const params = GetSnapshotScheduleSchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
   try {
     const schedule = await client.getSnapshotSchedule(params.schedule_name);
 
-    let result = `⏰ **Snapshot Schedule: ${schedule.name}**\n\n`;
-    result += `🆔 UUID: ${schedule.uuid}\n`;
-    result += `🔧 Type: ${schedule.type || 'interval'}\n`;
+    // Build structured data with MCP parameter names
+    const data: SnapshotScheduleData = {
+      uuid: schedule.uuid,
+      name: schedule.name,
+      type: schedule.type,
+      interval: schedule.interval,
+      cron: schedule.cron
+    };
+
+    // Build summary text
+    let summary = `⏰ **Snapshot Schedule: ${schedule.name}**\n\n`;
+    summary += `🆔 UUID: ${schedule.uuid}\n`;
+    summary += `🔧 Type: ${schedule.type || 'interval'}\n`;
     
     if (schedule.interval) {
-      result += `⏱️ Interval: ${schedule.interval}\n`;
+      summary += `⏱️ Interval: ${schedule.interval}\n`;
     }
     
     if (schedule.cron) {
-      result += `📅 **Cron Configuration:**\n`;
-      if (schedule.cron.minutes) result += `   • Minutes: ${schedule.cron.minutes.join(', ')}\n`;
-      if (schedule.cron.hours) result += `   • Hours: ${schedule.cron.hours.join(', ')}\n`;
-      if (schedule.cron.days) result += `   • Days of Month: ${schedule.cron.days.join(', ')}\n`;
-      if (schedule.cron.months) result += `   • Months: ${schedule.cron.months.join(', ')}\n`;
-      if (schedule.cron.weekdays) result += `   • Weekdays: ${schedule.cron.weekdays.join(', ')} (0=Sunday)\n`;
+      summary += `📅 **Cron Configuration:**\n`;
+      if (schedule.cron.minutes) summary += `   • Minutes: ${schedule.cron.minutes.join(', ')}\n`;
+      if (schedule.cron.hours) summary += `   • Hours: ${schedule.cron.hours.join(', ')}\n`;
+      if (schedule.cron.days) summary += `   • Days of Month: ${schedule.cron.days.join(', ')}\n`;
+      if (schedule.cron.months) summary += `   • Months: ${schedule.cron.months.join(', ')}\n`;
+      if (schedule.cron.weekdays) summary += `   • Weekdays: ${schedule.cron.weekdays.join(', ')} (0=Sunday)\n`;
     }
 
-    result += `\n💡 **Usage:**\n`;
-    result += `   • Use this schedule in snapshot policies\n`;
-    result += `   • Reference by name: "${schedule.name}"\n`;
+    summary += `\n💡 **Usage:**\n`;
+    summary += `   • Use this schedule in snapshot policies\n`;
+    summary += `   • Reference by name: "${schedule.name}"\n`;
 
-    return result;
+    return { summary, data };
   } catch (error) {
-    return `❌ Error getting snapshot schedule: ${error instanceof Error ? error.message : String(error)}`;
+    // Error case - still return hybrid format for consistency
+    const errorMsg = `❌ Error getting snapshot schedule: ${error instanceof Error ? error.message : String(error)}`;
+    return {
+      summary: errorMsg,
+      data: {
+        uuid: '',
+        name: params.schedule_name
+      }
+    };
   }
 }
 

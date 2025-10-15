@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
+import type { SnapshotPolicyData, SnapshotPolicyResult } from '../types/snapshot-types.js';
 
 // ================================
 // Zod Schemas for Input Validation
@@ -323,38 +324,53 @@ export async function handleListSnapshotPolicies(
 export async function handleGetSnapshotPolicy(
   args: unknown,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<SnapshotPolicyResult> {
   const params = GetSnapshotPolicySchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
   const policy = await client.getSnapshotPolicy(params.policy_name, params.svm_name);
 
-  let result = `📋 **Snapshot Policy Details: ${policy.name}**\n\n`;
-  result += `🆔 **UUID:** ${policy.uuid}\n`;
-  result += `📝 **Description:** ${policy.comment || 'None'}\n`;
-  if (policy.svm?.name) result += `🏢 **SVM:** ${policy.svm.name}\n`;
-  result += `⚡ **Enabled:** ${policy.enabled ? '✅ Yes' : '❌ No'}\n`;
-  result += `🔄 **Scope:** ${policy.scope || 'svm'}\n\n`;
+  // Build structured data object with MCP parameter names
+  const data: SnapshotPolicyData = {
+    uuid: policy.uuid || '',
+    name: policy.name,
+    comment: policy.comment,
+    enabled: policy.enabled ?? false,
+    scope: policy.scope,
+    svm: (policy.svm && policy.svm.name && policy.svm.uuid) ? {
+      name: policy.svm.name,
+      uuid: policy.svm.uuid
+    } : undefined,
+    copies: policy.copies
+  };
+
+  // Build summary text (existing formatting)
+  let summary = `📋 **Snapshot Policy Details: ${policy.name}**\n\n`;
+  summary += `🆔 **UUID:** ${policy.uuid}\n`;
+  summary += `📝 **Description:** ${policy.comment || 'None'}\n`;
+  if (policy.svm?.name) summary += `🏢 **SVM:** ${policy.svm.name}\n`;
+  summary += `⚡ **Enabled:** ${policy.enabled ? '✅ Yes' : '❌ No'}\n`;
+  summary += `🔄 **Scope:** ${policy.scope || 'svm'}\n\n`;
 
   if (policy.copies && policy.copies.length > 0) {
-    result += `📅 **Copies (${policy.copies.length} configured):**\n`;
+    summary += `📅 **Copies (${policy.copies.length} configured):**\n`;
     policy.copies.forEach((copy, index) => {
-      result += `   **${index + 1}.** Schedule: ${copy.schedule?.name || 'N/A'}\n`;
-      result += `        Count: ${copy.count}\n`;
-      if (copy.prefix) result += `        Prefix: ${copy.prefix}\n`;
-      if (copy.retention) result += `        Retention: ${copy.retention}\n`;
-      result += `\n`;
+      summary += `   **${index + 1}.** Schedule: ${copy.schedule?.name || 'N/A'}\n`;
+      summary += `        Count: ${copy.count}\n`;
+      if (copy.prefix) summary += `        Prefix: ${copy.prefix}\n`;
+      if (copy.retention) summary += `        Retention: ${copy.retention}\n`;
+      summary += `\n`;
     });
   } else {
-    result += `📅 **Copies:** None configured\n\n`;
+    summary += `📅 **Copies:** None configured\n\n`;
   }
 
-  result += `🚀 **Available Actions:**\n`;
-  result += `   • Apply to volume: apply_snapshot_policy_to_volume\n`;
-  result += `   • Update policy: update_snapshot_policy\n`;
-  result += `   • Delete policy: delete_snapshot_policy\n`;
+  summary += `🚀 **Available Actions:**\n`;
+  summary += `   • Apply to volume: apply_snapshot_policy_to_volume\n`;
+  summary += `   • Update policy: update_snapshot_policy\n`;
+  summary += `   • Delete policy: delete_snapshot_policy\n`;
 
-  return result;
+  return { summary, data };
 }
 
 export async function handleDeleteSnapshotPolicy(

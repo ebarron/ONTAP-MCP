@@ -440,3 +440,40 @@ export interface VolumeConfigurationResult {
   /** Structured data for programmatic use (UI, undo system, validation) */
   data: VolumeConfigurationData;
 }
+/**
+ * Structured volume statistics data (MCP parameter names)
+ */
+export interface VolumeStatsData {
+  uuid: string;
+  iops?: {
+    read: number;
+    write: number;
+    other: number;
+    total: number;
+  };
+  throughput?: {
+    read: number;
+    write: number;
+    other: number;
+    total: number;
+  };
+  latency?: {
+    read: number;
+    write: number;
+    other: number;
+    total: number;
+  };
+  space?: {
+    used: number;
+    available: number;
+    total: number;
+  };
+}
+
+/**
+ * Hybrid format result for get_volume_stats
+ */
+export interface VolumeStatsResult {
+  summary: string;
+  data: VolumeStatsData;
+}

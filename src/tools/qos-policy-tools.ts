@@ -10,6 +10,8 @@ import type {
   QosPolicy,
   QosPolicyListInfo,
   QosPolicyListResult,
+  QosPolicyData,
+  QosPolicyResult,
   FixedQosPolicy,
   AdaptiveQosPolicy,
   CreateFixedQosPolicyRequest,
@@ -405,7 +407,7 @@ export async function handleClusterCreateQosPolicy(args: any, clusterManager: On
 /**
  * Handle getting QoS policy details
  */
-export async function handleClusterGetQosPolicy(args: any, clusterManager: OntapClusterManager): Promise<string> {
+export async function handleClusterGetQosPolicy(args: any, clusterManager: OntapClusterManager): Promise<QosPolicyResult> {
   const validated = ClusterGetQosPolicySchema.parse(args);
   const client = clusterManager.getClient(validated.cluster_name);
 
@@ -419,40 +421,73 @@ export async function handleClusterGetQosPolicy(args: any, clusterManager: Ontap
       policy = await client.getQosPolicyByName(validated.policy_name!, validated.svm_name);
     }
 
-    let result = `📊 **QoS Policy Details**\n\n`;
-    result += `🎛️ **${policy.name}** (${policy.uuid})\n`;
-    result += `   • SVM: ${policy.svm.name} (${policy.svm.uuid})\n`;
-    result += `   • Type: ${policy.type || 'unknown'}\n`;
-    result += `   • Shared: ${policy.is_shared ? 'Yes' : 'No'}\n`;
-    result += `   • Workloads Using Policy: ${policy.workload_count || 0}\n\n`;
+    // Build structured data with MCP parameter names
+    const data: QosPolicyData = {
+      uuid: policy.uuid,
+      name: policy.name,
+      svm: {
+        name: policy.svm.name,
+        uuid: policy.svm.uuid
+      },
+      type: policy.fixed ? 'fixed' : 'adaptive',
+      is_shared: policy.is_shared !== undefined ? policy.is_shared : true,
+      workload_count: policy.workload_count
+    };
 
+    // Add fixed QoS properties (with MCP parameter names)
     if (policy.fixed) {
-      result += `📈 **Fixed Limits:**\n`;
-      if (policy.fixed.max_throughput) {
-        result += `   • Maximum Throughput: ${policy.fixed.max_throughput}\n`;
-      }
-      if (policy.fixed.min_throughput) {
-        result += `   • Minimum Throughput: ${policy.fixed.min_throughput}\n`;
-      }
+      data.fixed = {
+        max_throughput: policy.fixed.max_throughput,
+        min_throughput: policy.fixed.min_throughput
+      };
     }
 
+    // Add adaptive QoS properties (with MCP parameter names)
     if (policy.adaptive) {
-      result += `📊 **Adaptive Scaling:**\n`;
-      if (policy.adaptive.expected_iops) {
-        result += `   • Expected IOPS: ${policy.adaptive.expected_iops}\n`;
+      data.adaptive = {
+        expected_iops: policy.adaptive.expected_iops,
+        peak_iops: policy.adaptive.peak_iops,
+        expected_iops_allocation: policy.adaptive.expected_iops_allocation,
+        peak_iops_allocation: policy.adaptive.peak_iops_allocation
+      };
+    }
+
+    // Build human-readable summary (keep existing format)
+    let summary = `📊 **QoS Policy Details**\n\n`;
+    summary += `🎛️ **${policy.name}** (${policy.uuid})\n`;
+    summary += `   • SVM: ${policy.svm.name} (${policy.svm.uuid})\n`;
+    summary += `   • Type: ${data.type}\n`;
+    summary += `   • Shared: ${data.is_shared ? 'Yes' : 'No'}\n`;
+    summary += `   • Workloads Using Policy: ${data.workload_count || 0}\n\n`;
+
+    if (data.fixed) {
+      summary += `📈 **Fixed Limits:**\n`;
+      if (data.fixed.max_throughput) {
+        summary += `   • Maximum Throughput: ${data.fixed.max_throughput}\n`;
       }
-      if (policy.adaptive.peak_iops) {
-        result += `   • Peak IOPS: ${policy.adaptive.peak_iops}\n`;
-      }
-      if (policy.adaptive.expected_iops_allocation) {
-        result += `   • Expected IOPS Allocation: ${policy.adaptive.expected_iops_allocation}\n`;
-      }
-      if (policy.adaptive.peak_iops_allocation) {
-        result += `   • Peak IOPS Allocation: ${policy.adaptive.peak_iops_allocation}\n`;
+      if (data.fixed.min_throughput) {
+        summary += `   • Minimum Throughput: ${data.fixed.min_throughput}\n`;
       }
     }
 
-    return result;
+    if (data.adaptive) {
+      summary += `📊 **Adaptive Scaling:**\n`;
+      if (data.adaptive.expected_iops) {
+        summary += `   • Expected IOPS: ${data.adaptive.expected_iops}\n`;
+      }
+      if (data.adaptive.peak_iops) {
+        summary += `   • Peak IOPS: ${data.adaptive.peak_iops}\n`;
+      }
+      if (data.adaptive.expected_iops_allocation) {
+        summary += `   • Expected IOPS Allocation: ${data.adaptive.expected_iops_allocation}\n`;
+      }
+      if (data.adaptive.peak_iops_allocation) {
+        summary += `   • Peak IOPS Allocation: ${data.adaptive.peak_iops_allocation}\n`;
+      }
+    }
+
+    // Return hybrid format
+    return { summary, data };
   } catch (error: any) {
     throw new Error(`Failed to get QoS policy: ${error.message}`);
   }

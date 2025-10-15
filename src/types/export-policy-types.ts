@@ -274,3 +274,33 @@ export interface ExportPolicyListResult {
   /** Structured array of export policies */
   data: ExportPolicyListInfo[];
 }
+
+/**
+ * Export policy data for get operations (uses MCP parameter names)
+ */
+export interface ExportPolicyData {
+  id: number;
+  name: string;
+  comment?: string;
+  svm?: {
+    name: string;
+    uuid: string;
+  };
+  rules: Array<{
+    index: number;
+    clients: Array<{ match: string }>;
+    ro_rule?: string[];
+    rw_rule?: string[];
+    superuser?: string[];
+    protocols?: string[];
+    allow_suid?: boolean;
+    allow_device_creation?: boolean;
+    anonymous_user?: string;
+    comment?: string;
+  }>;
+}
+
+export interface ExportPolicyResult {
+  summary: string;
+  data: ExportPolicyData;
+}

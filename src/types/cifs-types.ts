@@ -221,3 +221,35 @@ export interface CifsShareListResult {
   /** Structured array of CIFS shares */
   data: CifsShareListInfo[];
 }
+
+/**
+ * CIFS share data for get operations (uses MCP parameter names)
+ */
+export interface CifsShareData {
+  name: string;
+  path: string;
+  svm_name: string;
+  svm_uuid?: string;
+  comment?: string;
+  volume_name?: string;
+  volume_uuid?: string;
+  access_control?: Array<{
+    user_or_group: string;
+    permission: string;
+    type?: string;
+  }>;
+  properties?: {
+    oplocks?: boolean;
+    encryption?: boolean;
+    access_based_enumeration?: boolean;
+    offline_files?: string;
+  };
+}
+
+/**
+ * CIFS share get result (hybrid format)
+ */
+export interface CifsShareResult {
+  summary: string;
+  data: CifsShareData;
+}

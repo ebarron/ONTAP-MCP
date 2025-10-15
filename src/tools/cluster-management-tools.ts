@@ -17,7 +17,9 @@ import {
   SvmListInfo,
   SvmListResult,
   AggregateListInfo,
-  AggregateListResult
+  AggregateListResult,
+  ClusterInfoData,
+  ClusterInfoResult
 } from "../types/cluster-types.js";
 
 // ===== SCHEMAS =====
@@ -193,17 +195,23 @@ export function createClusterListVolumesToolDefinition(): Tool {
 
 // ===== TOOL HANDLERS =====
 
-export async function handleGetClusterInfo(args: any, clusterManager: OntapClusterManager): Promise<any> {
+export async function handleGetClusterInfo(args: any, clusterManager: OntapClusterManager): Promise<ClusterInfoResult> {
   const { cluster_ip, username, password } = GetClusterInfoSchema.parse(args);
   const client = new OntapApiClient(cluster_ip, username, password);
   const info = await client.getClusterInfo();
   
-  return {
-    content: [{
-      type: "text",
-      text: `Cluster: ${info.name}\nVersion: ${info.version?.full || 'Unknown'}\nState: ${info.state || 'Unknown'}`,
-    }],
+  // Build structured data with MCP parameter names
+  const data: ClusterInfoData = {
+    name: info.name,
+    version: info.version,
+    state: info.state,
+    uuid: info.uuid
   };
+
+  // Build summary text
+  const summary = `Cluster: ${info.name}\nVersion: ${info.version?.full || 'Unknown'}\nState: ${info.state || 'Unknown'}`;
+
+  return { summary, data };
 }
 
 export async function handleListSvms(args: any, clusterManager: OntapClusterManager): Promise<any> {

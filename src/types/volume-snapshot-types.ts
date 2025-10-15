@@ -42,3 +42,25 @@ export interface SnapshotListResult {
   summary: string;  // For LLMs
   data: SnapshotListInfo[];  // For programmatic use
 }
+
+/**
+ * Structured snapshot detail data (MCP parameter names)
+ */
+export interface SnapshotDetailData {
+  uuid: string;
+  name: string;
+  create_time: string;
+  size: number;
+  state?: string;
+  comment?: string;
+  volume_uuid?: string;
+  volume_name?: string;
+}
+
+/**
+ * Hybrid format result for cluster_get_volume_snapshot_info
+ */
+export interface SnapshotDetailResult {
+  summary: string;
+  data: SnapshotDetailData;
+}

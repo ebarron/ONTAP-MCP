@@ -38,33 +38,52 @@ class UndoManager {
      * Capture state using get_volume_configuration MCP tool
      */
     async captureViaVolumeConfiguration(clusterName, volumeUuid) {
-        console.log(`🔍 Querying volume configuration: ${volumeUuid}`);
+        console.log(`� Querying volume configuration: ${volumeUuid}`);
         
         try {
-            const config = await this.apiClient.callMcp('get_volume_configuration', {
+            // Use callMcpRaw() to get full hybrid format object {summary, data}
+            const response = await this.apiClient.callMcpRaw('get_volume_configuration', {
                 cluster_name: clusterName,
                 volume_uuid: volumeUuid
             });
             
-            console.log('🔍 DEBUG: Raw get_volume_configuration response (first 200 chars):');
-            console.log(config ? config.substring(0, 200) : 'null');
+            console.log('🔍 Raw response type:', typeof response);
             
-            // Try to parse as JSON first (new hybrid format)
-            try {
-                const parsed = JSON.parse(config);
-                
-                if (parsed.data && parsed.summary) {
-                    // New hybrid format detected!
-                    console.log('✅ Detected hybrid JSON format from get_volume_configuration');
-                    return this.parseStructuredVolumeState(parsed.data, volumeUuid);
-                }
-            } catch (jsonError) {
-                // Not JSON or not hybrid format - fall through to text parsing
-                console.log('ℹ️ Response is not JSON, using text parsing');
+            // Extract from MCP envelope if needed
+            let config = response;
+            if (response?.content?.[0]?.text) {
+                config = response.content[0].text;
+                console.log('📦 Extracted from MCP envelope, type:', typeof config);
             }
             
-            // Fall back to text parsing (old format or summary-only)
-            return this.parseTextVolumeState(config, volumeUuid);
+            // Check if we have hybrid format with structured data
+            if (config && typeof config === 'object' && config.data && config.summary) {
+                // New hybrid format detected!
+                console.log('✅ Detected hybrid format from get_volume_configuration');
+                console.log('   → Has data:', !!config.data);
+                console.log('   → Has summary:', !!config.summary);
+                return this.parseStructuredVolumeState(config.data, volumeUuid);
+            }
+            
+            // Try to parse as JSON string (fallback)
+            if (typeof config === 'string') {
+                try {
+                    const parsed = JSON.parse(config);
+                    if (parsed.data && parsed.summary) {
+                        console.log('✅ Parsed JSON string to hybrid format');
+                        return this.parseStructuredVolumeState(parsed.data, volumeUuid);
+                    }
+                } catch (jsonError) {
+                    // Not JSON - fall through to text parsing
+                    console.log('ℹ️ Response is not JSON, using text parsing');
+                }
+                
+                // Fall back to text parsing (old format or summary-only)
+                return this.parseTextVolumeState(config, volumeUuid);
+            }
+            
+            console.warn('⚠️ Unexpected response format, using fallback');
+            return this.parseTextVolumeState(String(config), volumeUuid);
             
         } catch (error) {
             console.warn('❌ get_volume_configuration failed:', error);

@@ -23,7 +23,9 @@ import type {
   UpdateVolumeSecurityStyleParams,
   VolumeNfsConfig,
   VolumeConfigurationResult,
-  VolumeConfigurationData
+  VolumeConfigurationData,
+  VolumeStatsData,
+  VolumeStatsResult
 } from '../types/volume-types.js';
 
 // ================================
@@ -289,44 +291,54 @@ function formatVolumeConfig(volume: any): string {
 /**
  * Format volume statistics for display
  */
-function formatVolumeStats(stats: VolumeStats): string {
-  let result = `📊 **Volume Performance Statistics**\\n\\n`;
-  result += `🔗 **Volume UUID:** ${stats.uuid}\\n\\n`;
+function formatVolumeStats(stats: VolumeStats): VolumeStatsResult {
+  // Build structured data with MCP parameter names
+  const data: VolumeStatsData = {
+    uuid: stats.uuid,
+    iops: stats.iops,
+    throughput: stats.throughput,
+    latency: stats.latency,
+    space: stats.space
+  };
+
+  // Build summary text
+  let summary = `📊 **Volume Performance Statistics**\\n\\n`;
+  summary += `🔗 **Volume UUID:** ${stats.uuid}\\n\\n`;
   
   if (stats.iops) {
-    result += `⚡ **IOPS:**\\n`;
-    result += `   • Read: ${stats.iops.read}\\n`;
-    result += `   • Write: ${stats.iops.write}\\n`;
-    result += `   • Other: ${stats.iops.other}\\n`;
-    result += `   • Total: ${stats.iops.total}\\n\\n`;
+    summary += `⚡ **IOPS:**\\n`;
+    summary += `   • Read: ${stats.iops.read}\\n`;
+    summary += `   • Write: ${stats.iops.write}\\n`;
+    summary += `   • Other: ${stats.iops.other}\\n`;
+    summary += `   • Total: ${stats.iops.total}\\n\\n`;
   }
   
   if (stats.throughput) {
-    result += `📈 **Throughput (bytes/sec):**\\n`;
-    result += `   • Read: ${formatBytes(stats.throughput.read)}/s\\n`;
-    result += `   • Write: ${formatBytes(stats.throughput.write)}/s\\n`;
-    result += `   • Other: ${formatBytes(stats.throughput.other)}/s\\n`;
-    result += `   • Total: ${formatBytes(stats.throughput.total)}/s\\n\\n`;
+    summary += `📈 **Throughput (bytes/sec):**\\n`;
+    summary += `   • Read: ${formatBytes(stats.throughput.read)}/s\\n`;
+    summary += `   • Write: ${formatBytes(stats.throughput.write)}/s\\n`;
+    summary += `   • Other: ${formatBytes(stats.throughput.other)}/s\\n`;
+    summary += `   • Total: ${formatBytes(stats.throughput.total)}/s\\n\\n`;
   }
   
   if (stats.latency) {
-    result += `⏱️ **Latency (microseconds):**\\n`;
-    result += `   • Read: ${stats.latency.read}μs\\n`;
-    result += `   • Write: ${stats.latency.write}μs\\n`;
-    result += `   • Other: ${stats.latency.other}μs\\n`;
-    result += `   • Total: ${stats.latency.total}μs\\n\\n`;
+    summary += `⏱️ **Latency (microseconds):**\\n`;
+    summary += `   • Read: ${stats.latency.read}μs\\n`;
+    summary += `   • Write: ${stats.latency.write}μs\\n`;
+    summary += `   • Other: ${stats.latency.other}μs\\n`;
+    summary += `   • Total: ${stats.latency.total}μs\\n\\n`;
   }
   
   if (stats.space) {
-    result += `💿 **Space Usage:**\\n`;
-    result += `   • Used: ${formatBytes(stats.space.used)}\\n`;
-    result += `   • Available: ${formatBytes(stats.space.available)}\\n`;
-    result += `   • Total: ${formatBytes(stats.space.total)}\\n`;
+    summary += `💿 **Space Usage:**\\n`;
+    summary += `   • Used: ${formatBytes(stats.space.used)}\\n`;
+    summary += `   • Available: ${formatBytes(stats.space.available)}\\n`;
+    summary += `   • Total: ${formatBytes(stats.space.total)}\\n`;
     const utilization = ((stats.space.used / stats.space.total) * 100).toFixed(1);
-    result += `   • Utilization: ${utilization}%\\n`;
+    summary += `   • Utilization: ${utilization}%\\n`;
   }
   
-  return result;
+  return { summary, data };
 }
 
 // ================================

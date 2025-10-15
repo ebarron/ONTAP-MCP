@@ -10,6 +10,8 @@ import type {
   CreateExportPolicyRequest,
   ExportPolicyListInfo,
   ExportPolicyListResult,
+  ExportPolicyData,
+  ExportPolicyResult,
   CreateExportRuleRequest, 
   UpdateExportRuleRequest,
   NfsProtocol,
@@ -276,29 +278,53 @@ export function createGetExportPolicyToolDefinition(): Tool {
 export async function handleGetExportPolicy(
   args: unknown,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<ExportPolicyResult> {
   const params = GetExportPolicySchema.parse(args);
   const client = getApiClient(clusterManager, params.cluster_name, params.cluster_ip, params.username, params.password);
 
   const policy = await client.getExportPolicy(params.policy_name, params.svm_name);
   const rules = await client.listExportRules(policy.id!, params.svm_name);
 
-  let result = `🔐 **Export Policy: ${policy.name}**\n\n`;
-  result += `🆔 ID: ${policy.id}\n`;
-  if (policy.comment) result += `📝 Description: ${policy.comment}\n`;
-  if (policy.svm) result += `🏢 SVM: ${policy.svm.name} (${policy.svm.uuid})\n`;
+  // Build structured data
+  const data: ExportPolicyData = {
+    id: policy.id!,
+    name: policy.name,
+    comment: policy.comment,
+    svm: policy.svm && policy.svm.name ? {
+      name: policy.svm.name,
+      uuid: policy.svm.uuid || ''
+    } : undefined,
+    rules: (rules || []).map(rule => ({
+      index: rule.index!,
+      clients: (rule.clients || []).map(c => ({ match: c.match })),
+      ro_rule: rule.ro_rule,
+      rw_rule: rule.rw_rule,
+      superuser: rule.superuser,
+      protocols: rule.protocols,
+      allow_suid: rule.allow_suid,
+      allow_device_creation: rule.allow_device_creation,
+      anonymous_user: rule.anonymous_user,
+      comment: rule.comment
+    }))
+  };
+
+  // Build summary
+  let summary = `🔐 **Export Policy: ${policy.name}**\n\n`;
+  summary += `🆔 ID: ${policy.id}\n`;
+  if (policy.comment) summary += `📝 Description: ${policy.comment}\n`;
+  if (policy.svm) summary += `🏢 SVM: ${policy.svm.name} (${policy.svm.uuid})\n`;
   
   if (rules && rules.length > 0) {
-    result += `\n📏 **Export Rules (${rules.length}):**\n\n`;
+    summary += `\n📏 **Export Rules (${rules.length}):**\n\n`;
     for (const rule of rules) {
-      result += formatExportRule(rule);
-      result += `\n`;
+      summary += formatExportRule(rule);
+      summary += `\n`;
     }
   } else {
-    result += `\n📏 **Export Rules:** None configured\n`;
+    summary += `\n📏 **Export Rules:** None configured\n`;
   }
 
-  return result;
+  return { summary, data };
 }
 
 /**

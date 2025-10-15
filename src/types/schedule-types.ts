@@ -96,3 +96,27 @@ export interface ListSnapshotSchedulesParams {
   /** Order by field */
   'order_by'?: string;
 }
+/**
+ * Structured snapshot schedule data (MCP parameter names)
+ */
+export interface SnapshotScheduleData {
+  uuid: string;
+  name: string;
+  type?: string;
+  interval?: string;
+  cron?: {
+    minutes?: number[];
+    hours?: number[];
+    days?: number[];
+    months?: number[];
+    weekdays?: number[];
+  };
+}
+
+/**
+ * Hybrid format result for get_snapshot_schedule
+ */
+export interface SnapshotScheduleResult {
+  summary: string;
+  data: SnapshotScheduleData;
+}

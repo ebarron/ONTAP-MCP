@@ -130,3 +130,47 @@ export interface SnapshotPolicyListResponse {
   /** Array of policies returned by list operations */
   policies?: SnapshotPolicy[];
 }
+/**
+ * Structured snapshot policy data (MCP parameter names)
+ * Used for undo/reversibility support
+ */
+export interface SnapshotPolicyData {
+  /** Policy UUID */
+  uuid: string;
+  /** Policy name */
+  name: string;
+  /** Policy description */
+  comment?: string;
+  /** Enabled status */
+  enabled: boolean;
+  /** Scope (svm or cluster) */
+  scope?: string;
+  /** SVM information */
+  svm?: {
+    name: string;
+    uuid: string;
+  };
+  /** Snapshot copies configuration */
+  copies?: Array<{
+    /** Schedule reference */
+    schedule: {
+      name: string;
+    };
+    /** Number of snapshots to keep */
+    count: number;
+    /** Snapshot name prefix */
+    prefix?: string;
+    /** Retention period */
+    retention?: string;
+  }>;
+}
+
+/**
+ * Hybrid format result for get_snapshot_policy
+ */
+export interface SnapshotPolicyResult {
+  /** Formatted text summary for LLM consumption */
+  summary: string;
+  /** Structured data for programmatic use */
+  data: SnapshotPolicyData;
+}

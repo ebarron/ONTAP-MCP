@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { OntapApiClient, OntapClusterManager } from '../ontap-client.js';
-import type { AutosizeMode, VolumeAutosizeStatus } from '../types/volume-autosize-types.js';
+import type { AutosizeMode, VolumeAutosizeStatus, VolumeAutosizeStatusData, VolumeAutosizeStatusResult } from '../types/volume-autosize-types.js';
 
 // ================================
 // Helper Function for Client Resolution
@@ -123,7 +123,7 @@ export async function handleClusterEnableVolumeAutosize(
 export async function handleClusterGetVolumeAutosizeStatus(
   args: any,
   clusterManager: OntapClusterManager
-): Promise<string> {
+): Promise<VolumeAutosizeStatusResult> {
   const validated = ClusterGetVolumeAutosizeStatusSchema.parse(args);
   const client = getApiClient(clusterManager, validated.cluster_name, validated.cluster_ip, validated.username, validated.password);
 
@@ -140,7 +140,15 @@ export async function handleClusterGetVolumeAutosizeStatus(
 
   const status = await client.getVolumeAutosizeStatus(volumeUuid);
 
-  return `Volume Autosize Status:
+  // Build structured data with MCP parameter names
+  const data: VolumeAutosizeStatusData = {
+    current_size: status.current_size,
+    autosize: status.autosize,
+    space: status.space
+  };
+
+  // Build summary text
+  const summary = `Volume Autosize Status:
   
 Mode: ${status.autosize.mode}
 Current Size: ${formatBytes(status.current_size)}
@@ -153,6 +161,8 @@ Space Usage:
   Used: ${formatBytes(status.space.used)}
   Available: ${formatBytes(status.space.available)}
   Percent Used: ${status.space.used_percent || 'N/A'}%`;
+
+  return { summary, data };
 }
 
 // ================================

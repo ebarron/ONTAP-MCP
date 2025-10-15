@@ -28,3 +28,30 @@ export interface VolumeAutosizeStatus {
     used_percent?: number;
   };
 }
+
+/**
+ * Structured volume autosize status data (MCP parameter names)
+ */
+export interface VolumeAutosizeStatusData {
+  current_size: number;
+  autosize: {
+    mode: string;
+    maximum?: number;
+    minimum?: number;
+    grow_threshold?: number;
+    shrink_threshold?: number;
+  };
+  space: {
+    used: number;
+    available: number;
+    used_percent?: number;
+  };
+}
+
+/**
+ * Hybrid format result for cluster_get_volume_autosize_status
+ */
+export interface VolumeAutosizeStatusResult {
+  summary: string;
+  data: VolumeAutosizeStatusData;
+}

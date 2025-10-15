@@ -365,3 +365,25 @@ export interface AggregateListResult {
   /** Structured array of aggregate information for programmatic use */
   data: AggregateListInfo[];
 }
+/**
+ * Structured cluster info data (MCP parameter names)
+ */
+export interface ClusterInfoData {
+  name: string;
+  version?: {
+    full?: string;
+    generation?: number;
+    major?: number;
+    minor?: number;
+  };
+  state?: string;
+  uuid?: string;
+}
+
+/**
+ * Hybrid format result for get_cluster_info
+ */
+export interface ClusterInfoResult {
+  summary: string;
+  data: ClusterInfoData;
+}
