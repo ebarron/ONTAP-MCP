@@ -68,17 +68,44 @@ class ParameterResolver {
         try {
             console.log(`🔍 Searching for volume: cluster="${clusterName}", svm="${svmName}", volume="${volumeName}"`);
             
-            const result = await this.mcpClient.callMcp('cluster_list_volumes', {
+            const result = await this.mcpClient.callMcpRaw('cluster_list_volumes', {
                 cluster_name: clusterName,
                 svm_name: svmName
             });
 
-            // Parse the text response to find volumes
+            // NEW: Use structured data directly from hybrid format (resilient!)
+            if (result && typeof result === 'object' && result.data && Array.isArray(result.data)) {
+                console.log(`📋 Searching through ${result.data.length} volumes using .data field (hybrid format)`);
+                
+                for (const volume of result.data) {
+                    console.log(`  Found volume: "${volume.name}" (UUID: ${volume.uuid})`);
+                    if (volume.name === volumeName) {
+                        console.log(`✅ Match found! Returning UUID: ${volume.uuid}`);
+                        return volume.uuid;
+                    }
+                }
+
+                const foundVolumes = result.data.map(v => v.name);
+                console.error(`❌ Volume "${volumeName}" not found. Available volumes:`, foundVolumes);
+                
+                // Check if this might be a FlexGroup constituent name issue
+                const possibleFlexGroup = volumeName.match(/^(.+)__\d+$/);
+                if (possibleFlexGroup) {
+                    const baseVolName = possibleFlexGroup[1];
+                    if (foundVolumes.includes(baseVolName)) {
+                        throw new Error(`Volume '${volumeName}' not found. This appears to be a FlexGroup constituent name (${baseVolName}__NNNN). The base FlexGroup '${baseVolName}' exists, but Fix-It actions cannot target individual constituents. Please contact support if you need to manage FlexGroup volumes.`);
+                    }
+                }
+                
+                throw new Error(`Volume '${volumeName}' not found in SVM '${svmName}'. Available: ${foundVolumes.join(', ')}`);
+            }
+
+            // LEGACY: Fall back to text parsing for backward compatibility
+            console.warn('⚠️ Falling back to text parsing (legacy mode) - .data field not available');
             const text = this._extractText(result);
             const lines = text.split('\n');
             
             console.log(`📋 Searching through ${lines.length} lines for volume "${volumeName}"`);
-            console.log(`📋 First 10 lines of response:`, lines.slice(0, 10));
             const foundVolumes = [];
             
             for (const line of lines) {
