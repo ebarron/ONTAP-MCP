@@ -33,6 +33,14 @@ class FixItModal {
                             </div>
                         </div>
                         
+                        <!-- Required Values Section (for user-supplied parameters) -->
+                        <div id="fixItModalRequiredValues" class="modal-required-values" style="display: none;">
+                            <h4>Required Values:</h4>
+                            <div id="fixItModalRequiredValuesContent" class="required-values-content">
+                                <!-- Required input fields will be injected here -->
+                            </div>
+                        </div>
+                        
                         <!-- CLI Command Section with Copy Button -->
                         <div id="fixItModalCli" class="modal-cli" style="display: none;">
                             <div class="cli-header">
@@ -213,6 +221,58 @@ class FixItModal {
                     font-size: 14px;
                     color: #333;
                     line-height: 1.5;
+                }
+                
+                /* Required Values Section */
+                .modal-required-values {
+                    background: #fff9e6;
+                    border: 1px solid #ffcc00;
+                    border-radius: 4px;
+                    padding: 16px;
+                    margin-bottom: 20px;
+                }
+                
+                .modal-required-values h4 {
+                    margin: 0 0 12px 0;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #996600;
+                }
+                
+                .required-values-content {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+                
+                .required-value-item {
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .required-value-label {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #666;
+                    margin-bottom: 4px;
+                }
+                
+                .required-value-input {
+                    font-size: 14px;
+                    padding: 8px 12px;
+                    border: 1px solid #d1d5d9;
+                    border-radius: 4px;
+                    font-family: 'Monaco', 'Courier New', monospace;
+                }
+                
+                .required-value-input:focus {
+                    outline: none;
+                    border-color: #0067C5;
+                    box-shadow: 0 0 0 3px rgba(0, 103, 197, 0.1);
+                }
+                
+                .required-value-input.error {
+                    border-color: #dc3545;
                 }
                 
                 /* CLI Command Section */
@@ -411,9 +471,22 @@ class FixItModal {
             // DEBUG: Log action to see if cli_command is present
             console.log('🔍 Action object:', action);
             console.log('🔍 Has cli_command?', !!action.cli_command);
+            console.log('🔍 CLI command:', action.cli_command);
+            console.log('🔍 MCP params:', action.mcp_params);
+            console.log('🔍 Resolved params:', this.resolvedParams);
+            
+            // Detect missing parameters that need user input
+            console.log('🔍 About to detect missing parameters...');
+            this.missingParams = this.detectMissingParameters(action, alert, this.resolvedParams);
+            console.log('🔍 Missing params result:', this.missingParams);
             
             // Render action description (from Fix-It button text)
             this.renderActionDescription(action);
+            
+            // Render required values section if there are missing parameters
+            if (this.missingParams.length > 0) {
+                this.renderRequiredValues(this.missingParams);
+            }
             
             // Render parameters in the modal (hidden but kept for execution)
             this.renderParameters(this.resolvedParams);
@@ -518,6 +591,226 @@ class FixItModal {
         }
         
         return params;
+    }
+
+    /**
+     * Detect missing parameters that need user input
+     * Scans both MCP tool parameters and CLI command placeholders
+     */
+    detectMissingParameters(action, alert, resolvedParams) {
+        const missing = [];
+        const seen = new Set();
+        
+        // Check MCP tool parameters (from mcp_params)
+        if (action.mcp_params) {
+            for (const [key, value] of Object.entries(action.mcp_params)) {
+                // If value is a placeholder (starts with { and ends with })
+                if (typeof value === 'string' && value.match(/^\{[^}]+\}$/)) {
+                    const paramName = value.slice(1, -1); // Remove { }
+                    
+                    // Check if we have this value in resolvedParams
+                    if (!resolvedParams[key] && !seen.has(paramName)) {
+                        missing.push({
+                            key: key,
+                            placeholder: paramName,
+                            label: this.formatParameterLabel(paramName),
+                            description: this.getParameterDescription(paramName, action)
+                        });
+                        seen.add(paramName);
+                    }
+                }
+            }
+        }
+        
+        // Check CLI command for unresolved placeholders
+        if (action.cli_command) {
+            const placeholderRegex = /\{([^}]+)\}/g;
+            let match;
+            
+            while ((match = placeholderRegex.exec(action.cli_command)) !== null) {
+                const paramName = match[1];
+                
+                // Check if this parameter is missing and not already in our list
+                const hasValue = resolvedParams[paramName] || 
+                               resolvedParams[paramName.replace(/_/g, '')] ||
+                               alert.labels?.[paramName];
+                
+                if (!hasValue && !seen.has(paramName)) {
+                    missing.push({
+                        key: paramName,
+                        placeholder: paramName,
+                        label: this.formatParameterLabel(paramName),
+                        description: this.getParameterDescription(paramName, action)
+                    });
+                    seen.add(paramName);
+                }
+            }
+        }
+        
+        console.log('🔍 Missing parameters detected:', missing);
+        return missing;
+    }
+
+    /**
+     * Format parameter name into a human-readable label
+     */
+    formatParameterLabel(paramName) {
+        // Convert snake_case or camelCase to Title Case
+        return paramName
+            .replace(/_/g, ' ')
+            .replace(/([A-Z])/g, ' $1')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ')
+            .trim();
+    }
+
+    /**
+     * Get parameter description/help text
+     */
+    getParameterDescription(paramName, action) {
+        const descriptions = {
+            'new_size': 'New size for the volume (e.g., 100GB, 1TB)',
+            'size': 'Size for the resource (e.g., 100GB, 1TB)',
+            'maximum_size': 'Maximum size limit (e.g., 500GB, 2TB)',
+            'grow_threshold': 'Percentage full to trigger growth (e.g., 85)',
+            'grow_threshold_percent': 'Percentage full to trigger growth (e.g., 85)',
+            'mode': 'Autosize mode (off, grow, or grow_shrink)',
+            'snapshot': 'Snapshot name to delete',
+            'cluster': 'Cluster name',
+            'svm': 'SVM name',
+            'volume': 'Volume name'
+        };
+        
+        return descriptions[paramName] || '';
+    }
+
+    /**
+     * Render required values section with input fields
+     */
+    renderRequiredValues(missingParams) {
+        const container = document.getElementById('fixItModalRequiredValues');
+        const content = document.getElementById('fixItModalRequiredValuesContent');
+        
+        if (missingParams.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        
+        let html = '';
+        
+        for (const param of missingParams) {
+            html += `
+                <div class="required-value-item">
+                    <label class="required-value-label" for="required_${param.key}">
+                        ${param.label}:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="required_${param.key}" 
+                        class="required-value-input" 
+                        placeholder="${param.description || 'Enter value'}"
+                        data-param-key="${param.key}"
+                        data-param-placeholder="${param.placeholder}"
+                    />
+                </div>
+            `;
+        }
+        
+        content.innerHTML = html;
+        container.style.display = 'block';
+        
+        // Add input event listeners to update CLI command preview and validation
+        missingParams.forEach(param => {
+            const input = document.getElementById(`required_${param.key}`);
+            if (input) {
+                input.addEventListener('input', () => {
+                    this.updateCliCommandPreview();
+                    this.validateRequiredValues();
+                });
+            }
+        });
+    }
+
+    /**
+     * Update CLI command preview with user-supplied values
+     */
+    updateCliCommandPreview() {
+        if (!this.currentAction?.cli_command) return;
+        
+        const cliCommandBox = document.getElementById('fixItModalCliCommand');
+        if (!cliCommandBox) return;
+        
+        let cliCommand = this.currentAction.cli_command;
+        
+        // Get values from input fields
+        const inputs = document.querySelectorAll('.required-value-input');
+        const userValues = {};
+        
+        inputs.forEach(input => {
+            const key = input.dataset.paramKey;
+            const placeholder = input.dataset.paramPlaceholder;
+            const value = input.value.trim();
+            
+            if (value) {
+                userValues[placeholder] = value;
+            }
+        });
+        
+        // Merge with resolved params
+        const allValues = {
+            '{cluster}': this.currentAlert.labels?.cluster || '<cluster>',
+            '{svm}': this.currentAlert.labels?.svm || '<svm>',
+            '{volume}': this.currentAlert.labels?.volume || this.resolvedParams.volume_name || '<volume>',
+            '{size}': this.resolvedParams.size || userValues['new_size'] || userValues['size'] || '<size>',
+            '{new_size}': userValues['new_size'] || userValues['size'] || '<new_size>',
+            '{maximum_size}': this.resolvedParams.maximum_size || userValues['maximum_size'] || '<max_size>',
+            '{mode}': this.resolvedParams.mode || userValues['mode'] || '<mode>',
+            '{snapshot}': this.resolvedParams.snapshot_name || userValues['snapshot'] || '<snapshot>',
+            '{grow_threshold}': this.resolvedParams.grow_threshold_percent || userValues['grow_threshold'] || userValues['grow_threshold_percent'] || '<threshold>',
+        };
+        
+        // Replace placeholders
+        for (const [placeholder, value] of Object.entries(allValues)) {
+            cliCommand = cliCommand.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), value);
+        }
+        
+        cliCommandBox.textContent = cliCommand;
+    }
+
+    /**
+     * Validate required values and update execute button state
+     */
+    validateRequiredValues() {
+        const inputs = document.querySelectorAll('.required-value-input');
+        const executeButton = document.getElementById('fixItModalConfirm');
+        let allValid = true;
+        
+        inputs.forEach(input => {
+            const value = input.value.trim();
+            
+            if (!value) {
+                allValid = false;
+                input.classList.add('error');
+            } else {
+                input.classList.remove('error');
+            }
+        });
+        
+        // Enable/disable execute button
+        if (executeButton) {
+            executeButton.disabled = !allValid;
+            
+            if (!allValid) {
+                executeButton.style.opacity = '0.5';
+                executeButton.style.cursor = 'not-allowed';
+            } else {
+                executeButton.style.opacity = '1';
+                executeButton.style.cursor = 'pointer';
+            }
+        }
+        
+        return allValid;
     }
 
     /**
@@ -652,6 +945,43 @@ class FixItModal {
      * Execute the Fix-It action
      */
     async execute() {
+        // Validate required values first
+        if (this.missingParams && this.missingParams.length > 0) {
+            if (!this.validateRequiredValues()) {
+                // Show error message
+                const inputs = document.querySelectorAll('.required-value-input');
+                inputs.forEach(input => {
+                    if (!input.value.trim()) {
+                        input.classList.add('error');
+                    }
+                });
+                
+                this.showToast('Please fill in all required values', 'error');
+                return;
+            }
+        }
+        
+        // Collect user-supplied values and merge with resolved params
+        const finalParams = { ...this.resolvedParams };
+        
+        if (this.missingParams && this.missingParams.length > 0) {
+            const inputs = document.querySelectorAll('.required-value-input');
+            
+            inputs.forEach(input => {
+                const key = input.dataset.paramKey;
+                const value = input.value.trim();
+                
+                if (value) {
+                    // Add the value to finalParams using the parameter key
+                    finalParams[key] = value;
+                    
+                    console.log(`✅ User supplied ${key} = ${value}`);
+                }
+            });
+        }
+        
+        console.log('🔧 Final parameters for execution:', finalParams);
+        
         // Show progress overlay
         document.getElementById('fixItModalProgress').style.display = 'flex';
         document.getElementById('fixItModalProgressText').textContent = 'Capturing current state...';
@@ -665,7 +995,7 @@ class FixItModal {
                 originalState = await this.undoManager.captureCurrentState(
                     this.currentAlert,
                     this.currentAction,
-                    this.resolvedParams
+                    finalParams  // Use finalParams instead of resolvedParams
                 );
                 
                 // Determine if action is reversible
@@ -687,10 +1017,10 @@ class FixItModal {
             // Update progress
             document.getElementById('fixItModalProgressText').textContent = 'Executing action...';
             
-            // Call MCP tool
+            // Call MCP tool with final parameters (including user-supplied values)
             const result = await this.apiClient.callMcp(
                 this.currentAction.mcp_tool,
-                this.resolvedParams
+                finalParams  // Use finalParams instead of resolvedParams
             );
             
             console.log('✅ Fix-It action executed successfully:', result);
@@ -871,6 +1201,21 @@ class FixItModal {
         this.currentAction = null;
         this.currentAlert = null;
         this.resolvedParams = null;
+        this.missingParams = null;
+        
+        // Clear required values section
+        const requiredValuesContainer = document.getElementById('fixItModalRequiredValues');
+        if (requiredValuesContainer) {
+            requiredValuesContainer.style.display = 'none';
+        }
+        
+        // Reset execute button state
+        const executeButton = document.getElementById('fixItModalConfirm');
+        if (executeButton) {
+            executeButton.disabled = false;
+            executeButton.style.opacity = '1';
+            executeButton.style.cursor = 'pointer';
+        }
         
         // Reset progress overlay
         document.getElementById('fixItModalProgress').style.display = 'none';
