@@ -61,54 +61,6 @@ const ClusterListVolumesSchema = z.object({
 
 // ===== TOOL DEFINITIONS =====
 
-export function createGetClusterInfoToolDefinition(): Tool {
-  return {
-    name: "get_cluster_info",
-    description: "Get information about a NetApp ONTAP cluster",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-        username: { type: "string", description: "Username for authentication" },
-        password: { type: "string", description: "Password for authentication" },
-      },
-      required: ["cluster_ip", "username", "password"],
-    }
-  };
-}
-
-export function createListSvmsToolDefinition(): Tool {
-  return {
-    name: "list_svms",
-    description: "List all Storage Virtual Machines (SVMs) in the cluster",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-        username: { type: "string", description: "Username for authentication" },
-        password: { type: "string", description: "Password for authentication" },
-      },
-      required: ["cluster_ip", "username", "password"],
-    }
-  };
-}
-
-export function createListAggregatesToolDefinition(): Tool {
-  return {
-    name: "list_aggregates",
-    description: "List all aggregates in the cluster",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cluster_ip: { type: "string", description: "IP address or FQDN of the ONTAP cluster" },
-        username: { type: "string", description: "Username for authentication" },
-        password: { type: "string", description: "Password for authentication" },
-      },
-      required: ["cluster_ip", "username", "password"],
-    }
-  };
-}
-
 export function createAddClusterToolDefinition(): Tool {
   return {
     name: "add_cluster",
@@ -194,59 +146,6 @@ export function createClusterListVolumesToolDefinition(): Tool {
 }
 
 // ===== TOOL HANDLERS =====
-
-export async function handleGetClusterInfo(args: any, clusterManager: OntapClusterManager): Promise<ClusterInfoResult> {
-  const { cluster_ip, username, password } = GetClusterInfoSchema.parse(args);
-  const client = new OntapApiClient(cluster_ip, username, password);
-  const info = await client.getClusterInfo();
-  
-  // Build structured data with MCP parameter names
-  const data: ClusterInfoData = {
-    name: info.name,
-    version: info.version,
-    state: info.state,
-    uuid: info.uuid
-  };
-
-  // Build summary text
-  const summary = `Cluster: ${info.name}\nVersion: ${info.version?.full || 'Unknown'}\nState: ${info.state || 'Unknown'}`;
-
-  return { summary, data };
-}
-
-export async function handleListSvms(args: any, clusterManager: OntapClusterManager): Promise<any> {
-  const { cluster_ip, username, password } = ListSvmsSchema.parse(args);
-  const client = new OntapApiClient(cluster_ip, username, password);
-  const svms = await client.listSvms();
-  
-  const svmList = svms.map((svm: any) => 
-    `- ${svm.name} (${svm.uuid}) - State: ${svm.state}`
-  ).join('\n');
-
-  return {
-    content: [{
-      type: "text",
-      text: `SVMs: ${svms.length}\n\n${svmList}`,
-    }],
-  };
-}
-
-export async function handleListAggregates(args: any, clusterManager: OntapClusterManager): Promise<any> {
-  const { cluster_ip, username, password } = ListAggregatesSchema.parse(args);
-  const client = new OntapApiClient(cluster_ip, username, password);
-  const aggregates = await client.listAggregates();
-  
-  const aggrList = aggregates.map((aggr: any) => 
-    `- ${aggr.name} (${aggr.uuid}) - State: ${aggr.state}, Available: ${aggr.space?.block_storage?.available || 'N/A'}, Used: ${aggr.space?.block_storage?.used || 'N/A'}`
-  ).join('\n');
-
-  return {
-    content: [{
-      type: "text",
-      text: `Aggregates: ${aggregates.length}\n\n${aggrList}`,
-    }],
-  };
-}
 
 export async function handleAddCluster(args: any, clusterManager: OntapClusterManager): Promise<string> {
   const { name, cluster_ip, username, password, description } = AddClusterSchema.parse(args);
