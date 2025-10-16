@@ -73,18 +73,6 @@ import {
 
 // Import volume tools (all volume-related functionality consolidated)
 import {
-  // Legacy single-cluster volume tools
-  createListVolumesToolDefinition,
-  handleListVolumes,
-  createCreateVolumeToolDefinition,
-  handleCreateVolume,
-  createGetVolumeStatsToolDefinition,
-  handleGetVolumeStats,
-  createOfflineVolumeToolDefinition,
-  handleOfflineVolume,
-  createDeleteVolumeToolDefinition,
-  handleDeleteVolume,
-  
   // Multi-cluster volume tools
   createClusterListVolumesToolDefinition,
   handleClusterListVolumes,

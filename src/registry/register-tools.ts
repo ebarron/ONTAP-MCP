@@ -10,12 +10,6 @@ import {
 
 // Import cluster management tools
 import {
-  createGetClusterInfoToolDefinition,
-  handleGetClusterInfo,
-  createListSvmsToolDefinition,
-  handleListSvms,
-  createListAggregatesToolDefinition,
-  handleListAggregates,
   createAddClusterToolDefinition,
   handleAddCluster,
   createListRegisteredClustersToolDefinition,
@@ -79,17 +73,6 @@ import {
 } from "../tools/cifs-share-tools.js";
 
 import {
-  createListVolumesToolDefinition,
-  handleListVolumes,
-  createCreateVolumeToolDefinition,
-  handleCreateVolume,
-  createGetVolumeStatsToolDefinition,
-  handleGetVolumeStats,
-  createOfflineVolumeToolDefinition,
-  handleOfflineVolume,
-  createDeleteVolumeToolDefinition,
-  handleDeleteVolume,
-  
   createClusterListVolumesToolDefinition as createClusterListVolumesVolumeToolDefinition,
   handleClusterListVolumes as handleClusterListVolumesVolumeTool,
   createClusterCreateVolumeToolDefinition,
@@ -162,106 +145,11 @@ import {
   createClusterDeleteVolumeSnapshotToolDefinition
 } from "../tools/volume-snapshot-tools.js";
 
-// Import Harvest metrics tools
-import {
-  handleMetricsQuery,
-  handleMetricsRangeQuery,
-  handleListMetrics,
-  handleListLabelValues,
-  handleListAllLabelNames,
-  handleGetActiveAlerts,
-  handleInfrastructureHealth,
-  handleGetMetricDescription,
-  handleSearchMetrics,
-  createMetricsQueryToolDefinition,
-  createMetricsRangeQueryToolDefinition,
-  createListMetricsToolDefinition,
-  createListLabelValuesToolDefinition,
-  createListAllLabelNamesToolDefinition,
-  createGetActiveAlertsToolDefinition,
-  createInfrastructureHealthToolDefinition,
-  createGetMetricDescriptionToolDefinition,
-  createSearchMetricsToolDefinition
-} from "../tools/harvest-metrics-tools.js";
-
-import {
-  QueryArgsSchema,
-  RangeQueryArgsSchema,
-  ListMetricsArgsSchema,
-  ListLabelValuesArgsSchema,
-  InfrastructureHealthArgsSchema,
-  GetMetricDescriptionArgsSchema,
-  SearchMetricsArgsSchema
-} from "../types/harvest-types.js";
-
-import { getHarvestConfig } from "../config/harvest-config.js";
-
 /**
  * Register all tools in the central registry
  * This function is called once at startup to populate the registry
  */
 export function registerAllTools(): void {
-  // Legacy single-cluster tools (backward compatibility) - DEPRECATED
-  // These tools have been deprecated in favor of multi-cluster equivalents
-  // Commented out to force migration to cluster_* tools
-  /*
-  registerTool({
-    name: "get_cluster_info",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createGetClusterInfoToolDefinition,
-    handler: handleGetClusterInfo
-  });
-
-  registerTool({
-    name: "list_svms",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createListSvmsToolDefinition,
-    handler: handleListSvms
-  });
-
-  registerTool({
-    name: "list_aggregates",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createListAggregatesToolDefinition,
-    handler: handleListAggregates
-  });
-
-  registerTool({
-    name: "list_volumes",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createListVolumesToolDefinition,
-    handler: handleListVolumes
-  });
-
-  registerTool({
-    name: "create_volume",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createCreateVolumeToolDefinition,
-    handler: handleCreateVolume
-  });
-
-  registerTool({
-    name: "get_volume_stats",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createGetVolumeStatsToolDefinition,
-    handler: handleGetVolumeStats
-  });
-
-  registerTool({
-    name: "offline_volume",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createOfflineVolumeToolDefinition,
-    handler: handleOfflineVolume
-  });
-
-  registerTool({
-    name: "delete_volume",
-    category: ToolCategory.LEGACY_SINGLE_CLUSTER,
-    definition: createDeleteVolumeToolDefinition,
-    handler: handleDeleteVolume
-  });
-  */
-
   // Multi-cluster management tools
   registerTool({
     name: "add_cluster",
@@ -629,101 +517,4 @@ export function registerAllTools(): void {
     definition: createClusterDeleteVolumeSnapshotToolDefinition,
     handler: handleClusterDeleteVolumeSnapshot
   });
-
-  // Harvest Metrics Tools (feature-gated by HARVEST_TSDB_URL)
-  const harvestConfig = getHarvestConfig();
-  
-  if (harvestConfig.enabled) {
-    console.log(`Harvest metrics tools enabled (TSDB URL: ${harvestConfig.url})`);
-    
-    registerTool({
-      name: "metrics_query",
-      category: ToolCategory.METRICS,
-      definition: createMetricsQueryToolDefinition,
-      handler: async (args: any) => {
-        const validated = QueryArgsSchema.parse(args);
-        return await handleMetricsQuery(validated, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "metrics_range_query",
-      category: ToolCategory.METRICS,
-      definition: createMetricsRangeQueryToolDefinition,
-      handler: async (args: any) => {
-        const validated = RangeQueryArgsSchema.parse(args);
-        return await handleMetricsRangeQuery(validated, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "list_metrics",
-      category: ToolCategory.METRICS,
-      definition: createListMetricsToolDefinition,
-      handler: async (args: any) => {
-        const validated = ListMetricsArgsSchema.parse(args);
-        return await handleListMetrics(validated, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "list_label_values",
-      category: ToolCategory.METRICS,
-      definition: createListLabelValuesToolDefinition,
-      handler: async (args: any) => {
-        const validated = ListLabelValuesArgsSchema.parse(args);
-        return await handleListLabelValues(validated, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "list_all_label_names",
-      category: ToolCategory.METRICS,
-      definition: createListAllLabelNamesToolDefinition,
-      handler: async (args: any) => {
-        return await handleListAllLabelNames(args, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "get_active_alerts",
-      category: ToolCategory.METRICS,
-      definition: createGetActiveAlertsToolDefinition,
-      handler: async (args: any) => {
-        return await handleGetActiveAlerts(args, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "infrastructure_health",
-      category: ToolCategory.METRICS,
-      definition: createInfrastructureHealthToolDefinition,
-      handler: async (args: any) => {
-        const validated = InfrastructureHealthArgsSchema.parse(args);
-        return await handleInfrastructureHealth(validated, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "get_metric_description",
-      category: ToolCategory.METRICS,
-      definition: createGetMetricDescriptionToolDefinition,
-      handler: async (args: any) => {
-        const validated = GetMetricDescriptionArgsSchema.parse(args);
-        return await handleGetMetricDescription(validated, harvestConfig);
-      }
-    });
-
-    registerTool({
-      name: "search_metrics",
-      category: ToolCategory.METRICS,
-      definition: createSearchMetricsToolDefinition,
-      handler: async (args: any) => {
-        const validated = SearchMetricsArgsSchema.parse(args);
-        return await handleSearchMetrics(validated, harvestConfig);
-      }
-    });
-  } else {
-    console.log('Harvest metrics tools disabled (HARVEST_TSDB_URL not set)');
-  }
 }

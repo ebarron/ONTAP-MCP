@@ -8,14 +8,10 @@ import { spawn } from 'child_process';
 import { McpTestClient } from '../utils/mcp-test-client.js';
 import { readFileSync } from 'fs';
 
-// Base ONTAP tools: 51 (removed cluster_offline_volume, state now in cluster_update_volume)
-// Harvest metrics tools: 9 (enabled when HARVEST_TSDB_URL is set)
-const BASE_TOOL_COUNT = 51;
-const HARVEST_TOOL_COUNT = 9;
-const EXPECTED_TOOL_COUNT = process.env.HARVEST_TSDB_URL ? BASE_TOOL_COUNT + HARVEST_TOOL_COUNT : BASE_TOOL_COUNT;
+// ONTAP tools count (removed Harvest metrics tools)
+const EXPECTED_TOOL_COUNT = 51;
 
-console.log(`🔍 Harvest integration: ${process.env.HARVEST_TSDB_URL ? 'ENABLED' : 'DISABLED'}`);
-console.log(`   Expected tool count: ${EXPECTED_TOOL_COUNT} (${BASE_TOOL_COUNT} base + ${process.env.HARVEST_TSDB_URL ? HARVEST_TOOL_COUNT : 0} harvest)`);
+console.log(`🔍 Expected tool count: ${EXPECTED_TOOL_COUNT} (ONTAP tools only)`);
 
 // Load clusters from test/clusters.json
 let ONTAP_CLUSTERS;

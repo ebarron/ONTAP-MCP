@@ -114,27 +114,15 @@ demo/- Starts MCP HTTP server on port 3000 with **session-scoped security**
 
 ## Key Features
 
-### Manual Setup (if needed)
-
 ### Fix-It Actions
 
-- **Dynamic Tool Discovery**: Auto-discovers all 67 MCP tools (51 ONTAP + 16 Harvest)```bash
+- **Dynamic Tool Discovery**: Auto-discovers all 51 ONTAP MCP tools
 
-- **Parameter Resolution**: Automatically resolves volume UUIDs and metrics# Terminal 1: Start MCP HTTP server (NO clusters pre-loaded)
+- **Parameter Resolution**: Automatically resolves volume UUIDs and cluster names
 
-- **Smart Mapping**: Maps ONTAP CLI commands to MCP tools via LLMcd /Users/ebarron/ONTAP-MCP
+- **Smart Mapping**: Maps ONTAP CLI commands to MCP tools via LLM
 
-- **Undo Support**: Reversible actions with one-click rollbacknpm run build
-
-node build/index.js --http=3000
-
-### Multi-Server MCP
-
-- Connects to both `netapp-ontap-mcp` and `harvest-remote` servers# Terminal 2: Start demo web server FROM demo directory
-
-- Automatic tool routing based on capabilitycd /Users/ebarron/ONTAP-MCP/demo  
-
-- Unified tool discovery across serverspython3 -m http.server 8080
+- **Undo Support**: Reversible actions with one-click rollback
 
 
 
@@ -182,9 +170,11 @@ open demo/test/test-api.html
 
 **Fix-It buttons not working:**- **CIFS Share Creation**: SMB shares with ACLs and user/group permissions
 
-- Requires Harvest metrics server for alert data- **Smart Forms**: Dynamic dropdowns for SVMs, aggregates, and policies
+- **Smart Forms**: Dynamic dropdowns for SVMs, aggregates, and policies
 
-- Check MCP server logs for tool execution errors- **Real-time Validation**: ONTAP-compatible naming and size validation
+- Check MCP server logs for tool execution errors
+
+- **Real-time Validation**: ONTAP-compatible naming and size validation
 
 
 
@@ -243,7 +233,7 @@ demo/
 
 ## MCP Server Configuration
 
-The demo supports multi-server MCP configurations. See `MCP_CONFIG_README.md` for details on configuring additional MCP servers (e.g., Harvest metrics).
+The demo supports multi-server MCP configurations. See `MCP_CONFIG_README.md` for details on configuring additional MCP servers.
 
 ## Development
 

@@ -228,18 +228,6 @@ npm run start:http         # Test HTTP mode
   ```
   **Note:** HTTP mode does NOT use this env var. Clusters must be added per session via `add_cluster` tool for security.
 
-#### Harvest Metrics Integration (Optional)
-- **`HARVEST_TSDB_URL`** (optional): Prometheus/VictoriaMetrics URL for performance metrics
-  ```bash
-  export HARVEST_TSDB_URL='http://prometheus-server:9090'
-  ```
-  When set, enables 9 additional Prometheus metrics tools (56 total tools)
-
-- **`HARVEST_TSDB_TIMEOUT`** (optional, default: `30s`): Query timeout for metrics requests
-  ```bash
-  export HARVEST_TSDB_TIMEOUT='60s'  # For slower systems
-  ```
-
 #### HTTP Session Management (HTTP Transport Only)
 - **`MCP_SESSION_INACTIVITY_TIMEOUT`** (optional, default: `1200000` = 20 minutes): Session timeout in milliseconds after last activity
   ```bash
