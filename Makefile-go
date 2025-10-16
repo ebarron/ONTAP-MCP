@@ -1,0 +1,24 @@
+# NetApp ONTAP MCP Server - Go Implementation
+BINARY_NAME=ontap-mcp
+GO=go
+BUILD_DIR=bin
+
+.PHONY: all build clean help
+
+all: build
+
+help:
+	@echo "NetApp ONTAP MCP Server - Go Build Targets"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+
+build: ## Build the binary
+	@echo "Building $(BINARY_NAME)..."
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/ontap-mcp
+
+clean: ## Clean build artifacts
+	@echo "Cleaning..."
+	rm -rf $(BUILD_DIR)
+
+test-connection: build ## Test ONTAP cluster connections
+	@echo "Testing cluster connections..."
+	export ONTAP_CLUSTERS="$$(cat test/clusters.json)" && ./$(BUILD_DIR)/$(BINARY_NAME) --test-connection
