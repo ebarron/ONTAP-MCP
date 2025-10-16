@@ -694,7 +694,76 @@ func registerVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 		},
 	)
 
-	// 7. cluster_create_qos_policy - Create a QoS policy
+	// 7. cluster_get_volume_configuration - Get comprehensive volume configuration
+	registry.Register(
+		"cluster_get_volume_configuration",
+		"Get comprehensive configuration information for a volume on a registered cluster including policies, security, and efficiency settings",
+		map[string]interface{}{
+			"type":     "object",
+			"required": []string{"cluster_name", "volume_uuid"},
+			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster",
+				},
+				"volume_uuid": map[string]interface{}{
+					"type":        "string",
+					"description": "UUID of the volume",
+				},
+			},
+		},
+		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
+			clusterName := args["cluster_name"].(string)
+			volumeUUID := args["volume_uuid"].(string)
+
+			client, err := clusterManager.GetClient(clusterName)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			volume, err := client.GetVolume(ctx, volumeUUID)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get volume: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			result := fmt.Sprintf("💾 Volume Configuration: %s\n\n", volume.Name)
+			result += fmt.Sprintf("UUID: %s\n", volume.UUID)
+			result += fmt.Sprintf("State: %s\n", volume.State)
+			result += fmt.Sprintf("Type: %s\n", volume.Type)
+			
+			if volume.SVM != nil {
+				result += fmt.Sprintf("SVM: %s (%s)\n", volume.SVM.Name, volume.SVM.UUID)
+			}
+			
+			if volume.Space != nil {
+				sizeTB := float64(volume.Space.Size) / (1024 * 1024 * 1024 * 1024)
+				result += fmt.Sprintf("Size: %.2f TB\n", sizeTB)
+			}
+			
+			if volume.NAS != nil {
+				result += fmt.Sprintf("\n🔒 Security Style: %s\n", volume.NAS.SecurityStyle)
+				if volume.NAS.ExportPolicy != nil {
+					result += fmt.Sprintf("Export Policy: %s\n", volume.NAS.ExportPolicy.Name)
+				}
+			}
+			
+			if volume.QoS != nil && volume.QoS.Policy != nil {
+				result += fmt.Sprintf("\n📊 QoS Policy: %s\n", volume.QoS.Policy.Name)
+			}
+
+			return &CallToolResult{
+				Content: []Content{{Type: "text", Text: result}},
+			}, nil
+		},
+	)
+
+	// 8. cluster_create_qos_policy - Create a QoS policy
 	registry.Register(
 		"cluster_create_qos_policy",
 		"Create a QoS policy group (fixed or adaptive) on a registered cluster",
@@ -777,7 +846,7 @@ func registerVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 		},
 	)
 
-	// 8. cluster_update_qos_policy - Update a QoS policy
+	// 9. cluster_update_qos_policy - Update a QoS policy
 	registry.Register(
 		"cluster_update_qos_policy",
 		"Update an existing QoS policy group's limits on a registered cluster",
