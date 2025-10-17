@@ -89,9 +89,9 @@ ontap-mcp-go/
 ├── pkg/
 │   ├── mcp/
 │   │   ├── server.go              # MCP server implementation
-│   │   ├── session.go             # Session management
+│   │   ├── types.go               # JSON-RPC 2.0 and MCP protocol types
 │   │   ├── transport_stdio.go     # STDIO transport
-│   │   └── transport_http.go      # HTTP/SSE transport
+│   │   └── transport_http.go      # HTTP/SSE transport (includes session management)
 │   │
 │   ├── ontap/
 │   │   ├── client.go              # ONTAP REST API client
@@ -112,12 +112,10 @@ ontap-mcp-go/
 │   │
 │   ├── config/
 │   │   ├── config.go              # Configuration loading
-│   │   └── clusters.go            # Cluster configuration types
+│   │   └── clusters.go            # Cluster configuration types and validation
 │   │
 │   └── util/
-│       ├── logger.go              # Structured logging
-│       ├── validator.go           # Input validation
-│       └── http.go                # HTTP utilities
+│       └── logger.go              # Structured logging (zerolog)
 │
 ├── test/                          # PRESERVED: JavaScript test suite
 │   ├── run-all-tests.sh          # Existing test runner

@@ -46,10 +46,11 @@ const (
 
 // InitializeRequest is the MCP initialize request
 type InitializeRequest struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    ClientCapabilities     `json:"capabilities"`
-	ClientInfo      Implementation         `json:"clientInfo"`
-	Meta            map[string]interface{} `json:"_meta,omitempty"`
+	ProtocolVersion       string                 `json:"protocolVersion"`
+	Capabilities          ClientCapabilities     `json:"capabilities"`
+	ClientInfo            Implementation         `json:"clientInfo"`
+	InitializationOptions map[string]interface{} `json:"initializationOptions,omitempty"`
+	Meta                  map[string]interface{} `json:"_meta,omitempty"`
 }
 
 // InitializeResult is the MCP initialize response

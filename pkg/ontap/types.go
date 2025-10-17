@@ -90,6 +90,7 @@ type CreateVolumeRequest struct {
 	SVM        map[string]string      `json:"svm"`
 	Size       int64                  `json:"size"`
 	Aggregates []map[string]string    `json:"aggregates,omitempty"`
+	QoS        map[string]interface{} `json:"qos,omitempty"`
 	Space      map[string]interface{} `json:"space,omitempty"`
 	NAS        map[string]interface{} `json:"nas,omitempty"`
 	Type       string                 `json:"type,omitempty"`

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
@@ -38,70 +37,6 @@ type Client struct {
 	httpClient *http.Client
 	logger     *util.Logger
 	clusterIP  string
-}
-
-// ClusterManager manages multiple ONTAP cluster connections
-type ClusterManager struct {
-	clusters map[string]*Client
-	configs  map[string]*config.ClusterConfig
-	mu       sync.RWMutex
-	logger   *util.Logger
-}
-
-// NewClusterManager creates a new cluster manager
-func NewClusterManager(logger *util.Logger) *ClusterManager {
-	return &ClusterManager{
-		clusters: make(map[string]*Client),
-		configs:  make(map[string]*config.ClusterConfig),
-		logger:   logger,
-	}
-}
-
-// AddCluster adds a cluster to the manager
-func (cm *ClusterManager) AddCluster(cfg *config.ClusterConfig) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	if _, exists := cm.clusters[cfg.Name]; exists {
-		return fmt.Errorf("cluster %s already registered", cfg.Name)
-	}
-
-	client := NewClient(cfg, cm.logger)
-	cm.clusters[cfg.Name] = client
-	cm.configs[cfg.Name] = cfg
-
-	cm.logger.Debug().
-		Str("cluster", cfg.Name).
-		Str("ip", cfg.ClusterIP).
-		Msg("Cluster added to manager")
-
-	return nil
-}
-
-// GetClient retrieves a client for a cluster
-func (cm *ClusterManager) GetClient(name string) (*Client, error) {
-	cm.mu.RLock()
-	defer cm.mu.RUnlock()
-
-	client, ok := cm.clusters[name]
-	if !ok {
-		return nil, fmt.Errorf("cluster not found: %s", name)
-	}
-
-	return client, nil
-}
-
-// ListClusters returns names of all registered clusters
-func (cm *ClusterManager) ListClusters() []string {
-	cm.mu.RLock()
-	defer cm.mu.RUnlock()
-
-	names := make([]string, 0, len(cm.clusters))
-	for name := range cm.clusters {
-		names = append(names, name)
-	}
-
-	return names
 }
 
 // NewClient creates a new ONTAP API client

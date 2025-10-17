@@ -5,23 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ebarron/ONTAP-MCP/pkg/config"
+	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 	"github.com/ebarron/ONTAP-MCP/pkg/tools"
 	"github.com/ebarron/ONTAP-MCP/pkg/util"
 )
 
 // Server implements the MCP protocol server
 type Server struct {
-	registry *tools.Registry
-	logger   *util.Logger
-	version  string
+	registry       *tools.Registry
+	clusterManager *ontap.ClusterManager
+	logger         *util.Logger
+	version        string
 }
 
 // NewServer creates a new MCP server
-func NewServer(registry *tools.Registry, logger *util.Logger) *Server {
+func NewServer(registry *tools.Registry, clusterManager *ontap.ClusterManager, logger *util.Logger) *Server {
 	return &Server{
-		registry: registry,
-		logger:   logger,
-		version:  "2025-06-18", // MCP protocol version
+		registry:       registry,
+		clusterManager: clusterManager,
+		logger:         logger,
+		version:        "2025-06-18", // MCP protocol version
 	}
 }
 
@@ -69,7 +73,15 @@ func (s *Server) handleInitialize(ctx context.Context, req *JSONRPCRequest) *JSO
 	s.logger.Info().
 		Str("client", initReq.ClientInfo.Name).
 		Str("version", initReq.ClientInfo.Version).
+		Bool("has_init_options", initReq.InitializationOptions != nil).
 		Msg("Client initializing")
+
+	// Load clusters from initializationOptions if provided
+	if initReq.InitializationOptions != nil {
+		if err := s.loadClustersFromInitOptions(initReq.InitializationOptions); err != nil {
+			s.logger.Warn().Err(err).Msg("Failed to load clusters from initializationOptions")
+		}
+	}
 
 	result := InitializeResult{
 		ProtocolVersion: s.version,
@@ -96,6 +108,72 @@ func (s *Server) handleInitialize(ctx context.Context, req *JSONRPCRequest) *JSO
 	}
 
 	return resp
+}
+
+// loadClustersFromInitOptions loads clusters from MCP initializationOptions
+// Matches TypeScript behavior: supports both array and object formats
+func (s *Server) loadClustersFromInitOptions(initOptions map[string]interface{}) error {
+	// Look for ONTAP_CLUSTERS in initializationOptions
+	ontapClusters, ok := initOptions["ONTAP_CLUSTERS"]
+	if !ok {
+		return nil // No clusters in init options
+	}
+
+	// Convert to JSON and parse using existing config loader
+	clustersJSON, err := json.Marshal(ontapClusters)
+	if err != nil {
+		return fmt.Errorf("failed to marshal clusters: %w", err)
+	}
+
+	var clusters []config.ClusterConfig
+
+	// Try array format first
+	if err := json.Unmarshal(clustersJSON, &clusters); err != nil {
+		// Try object format (TypeScript compatibility)
+		var clusterMap map[string]struct {
+			ClusterIP   string `json:"cluster_ip"`
+			Username    string `json:"username"`
+			Password    string `json:"password"`
+			Description string `json:"description,omitempty"`
+			VerifySSL   bool   `json:"verify_ssl,omitempty"`
+		}
+
+		if err := json.Unmarshal(clustersJSON, &clusterMap); err != nil {
+			return fmt.Errorf("invalid ONTAP_CLUSTERS format in initializationOptions: %w", err)
+		}
+
+		// Convert object format to array
+		clusters = make([]config.ClusterConfig, 0, len(clusterMap))
+		for name, cfg := range clusterMap {
+			clusters = append(clusters, config.ClusterConfig{
+				Name:        name,
+				ClusterIP:   cfg.ClusterIP,
+				Username:    cfg.Username,
+				Password:    cfg.Password,
+				Description: cfg.Description,
+				VerifySSL:   cfg.VerifySSL,
+			})
+		}
+	}
+
+	// Add clusters to manager
+	addedCount := 0
+	for _, cluster := range clusters {
+		if err := s.clusterManager.AddCluster(&cluster); err != nil {
+			s.logger.Warn().
+				Str("cluster", cluster.Name).
+				Err(err).
+				Msg("Failed to add cluster from initializationOptions")
+		} else {
+			addedCount++
+		}
+	}
+
+	s.logger.Info().
+		Int("count", addedCount).
+		Msg("Loaded clusters from initializationOptions")
+
+	return nil
 }
 
 // handleListTools handles the tools/list request

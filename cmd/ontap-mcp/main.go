@@ -76,8 +76,8 @@ func main() {
 		Int("tools", registry.Count()).
 		Msg("Tool registry initialized")
 
-	// Create MCP server
-	server := mcp.NewServer(registry, logger)
+	// Create MCP server (pass clusterManager for initializationOptions support)
+	server := mcp.NewServer(registry, clusterManager, logger)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -98,9 +98,9 @@ func main() {
 		port := parsePort(*httpMode)
 		logger.Info().
 			Int("port", port).
-			Msg("Starting MCP server in HTTP mode")
+			Msg("Starting MCP server in HTTP mode (using SDK)")
 
-		if err := server.ServeHTTP(ctx, port); err != nil {
+		if err := server.ServeHTTPWithSDK(ctx, port); err != nil {
 			logger.Error().Err(err).Msg("HTTP server failed")
 			os.Exit(1)
 		}
