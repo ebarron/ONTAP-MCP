@@ -93,7 +93,7 @@ func (c *Client) CreateVolume(ctx context.Context, req *CreateVolumeRequest) (*C
 		// Wait for job to complete
 		jobUUID := response.Job.UUID
 		maxAttempts := 10
-		
+
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			// Wait 2 seconds between checks
 			select {
@@ -101,40 +101,40 @@ func (c *Client) CreateVolume(ctx context.Context, req *CreateVolumeRequest) (*C
 				return nil, ctx.Err()
 			case <-time.After(2 * time.Second):
 			}
-			
+
 			// Check job status
 			var jobStatus struct {
 				State   string `json:"state"`
 				Message string `json:"message"`
 			}
-			
+
 			jobPath := fmt.Sprintf("/cluster/jobs/%s", jobUUID)
 			if err := c.get(ctx, jobPath, &jobStatus); err != nil {
 				// Continue waiting if job status check fails
 				continue
 			}
-			
+
 			if jobStatus.State == "success" {
 				// Job completed - now find the volume by name
 				volumes, err := c.ListVolumes(ctx, req.SVM["name"])
 				if err != nil {
 					return nil, fmt.Errorf("job completed but failed to list volumes: %w", err)
 				}
-				
+
 				for _, vol := range volumes {
 					if vol.Name == req.Name {
 						response.UUID = vol.UUID
 						return &response, nil
 					}
 				}
-				
+
 				return nil, fmt.Errorf("volume '%s' not found after job completion", req.Name)
 			} else if jobStatus.State == "failure" {
 				return nil, fmt.Errorf("volume creation job failed: %s", jobStatus.Message)
 			}
 			// If state is "running" or "queued", continue waiting
 		}
-		
+
 		return nil, fmt.Errorf("volume creation job did not complete after %d attempts", maxAttempts)
 	}
 

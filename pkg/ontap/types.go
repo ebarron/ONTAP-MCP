@@ -10,10 +10,10 @@ type SVM struct {
 
 // Aggregate represents a storage aggregate
 type Aggregate struct {
-	UUID       string `json:"uuid"`
-	Name       string `json:"name"`
-	State      string `json:"state"`
-	Space      *AggregateSpace `json:"space,omitempty"`
+	UUID         string          `json:"uuid"`
+	Name         string          `json:"name"`
+	State        string          `json:"state"`
+	Space        *AggregateSpace `json:"space,omitempty"`
 	BlockStorage *struct {
 		Primary *struct {
 			DiskCount int    `json:"disk_count"`
@@ -53,24 +53,24 @@ type Volume struct {
 
 // VolumeSpace represents volume space information
 type VolumeSpace struct {
-	Size            int64  `json:"size,omitempty"`
-	Available       int64  `json:"available,omitempty"`
-	Used            int64  `json:"used,omitempty"`
-	LogicalSpace    *struct {
+	Size         int64 `json:"size,omitempty"`
+	Available    int64 `json:"available,omitempty"`
+	Used         int64 `json:"used,omitempty"`
+	LogicalSpace *struct {
 		Used      int64 `json:"used,omitempty"`
 		Available int64 `json:"available,omitempty"`
 	} `json:"logical_space,omitempty"`
 	Snapshot *struct {
-		Used              int64 `json:"used,omitempty"`
-		ReservePercent    int   `json:"reserve_percent,omitempty"`
+		Used           int64 `json:"used,omitempty"`
+		ReservePercent int   `json:"reserve_percent,omitempty"`
 	} `json:"snapshot,omitempty"`
 }
 
 // VolumeNAS represents NFS/CIFS configuration
 type VolumeNAS struct {
-	Path         string `json:"path,omitempty"`
+	Path          string `json:"path,omitempty"`
 	SecurityStyle string `json:"security_style,omitempty"`
-	ExportPolicy *struct {
+	ExportPolicy  *struct {
 		Name string `json:"name,omitempty"`
 		ID   int    `json:"id,omitempty"`
 	} `json:"export_policy,omitempty"`
@@ -109,13 +109,13 @@ type CreateVolumeResponse struct {
 
 // CIFSShare represents a CIFS/SMB share
 type CIFSShare struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	SVM     *struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	SVM  *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
-	Comment string `json:"comment,omitempty"`
+	Comment string    `json:"comment,omitempty"`
 	ACLs    []CIFSACL `json:"acls,omitempty"`
 }
 
@@ -128,9 +128,9 @@ type CIFSACL struct {
 
 // ExportPolicy represents an NFS export policy
 type ExportPolicy struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	SVM   *struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	SVM  *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
@@ -139,15 +139,15 @@ type ExportPolicy struct {
 
 // ExportRule represents an export policy rule
 type ExportRule struct {
-	Index              int              `json:"index"`
-	Clients            []ExportClient   `json:"clients,omitempty"`
-	Protocols          []string         `json:"protocols,omitempty"`
-	RoRule             []string         `json:"ro_rule,omitempty"`
-	RwRule             []string         `json:"rw_rule,omitempty"`
-	Superuser          []string         `json:"superuser,omitempty"`
-	AnonymousUser      string           `json:"anonymous_user,omitempty"`
-	AllowDeviceCreation bool            `json:"allow_device_creation,omitempty"`
-	AllowSuid          bool             `json:"allow_suid,omitempty"`
+	Index               int            `json:"index"`
+	Clients             []ExportClient `json:"clients,omitempty"`
+	Protocols           []string       `json:"protocols,omitempty"`
+	RoRule              []string       `json:"ro_rule,omitempty"`
+	RwRule              []string       `json:"rw_rule,omitempty"`
+	Superuser           []string       `json:"superuser,omitempty"`
+	AnonymousUser       string         `json:"anonymous_user,omitempty"`
+	AllowDeviceCreation bool           `json:"allow_device_creation,omitempty"`
+	AllowSuid           bool           `json:"allow_suid,omitempty"`
 }
 
 // ExportClient represents an NFS client specification
@@ -162,9 +162,9 @@ type SnapshotPolicy struct {
 	Enabled bool   `json:"enabled"`
 	Comment string `json:"comment,omitempty"`
 	Copies  []struct {
-		Count     int    `json:"count"`
-		Prefix    string `json:"prefix,omitempty"`
-		Schedule  *struct {
+		Count    int    `json:"count"`
+		Prefix   string `json:"prefix,omitempty"`
+		Schedule *struct {
 			Name string `json:"name"`
 		} `json:"schedule,omitempty"`
 		Retention string `json:"retention_period,omitempty"`
@@ -177,9 +177,9 @@ type SnapshotPolicy struct {
 
 // QoSPolicy represents a QoS policy
 type QoSPolicy struct {
-	UUID  string `json:"uuid"`
-	Name  string `json:"name"`
-	SVM   *struct {
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+	SVM  *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
@@ -190,10 +190,10 @@ type QoSPolicy struct {
 		MinThroughputIOPS int64 `json:"min_throughput_iops,omitempty"`
 	} `json:"fixed,omitempty"`
 	Adaptive *struct {
-		ExpectedIOPS          int64  `json:"expected_iops,omitempty"`
+		ExpectedIOPS           int64  `json:"expected_iops,omitempty"`
 		ExpectedIOPSAllocation string `json:"expected_iops_allocation,omitempty"`
-		PeakIOPS              int64  `json:"peak_iops,omitempty"`
-		PeakIOPSAllocation    string `json:"peak_iops_allocation,omitempty"`
+		PeakIOPS               int64  `json:"peak_iops,omitempty"`
+		PeakIOPSAllocation     string `json:"peak_iops_allocation,omitempty"`
 	} `json:"adaptive,omitempty"`
 }
 
@@ -209,11 +209,11 @@ type VolumeSnapshot struct {
 
 // VolumeAutosize represents volume autosize configuration
 type VolumeAutosize struct {
-	Mode              string `json:"mode"`
-	GrowThreshold     int    `json:"grow_threshold,omitempty"`
-	ShrinkThreshold   int    `json:"shrink_threshold,omitempty"`
-	Maximum           int64  `json:"maximum,omitempty"`
-	Minimum           int64  `json:"minimum,omitempty"`
+	Mode            string `json:"mode"`
+	GrowThreshold   int    `json:"grow_threshold,omitempty"`
+	ShrinkThreshold int    `json:"shrink_threshold,omitempty"`
+	Maximum         int64  `json:"maximum,omitempty"`
+	Minimum         int64  `json:"minimum,omitempty"`
 }
 
 // SnapshotSchedule represents a snapshot schedule (cron job)

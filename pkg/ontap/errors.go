@@ -7,14 +7,14 @@ import (
 
 // Common ONTAP API errors
 var (
-	ErrClusterNotFound    = errors.New("cluster not found")
-	ErrUnauthorized       = errors.New("unauthorized - invalid credentials")
-	ErrConnectionFailed   = errors.New("connection failed")
-	ErrInvalidResponse    = errors.New("invalid API response")
-	ErrResourceNotFound   = errors.New("resource not found")
-	ErrResourceExists     = errors.New("resource already exists")
-	ErrOperationFailed    = errors.New("operation failed")
-	ErrInvalidParameter   = errors.New("invalid parameter")
+	ErrClusterNotFound  = errors.New("cluster not found")
+	ErrUnauthorized     = errors.New("unauthorized - invalid credentials")
+	ErrConnectionFailed = errors.New("connection failed")
+	ErrInvalidResponse  = errors.New("invalid API response")
+	ErrResourceNotFound = errors.New("resource not found")
+	ErrResourceExists   = errors.New("resource already exists")
+	ErrOperationFailed  = errors.New("operation failed")
+	ErrInvalidParameter = errors.New("invalid parameter")
 )
 
 // APIError represents an ONTAP REST API error

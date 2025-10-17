@@ -122,6 +122,12 @@ async function testHttpMode() {
     const toolCount = result.result?.tools?.length || 0;
     console.log(`HTTP mode returned ${toolCount} tools`);
     
+    if (toolCount !== EXPECTED_TOOL_COUNT) {
+      console.log('\nHTTP tools:');
+      const httpTools = result.result.tools.map(t => t.name).sort();
+      httpTools.forEach(t => console.log(`  ${t}`));
+    }
+    
     await client.close();
     
     if (toolCount === EXPECTED_TOOL_COUNT) {

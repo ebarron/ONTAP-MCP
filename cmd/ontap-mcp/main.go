@@ -24,10 +24,10 @@ const (
 func main() {
 	// CLI flags
 	var (
-		showVersion  = flag.Bool("version", false, "Show version and exit")
-		httpMode     = flag.String("http", "", "Run in HTTP mode on specified port (e.g., --http=3000)")
-		testConn     = flag.Bool("test-connection", false, "Test ONTAP cluster connections and exit")
-		logLevel     = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+		showVersion = flag.Bool("version", false, "Show version and exit")
+		httpMode    = flag.String("http", "", "Run in HTTP mode on specified port (e.g., --http=3000)")
+		testConn    = flag.Bool("test-connection", false, "Test ONTAP cluster connections and exit")
+		logLevel    = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	)
 	flag.Parse()
 

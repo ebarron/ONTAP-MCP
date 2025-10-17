@@ -211,73 +211,6 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		},
 	)
 
-	// 4. cluster_get_cifs_share - Get CIFS share details
-	registry.Register(
-		"cluster_get_cifs_share",
-		"Get detailed information about a specific CIFS share",
-		map[string]interface{}{
-			"type":     "object",
-			"required": []string{"cluster_name", "name", "svm_name"},
-			"properties": map[string]interface{}{
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
-				},
-				"name": map[string]interface{}{
-					"type":        "string",
-					"description": "CIFS share name",
-				},
-				"svm_name": map[string]interface{}{
-					"type":        "string",
-					"description": "SVM name where share exists",
-				},
-			},
-		},
-		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			name := args["name"].(string)
-			svmName := args["svm_name"].(string)
-
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			// Get SVM UUID
-			svm, err := client.GetSVM(ctx, svmName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get SVM: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			share, err := client.GetCIFSShare(ctx, svm.UUID, name)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get CIFS share: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			result := fmt.Sprintf("CIFS Share: %s\n", share.Name)
-			result += fmt.Sprintf("Path: %s\n", share.Path)
-			if share.SVM != nil {
-				result += fmt.Sprintf("SVM: %s\n", share.SVM.Name)
-			}
-			if share.Comment != "" {
-				result += fmt.Sprintf("Comment: %s\n", share.Comment)
-			}
-
-			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
-			}, nil
-		},
-	)
-
 	// ====================
 	// Dual-Mode CIFS Tools (support both registry and direct credentials)
 	// ====================
@@ -287,12 +220,12 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		"type": "object", "required": []string{"name", "path", "svm_name"},
 		"properties": map[string]interface{}{
 			"cluster_name": map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
-			"cluster_ip": map[string]interface{}{"type": "string", "description": "IP address or FQDN (direct mode)"},
-			"username": map[string]interface{}{"type": "string", "description": "Username (direct mode)"},
-			"password": map[string]interface{}{"type": "string", "description": "Password (direct mode)"},
-			"name": map[string]interface{}{"type": "string", "description": "CIFS share name"},
-			"path": map[string]interface{}{"type": "string", "description": "Volume path (typically /vol/volume_name)"},
-			"svm_name": map[string]interface{}{"type": "string", "description": "SVM name where share will be created"},
+			"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN (direct mode)"},
+			"username":     map[string]interface{}{"type": "string", "description": "Username (direct mode)"},
+			"password":     map[string]interface{}{"type": "string", "description": "Password (direct mode)"},
+			"name":         map[string]interface{}{"type": "string", "description": "CIFS share name"},
+			"path":         map[string]interface{}{"type": "string", "description": "Volume path (typically /vol/volume_name)"},
+			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name where share will be created"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -312,11 +245,11 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		"type": "object", "required": []string{"name", "svm_name"},
 		"properties": map[string]interface{}{
 			"cluster_name": map[string]interface{}{"type": "string", "description": "Registry mode"},
-			"cluster_ip": map[string]interface{}{"type": "string", "description": "Direct mode"},
-			"username": map[string]interface{}{"type": "string", "description": "Direct mode"},
-			"password": map[string]interface{}{"type": "string", "description": "Direct mode"},
-			"name": map[string]interface{}{"type": "string", "description": "CIFS share name"},
-			"svm_name": map[string]interface{}{"type": "string", "description": "SVM name"},
+			"cluster_ip":   map[string]interface{}{"type": "string", "description": "Direct mode"},
+			"username":     map[string]interface{}{"type": "string", "description": "Direct mode"},
+			"password":     map[string]interface{}{"type": "string", "description": "Direct mode"},
+			"name":         map[string]interface{}{"type": "string", "description": "CIFS share name"},
+			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -335,7 +268,7 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		"properties": map[string]interface{}{
 			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
 			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"name": map[string]interface{}{"type": "string", "description": "CIFS share name"},
+			"name":     map[string]interface{}{"type": "string", "description": "CIFS share name"},
 			"svm_name": map[string]interface{}{"type": "string", "description": "SVM name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
@@ -403,4 +336,3 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Updated CIFS share '%s'", args["name"])}}}, nil
 	})
 }
-

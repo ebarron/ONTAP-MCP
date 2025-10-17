@@ -5,34 +5,72 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
+	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
+	"github.com/ebarron/ONTAP-MCP/pkg/tools"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ServeHTTPWithSDK runs the MCP server using the official MCP Go SDK
 func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
-	// Create MCP SDK server
-	mcpServer := sdk.NewServer(
-		&sdk.Implementation{
-			Name:    "ontap-mcp-server",
-			Version: "2.0.0",
-		},
-		&sdk.ServerOptions{
-			Instructions: "NetApp ONTAP MCP Server - Provides tools for managing ONTAP storage clusters including volumes, CIFS shares, NFS exports, snapshots, and QoS policies.",
-		},
-	)
+	// Create session manager for per-session cluster isolation
+	sessionManager := NewSessionManager(s.logger)
 
-	// Register all tools from our registry with the SDK server
-	if err := s.registerToolsWithSDK(mcpServer); err != nil {
-		return fmt.Errorf("failed to register tools: %w", err)
-	}
+	s.logger.Info().Msg("Session manager initialized for HTTP mode (per-session cluster isolation)")
 
 	// Create HTTP handler using SDK's StreamableHTTPHandler
+	// CRITICAL: We create a NEW server instance for EACH session to ensure cluster isolation
 	handler := sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
-		// For each request, we return the same server
-		// The SDK handles session management internally
+		// Extract session ID from header (set by SDK during initialization)
+		sessionID := r.Header.Get("Mcp-Session-Id")
+		
+		s.logger.Debug().
+			Str("session_id", sessionID).
+			Str("request_uri", r.RequestURI).
+			Msg("Factory function called for request")
+		
+		// DEBUG: Print to stderr to ensure we see it
+		fmt.Fprintf(os.Stderr, "\n🔧 [FACTORY] ================================================\n")
+		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] Creating server for session: '%s'\n", sessionID)
+		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] Request URI: %s\n", r.RequestURI)
+		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] ================================================\n\n")
+		
+		// WORKAROUND: If session ID is empty (during initialization), generate a temporary one
+		// The SDK will call this factory before the session ID is generated
+		// This is a limitation of the SDK's factory pattern
+		if sessionID == "" {
+			// Use request pointer as unique identifier (each request has unique memory address)
+			sessionID = fmt.Sprintf("temp_%p", r)
+			fmt.Fprintf(os.Stderr, "⚠️  [FACTORY] Empty session ID, using temporary ID: %s\n", sessionID)
+		}
+		
+		// Get or create session-specific data (includes isolated cluster manager)
+		sessionData := sessionManager.GetOrCreateSession(sessionID)
+
+		// Create a NEW MCP server instance for this session
+		mcpServer := sdk.NewServer(
+			&sdk.Implementation{
+				Name:    "ontap-mcp-server",
+				Version: "2.0.0",
+			},
+			&sdk.ServerOptions{
+				Instructions: "NetApp ONTAP MCP Server - Provides tools for managing ONTAP storage clusters including volumes, CIFS shares, NFS exports, snapshots, and QoS policies.",
+			},
+		)
+
+		// Register tools with THIS session's cluster manager
+		if err := s.registerToolsWithSDKForSession(mcpServer, sessionData.ClusterManager); err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("session_id", sessionID).
+				Msg("Failed to register tools for session")
+		}
+
+		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] Server created and tools registered for session '%s'\n\n", sessionID)
+
 		return mcpServer
 	}, nil)
 
@@ -91,19 +129,19 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 	return nil
 }
 
-// registerToolsWithSDK registers all our tools with the MCP SDK server
-func (s *Server) registerToolsWithSDK(mcpServer *sdk.Server) error {
-	toolDefs := s.registry.ListTools()
-	
-	s.logger.Info().
-		Int("count", len(toolDefs)).
-		Msg("Registering tools with MCP SDK")
+// registerToolsWithSDKForSession registers all tools with a session-specific cluster manager
+func (s *Server) registerToolsWithSDKForSession(mcpServer *sdk.Server, clusterManager *ontap.ClusterManager) error {
+	// Create a temporary registry with the session's cluster manager
+	sessionRegistry := tools.NewRegistry(s.logger)
+	tools.RegisterAllTools(sessionRegistry, clusterManager)
+
+	toolDefs := sessionRegistry.ListTools()
 
 	for _, toolDef := range toolDefs {
 		// Capture loop variables for closure (critical for Go closures in loops)
 		currentToolName := toolDef.Name
 		currentToolDesc := toolDef.Description
-		
+
 		// Create SDK-compatible tool definition
 		sdkTool := &sdk.Tool{
 			Name:        currentToolName,
@@ -113,8 +151,8 @@ func (s *Server) registerToolsWithSDK(mcpServer *sdk.Server) error {
 
 		// Create handler that wraps our internal tool execution
 		handler := func(ctx context.Context, req *sdk.CallToolRequest, args map[string]interface{}) (*sdk.CallToolResult, any, error) {
-			// Execute our internal tool (using captured variable)
-			result, err := s.registry.ExecuteTool(ctx, currentToolName, args)
+			// Execute tool using the SESSION'S registry (with session's cluster manager)
+			result, err := sessionRegistry.ExecuteTool(ctx, currentToolName, args)
 			if err != nil {
 				return &sdk.CallToolResult{
 					Content: []sdk.Content{
@@ -141,8 +179,6 @@ func (s *Server) registerToolsWithSDK(mcpServer *sdk.Server) error {
 
 		// Add tool to SDK server using the SDK's AddTool function
 		sdk.AddTool(mcpServer, sdkTool, handler)
-
-		s.logger.Debug().Str("tool", currentToolName).Msg("Registered tool")
 	}
 
 	return nil
@@ -161,7 +197,7 @@ func (s *Server) LoadClustersFromInitOptions(initOptions map[string]interface{})
 
 	// Parse clusters data
 	var clusters []config.ClusterConfig
-	
+
 	// Handle both JSON string and object formats
 	switch v := clustersData.(type) {
 	case string:
@@ -184,7 +220,7 @@ func (s *Server) LoadClustersFromInitOptions(initOptions map[string]interface{})
 			if !ok {
 				continue
 			}
-			
+
 			cluster := config.ClusterConfig{Name: name}
 			if ip, ok := clusterMap["cluster_ip"].(string); ok {
 				cluster.ClusterIP = ip
@@ -198,7 +234,7 @@ func (s *Server) LoadClustersFromInitOptions(initOptions map[string]interface{})
 			if desc, ok := clusterMap["description"].(string); ok {
 				cluster.Description = desc
 			}
-			
+
 			clusters = append(clusters, cluster)
 		}
 	default:
@@ -221,7 +257,7 @@ func (s *Server) LoadClustersFromInitOptions(initOptions map[string]interface{})
 				Msg("Failed to add cluster")
 			continue
 		}
-		
+
 		s.logger.Info().
 			Str("cluster", cluster.Name).
 			Str("cluster_ip", cluster.ClusterIP).

@@ -210,7 +210,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					summary += fmt.Sprintf(" - State: %s", aggr.State)
 				}
 				if aggr.Space != nil && aggr.Space.BlockStorage != nil {
-					summary += fmt.Sprintf(", Available: %d, Used: %d", 
+					summary += fmt.Sprintf(", Available: %d, Used: %d",
 						aggr.Space.BlockStorage.Available, aggr.Space.BlockStorage.Used)
 				}
 				summary += "\n"
@@ -342,11 +342,11 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			// Parse size string (supports KB, MB, GB, TB)
 			var sizeBytes int64
 			sizeStr = strings.TrimSpace(sizeStr)
-			
+
 			// Try to match pattern like "100MB", "1.5GB", "2TB"
 			var num float64
 			var unit string
-			
+
 			// Extract number and unit
 			for i := len(sizeStr) - 1; i >= 0; i-- {
 				if sizeStr[i] >= '0' && sizeStr[i] <= '9' || sizeStr[i] == '.' {
@@ -355,7 +355,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					break
 				}
 			}
-			
+
 			// Convert to bytes based on unit
 			switch unit {
 			case "KB":
@@ -437,11 +437,11 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				} else {
 					result += fmt.Sprintf("\n📁 **CIFS Share:** %s\n", shareName)
 					result += fmt.Sprintf("   Path: %s\n", sharePath)
-					
+
 					if comment, ok := cifsShareArg["comment"].(string); ok && comment != "" {
 						result += fmt.Sprintf("   Comment: %s\n", comment)
 					}
-					
+
 					if accessControl, ok := cifsShareArg["access_control"].([]interface{}); ok && len(accessControl) > 0 {
 						result += "   Access Control:\n"
 						for _, ace := range accessControl {
@@ -451,7 +451,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 							result += fmt.Sprintf("   - %s: %s\n", userOrGroup, permission)
 						}
 					}
-					
+
 					result += "   📋 **Share Status:** Available for client access"
 				}
 			}
@@ -686,232 +686,6 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				result += fmt.Sprintf("Used: %.2f TB (%.1f%%)\n", usedTB, usedPercent)
 				result += fmt.Sprintf("Available: %.2f TB\n", availTB)
 			}
-
-			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
-			}, nil
-		},
-	)
-
-	// 7. cluster_get_volume_configuration - Get comprehensive volume configuration
-	registry.Register(
-		"cluster_get_volume_configuration",
-		"Get comprehensive configuration information for a volume on a registered cluster including policies, security, and efficiency settings",
-		map[string]interface{}{
-			"type":     "object",
-			"required": []string{"cluster_name", "volume_uuid"},
-			"properties": map[string]interface{}{
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
-				},
-				"volume_uuid": map[string]interface{}{
-					"type":        "string",
-					"description": "UUID of the volume",
-				},
-			},
-		},
-		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			volumeUUID := args["volume_uuid"].(string)
-
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			volume, err := client.GetVolume(ctx, volumeUUID)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get volume: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			result := fmt.Sprintf("💾 Volume Configuration: %s\n\n", volume.Name)
-			result += fmt.Sprintf("UUID: %s\n", volume.UUID)
-			result += fmt.Sprintf("State: %s\n", volume.State)
-			result += fmt.Sprintf("Type: %s\n", volume.Type)
-			
-			if volume.SVM != nil {
-				result += fmt.Sprintf("SVM: %s (%s)\n", volume.SVM.Name, volume.SVM.UUID)
-			}
-			
-			if volume.Space != nil {
-				sizeTB := float64(volume.Space.Size) / (1024 * 1024 * 1024 * 1024)
-				result += fmt.Sprintf("Size: %.2f TB\n", sizeTB)
-			}
-			
-			if volume.NAS != nil {
-				result += fmt.Sprintf("\n🔒 Security Style: %s\n", volume.NAS.SecurityStyle)
-				if volume.NAS.ExportPolicy != nil {
-					result += fmt.Sprintf("Export Policy: %s\n", volume.NAS.ExportPolicy.Name)
-				}
-			}
-			
-			if volume.QoS != nil && volume.QoS.Policy != nil {
-				result += fmt.Sprintf("\n📊 QoS Policy: %s\n", volume.QoS.Policy.Name)
-			}
-
-			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
-			}, nil
-		},
-	)
-
-	// 8. cluster_create_qos_policy - Create a QoS policy
-	registry.Register(
-		"cluster_create_qos_policy",
-		"Create a QoS policy group (fixed or adaptive) on a registered cluster",
-		map[string]interface{}{
-			"type":     "object",
-			"required": []string{"cluster_name", "policy_name", "svm_name", "policy_type"},
-			"properties": map[string]interface{}{
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
-				},
-				"policy_name": map[string]interface{}{
-					"type":        "string",
-					"description": "QoS policy name",
-				},
-				"svm_name": map[string]interface{}{
-					"type":        "string",
-					"description": "SVM name where policy will be created",
-				},
-				"policy_type": map[string]interface{}{
-					"type":        "string",
-					"description": "Type of QoS policy: 'fixed' for absolute limits or 'adaptive' for scaling limits",
-					"enum":        []string{"fixed", "adaptive"},
-				},
-				"max_throughput_iops": map[string]interface{}{
-					"type":        "number",
-					"description": "Maximum throughput in IOPS (fixed policy only)",
-				},
-				"min_throughput_iops": map[string]interface{}{
-					"type":        "number",
-					"description": "Minimum guaranteed throughput in IOPS (fixed policy only)",
-				},
-			},
-		},
-		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			policyName := args["policy_name"].(string)
-			svmName := args["svm_name"].(string)
-			policyType := args["policy_type"].(string)
-
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			req := map[string]interface{}{
-				"name": policyName,
-				"svm":  map[string]string{"name": svmName},
-			}
-
-			if policyType == "fixed" {
-				fixed := make(map[string]interface{})
-				if maxIOPS, ok := args["max_throughput_iops"].(float64); ok {
-					fixed["max_throughput_iops"] = int64(maxIOPS)
-				}
-				if minIOPS, ok := args["min_throughput_iops"].(float64); ok {
-					fixed["min_throughput_iops"] = int64(minIOPS)
-				}
-				if len(fixed) > 0 {
-					req["fixed"] = fixed
-				}
-			}
-
-			err = client.CreateQoSPolicy(ctx, req)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to create QoS policy: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			result := fmt.Sprintf("Successfully created QoS policy '%s' on SVM '%s'", policyName, svmName)
-
-			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
-			}, nil
-		},
-	)
-
-	// 9. cluster_update_qos_policy - Update a QoS policy
-	registry.Register(
-		"cluster_update_qos_policy",
-		"Update an existing QoS policy group's limits on a registered cluster",
-		map[string]interface{}{
-			"type":     "object",
-			"required": []string{"cluster_name", "policy_uuid"},
-			"properties": map[string]interface{}{
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
-				},
-				"policy_uuid": map[string]interface{}{
-					"type":        "string",
-					"description": "UUID of the QoS policy to update",
-				},
-				"max_throughput_iops": map[string]interface{}{
-					"type":        "number",
-					"description": "New maximum throughput in IOPS",
-				},
-				"min_throughput_iops": map[string]interface{}{
-					"type":        "number",
-					"description": "New minimum throughput in IOPS",
-				},
-			},
-		},
-		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			policyUUID := args["policy_uuid"].(string)
-
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			updates := make(map[string]interface{})
-			fixed := make(map[string]interface{})
-
-			if maxIOPS, ok := args["max_throughput_iops"].(float64); ok {
-				fixed["max_throughput_iops"] = int64(maxIOPS)
-			}
-			if minIOPS, ok := args["min_throughput_iops"].(float64); ok {
-				fixed["min_throughput_iops"] = int64(minIOPS)
-			}
-
-			if len(fixed) > 0 {
-				updates["fixed"] = fixed
-			}
-
-			if len(updates) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No updates specified"}},
-				}, nil
-			}
-
-			err = client.UpdateQoSPolicy(ctx, policyUUID, updates)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to update QoS policy: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			result := fmt.Sprintf("Successfully updated QoS policy %s", policyUUID)
 
 			return &CallToolResult{
 				Content: []Content{{Type: "text", Text: result}},
@@ -1205,12 +979,12 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			"type":     "object",
 			"required": []string{"volume_uuid", "export_policy_name"},
 			"properties": map[string]interface{}{
-				"cluster_name":        map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
-				"cluster_ip":          map[string]interface{}{"type": "string", "description": "IP address or FQDN (direct mode)"},
-				"username":            map[string]interface{}{"type": "string", "description": "Username (direct mode)"},
-				"password":            map[string]interface{}{"type": "string", "description": "Password (direct mode)"},
-				"volume_uuid":         map[string]interface{}{"type": "string", "description": "UUID of the volume"},
-				"export_policy_name":  map[string]interface{}{"type": "string", "description": "Name of the export policy to apply"},
+				"cluster_name":       map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
+				"cluster_ip":         map[string]interface{}{"type": "string", "description": "IP address or FQDN (direct mode)"},
+				"username":           map[string]interface{}{"type": "string", "description": "Username (direct mode)"},
+				"password":           map[string]interface{}{"type": "string", "description": "Password (direct mode)"},
+				"volume_uuid":        map[string]interface{}{"type": "string", "description": "UUID of the volume"},
+				"export_policy_name": map[string]interface{}{"type": "string", "description": "Name of the export policy to apply"},
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
@@ -1257,7 +1031,6 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 		},
 	)
 
-	// Note: Additional dual-mode volume tools (update_volume_comment, update_volume_security_style, etc.) 
+	// Note: Additional dual-mode volume tools (update_volume_comment, update_volume_security_style, etc.)
 	// can be added following the same pattern
 }
-

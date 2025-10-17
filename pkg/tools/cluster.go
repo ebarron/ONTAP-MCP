@@ -20,7 +20,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 			configs := clusterManager.ListClusterConfigs()
-			
+
 			if len(configs) == 0 {
 				return &CallToolResult{
 					Content: []Content{{Type: "text", Text: "No clusters registered. Use 'add_cluster' to register clusters."}},
@@ -72,7 +72,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 					continue
 				}
 
-				result += fmt.Sprintf("- %s: %s (%s) - %s\n", 
+				result += fmt.Sprintf("- %s: %s (%s) - %s\n",
 					name, info.Name, info.Version.Full, info.State)
 			}
 

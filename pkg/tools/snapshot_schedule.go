@@ -118,7 +118,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
 			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
 			"schedule_name": map[string]interface{}{"type": "string", "description": "Name of the schedule to update"},
-			"new_name": map[string]interface{}{"type": "string", "description": "New name for the schedule"},
+			"new_name":      map[string]interface{}{"type": "string", "description": "New name for the schedule"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)

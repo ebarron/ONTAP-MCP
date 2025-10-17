@@ -237,4 +237,3 @@ func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.Clust
 
 	// Note: create_snapshot_policy can be added following the same pattern
 }
-
