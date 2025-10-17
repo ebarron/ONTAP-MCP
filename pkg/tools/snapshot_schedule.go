@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
+
+// Note: Parameter helpers now in params.go for shared use across all tools
 
 func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// list_snapshot_schedules - List all snapshot schedules (dual-mode)
@@ -44,15 +47,36 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
-		scheduleName := args["schedule_name"].(string)
+
+		scheduleName, err := getStringParam(args, "schedule_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
 		schedules, err := client.ListSnapshotSchedules(ctx)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 		}
 		for _, s := range schedules {
 			if s.Name == scheduleName {
-				result := fmt.Sprintf("Schedule: %s\nUUID: %s\nType: %s\n", s.Name, s.UUID, s.Type)
-				return &CallToolResult{Content: []Content{{Type: "text", Text: result}}}, nil
+				// Build human-readable summary
+				summary := fmt.Sprintf("Schedule: %s\nUUID: %s\nType: %s\n", s.Name, s.UUID, s.Type)
+
+				// Return hybrid format as single JSON text (TypeScript-compatible)
+				// Format: {summary: "human text", data: {...json object...}}
+				hybridResult := map[string]interface{}{
+					"summary": summary,
+					"data":    s,
+				}
+
+				hybridJSON, err := json.Marshal(hybridResult)
+				if err != nil {
+					return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+				}
+
+				return &CallToolResult{
+					Content: []Content{{Type: "text", Text: string(hybridJSON)}},
+				}, nil
 			}
 		}
 		return &CallToolResult{Content: []Content{ErrorContent("Schedule not found")}, IsError: true}, nil
@@ -72,14 +96,25 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
+
+		scheduleName, err := getStringParam(args, "schedule_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		scheduleType, err := getStringParam(args, "schedule_type", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
 		req := map[string]interface{}{
-			"name": args["schedule_name"].(string),
-			"type": args["schedule_type"].(string),
+			"name": scheduleName,
+			"type": scheduleType,
 		}
 		if err := client.CreateSnapshotSchedule(ctx, req); err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 		}
-		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Created schedule '%s'", args["schedule_name"])}}}, nil
+		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Created schedule '%s'", scheduleName)}}}, nil
 	})
 
 	// delete_snapshot_schedule - Delete snapshot schedule (dual-mode)
@@ -95,7 +130,12 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
-		scheduleName := args["schedule_name"].(string)
+
+		scheduleName, err := getStringParam(args, "schedule_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
 		schedules, err := client.ListSnapshotSchedules(ctx)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
@@ -125,7 +165,12 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
-		scheduleName := args["schedule_name"].(string)
+
+		scheduleName, err := getStringParam(args, "schedule_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
 		schedules, err := client.ListSnapshotSchedules(ctx)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil

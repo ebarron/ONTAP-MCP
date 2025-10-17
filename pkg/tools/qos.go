@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
+
+// Note: Parameter helpers now in params.go for shared use across all tools
 
 func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// 1. cluster_list_qos_policies - List QoS policies
@@ -27,7 +30,14 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			svmName := ""
 			if svm, ok := args["svm_name"].(string); ok {
 				svmName = svm
@@ -49,37 +59,124 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				}, nil
 			}
 
-			if len(policies) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No QoS policies found"}},
-				}, nil
-			}
-
-			result := fmt.Sprintf("QoS Policies on cluster '%s' (%d):\n", clusterName, len(policies))
+			// Build structured data array (matching TypeScript QosPolicyListInfo[])
+			dataArray := make([]map[string]interface{}, 0, len(policies))
 			for _, policy := range policies {
-				result += fmt.Sprintf("- %s (%s)", policy.Name, policy.UUID)
-				if policy.SVM != nil {
-					result += fmt.Sprintf(" - SVM: %s", policy.SVM.Name)
+				item := map[string]interface{}{
+					"uuid":           policy.UUID,
+					"name":           policy.Name,
+					"type":           policy.PolicyClass, // Maps to "type" in TypeScript
+					"is_shared":      policy.Shared,
+					"workload_count": 0, // Would need to be fetched separately if available
 				}
-				result += fmt.Sprintf(", Class: %s", policy.PolicyClass)
+
+				if policy.SVM != nil {
+					item["svm"] = map[string]interface{}{
+						"name": policy.SVM.Name,
+						"uuid": policy.SVM.UUID,
+					}
+				}
+
+				// Add fixed policy limits
 				if policy.Fixed != nil {
+					fixedData := map[string]interface{}{}
 					if policy.Fixed.MaxThroughputIOPS > 0 {
-						result += fmt.Sprintf(", Max: %d IOPS", policy.Fixed.MaxThroughputIOPS)
+						fixedData["max_throughput"] = fmt.Sprintf("%d iops", policy.Fixed.MaxThroughputIOPS)
+					}
+					if policy.Fixed.MaxThroughputMBPS > 0 {
+						fixedData["max_throughput"] = fmt.Sprintf("%d MB/s", policy.Fixed.MaxThroughputMBPS)
 					}
 					if policy.Fixed.MinThroughputIOPS > 0 {
-						result += fmt.Sprintf(", Min: %d IOPS", policy.Fixed.MinThroughputIOPS)
+						fixedData["min_throughput"] = fmt.Sprintf("%d iops", policy.Fixed.MinThroughputIOPS)
+					}
+					if len(fixedData) > 0 {
+						item["fixed"] = fixedData
 					}
 				}
+
+				// Add adaptive policy settings
 				if policy.Adaptive != nil {
+					adaptiveData := map[string]interface{}{}
+					if policy.Adaptive.ExpectedIOPS > 0 {
+						adaptiveData["expected_iops"] = fmt.Sprintf("%d iops/TB", policy.Adaptive.ExpectedIOPS)
+					}
 					if policy.Adaptive.PeakIOPS > 0 {
-						result += fmt.Sprintf(", Peak: %d IOPS", policy.Adaptive.PeakIOPS)
+						adaptiveData["peak_iops"] = fmt.Sprintf("%d iops/TB", policy.Adaptive.PeakIOPS)
+					}
+					if policy.Adaptive.ExpectedIOPSAllocation != "" {
+						adaptiveData["expected_iops_allocation"] = policy.Adaptive.ExpectedIOPSAllocation
+					}
+					if policy.Adaptive.PeakIOPSAllocation != "" {
+						adaptiveData["peak_iops_allocation"] = policy.Adaptive.PeakIOPSAllocation
+					}
+					if len(adaptiveData) > 0 {
+						item["adaptive"] = adaptiveData
 					}
 				}
-				result += "\n"
+
+				dataArray = append(dataArray, item)
+			}
+
+			// Build human-readable summary (matching TypeScript format)
+			var summary string
+			if len(policies) == 0 {
+				summary = fmt.Sprintf("No QoS policies found on cluster %s", clusterName)
+				if svmName != "" {
+					summary += fmt.Sprintf(" in SVM %s", svmName)
+				}
+				summary += "."
+			} else {
+				summary = fmt.Sprintf("📊 **QoS Policies on %s** (%d policies):\n\n", clusterName, len(policies))
+
+				for _, policy := range policies {
+					summary += fmt.Sprintf("🎛️ **%s** (%s)\n", policy.Name, policy.UUID)
+					if policy.SVM != nil {
+						summary += fmt.Sprintf("   • SVM: %s\n", policy.SVM.Name)
+					} else {
+						summary += "   • SVM: Unknown\n"
+					}
+					summary += fmt.Sprintf("   • Type: %s\n", policy.PolicyClass)
+					summary += fmt.Sprintf("   • Shared: %v\n", policy.Shared)
+					summary += "   • Workloads: 0\n" // Would need separate query
+
+					if policy.Fixed != nil {
+						if policy.Fixed.MaxThroughputIOPS > 0 {
+							summary += fmt.Sprintf("   • Max Throughput: %d iops\n", policy.Fixed.MaxThroughputIOPS)
+						}
+						if policy.Fixed.MaxThroughputMBPS > 0 {
+							summary += fmt.Sprintf("   • Max Throughput: %d MB/s\n", policy.Fixed.MaxThroughputMBPS)
+						}
+						if policy.Fixed.MinThroughputIOPS > 0 {
+							summary += fmt.Sprintf("   • Min Throughput: %d iops\n", policy.Fixed.MinThroughputIOPS)
+						}
+					}
+
+					if policy.Adaptive != nil {
+						if policy.Adaptive.ExpectedIOPS > 0 {
+							summary += fmt.Sprintf("   • Expected IOPS: %d iops/TB\n", policy.Adaptive.ExpectedIOPS)
+						}
+						if policy.Adaptive.PeakIOPS > 0 {
+							summary += fmt.Sprintf("   • Peak IOPS: %d iops/TB\n", policy.Adaptive.PeakIOPS)
+						}
+					}
+
+					summary += "\n"
+				}
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -103,8 +200,21 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			policyUUID := args["policy_uuid"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			policyUUID, err := getStringParam(args, "policy_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -122,35 +232,109 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				}, nil
 			}
 
-			result := fmt.Sprintf("QoS Policy: %s\n", policy.Name)
-			result += fmt.Sprintf("UUID: %s\n", policy.UUID)
-			if policy.SVM != nil {
-				result += fmt.Sprintf("SVM: %s\n", policy.SVM.Name)
+			// Build structured data (matching TypeScript QosPolicyData)
+			data := map[string]interface{}{
+				"uuid":           policy.UUID,
+				"name":           policy.Name,
+				"type":           policy.PolicyClass,
+				"is_shared":      policy.Shared,
+				"workload_count": 0, // Would need separate query
 			}
-			result += fmt.Sprintf("Class: %s\n", policy.PolicyClass)
 
+			if policy.SVM != nil {
+				data["svm"] = map[string]interface{}{
+					"name": policy.SVM.Name,
+					"uuid": policy.SVM.UUID,
+				}
+			}
+
+			// Add fixed policy data
 			if policy.Fixed != nil {
-				result += "Type: Fixed\n"
+				fixedData := map[string]interface{}{}
 				if policy.Fixed.MaxThroughputIOPS > 0 {
-					result += fmt.Sprintf("  Max Throughput: %d IOPS\n", policy.Fixed.MaxThroughputIOPS)
+					fixedData["max_throughput"] = fmt.Sprintf("%d iops", policy.Fixed.MaxThroughputIOPS)
+				} else if policy.Fixed.MaxThroughputMBPS > 0 {
+					fixedData["max_throughput"] = fmt.Sprintf("%d MB/s", policy.Fixed.MaxThroughputMBPS)
 				}
 				if policy.Fixed.MinThroughputIOPS > 0 {
-					result += fmt.Sprintf("  Min Throughput: %d IOPS\n", policy.Fixed.MinThroughputIOPS)
+					fixedData["min_throughput"] = fmt.Sprintf("%d iops", policy.Fixed.MinThroughputIOPS)
+				}
+				if len(fixedData) > 0 {
+					data["fixed"] = fixedData
 				}
 			}
 
+			// Add adaptive policy data
 			if policy.Adaptive != nil {
-				result += "Type: Adaptive\n"
-				if policy.Adaptive.PeakIOPS > 0 {
-					result += fmt.Sprintf("  Peak IOPS: %d\n", policy.Adaptive.PeakIOPS)
-				}
+				adaptiveData := map[string]interface{}{}
 				if policy.Adaptive.ExpectedIOPS > 0 {
-					result += fmt.Sprintf("  Expected IOPS: %d\n", policy.Adaptive.ExpectedIOPS)
+					adaptiveData["expected_iops"] = fmt.Sprintf("%d iops/TB", policy.Adaptive.ExpectedIOPS)
 				}
+				if policy.Adaptive.PeakIOPS > 0 {
+					adaptiveData["peak_iops"] = fmt.Sprintf("%d iops/TB", policy.Adaptive.PeakIOPS)
+				}
+				if policy.Adaptive.ExpectedIOPSAllocation != "" {
+					adaptiveData["expected_iops_allocation"] = policy.Adaptive.ExpectedIOPSAllocation
+				}
+				if policy.Adaptive.PeakIOPSAllocation != "" {
+					adaptiveData["peak_iops_allocation"] = policy.Adaptive.PeakIOPSAllocation
+				}
+				if len(adaptiveData) > 0 {
+					data["adaptive"] = adaptiveData
+				}
+			}
+
+			// Build human-readable summary (matching TypeScript format)
+			summary := "📊 **QoS Policy Details**\n\n"
+			summary += fmt.Sprintf("🎛️ **%s** (%s)\n", policy.Name, policy.UUID)
+			if policy.SVM != nil {
+				summary += fmt.Sprintf("   • SVM: %s (%s)\n", policy.SVM.Name, policy.SVM.UUID)
+			}
+			summary += fmt.Sprintf("   • Type: %s\n", policy.PolicyClass)
+			summary += fmt.Sprintf("   • Shared: %v\n", policy.Shared)
+			summary += "   • Workloads Using Policy: 0\n\n"
+
+			if policy.Fixed != nil && (policy.Fixed.MaxThroughputIOPS > 0 || policy.Fixed.MinThroughputIOPS > 0) {
+				summary += "📈 **Fixed Limits:**\n"
+				if policy.Fixed.MaxThroughputIOPS > 0 {
+					summary += fmt.Sprintf("   • Maximum Throughput: %d iops\n", policy.Fixed.MaxThroughputIOPS)
+				} else if policy.Fixed.MaxThroughputMBPS > 0 {
+					summary += fmt.Sprintf("   • Maximum Throughput: %d MB/s\n", policy.Fixed.MaxThroughputMBPS)
+				}
+				if policy.Fixed.MinThroughputIOPS > 0 {
+					summary += fmt.Sprintf("   • Minimum Throughput: %d iops\n", policy.Fixed.MinThroughputIOPS)
+				}
+			}
+
+			if policy.Adaptive != nil && (policy.Adaptive.ExpectedIOPS > 0 || policy.Adaptive.PeakIOPS > 0) {
+				summary += "📊 **Adaptive Scaling:**\n"
+				if policy.Adaptive.ExpectedIOPS > 0 {
+					summary += fmt.Sprintf("   • Expected IOPS: %d iops/TB\n", policy.Adaptive.ExpectedIOPS)
+				}
+				if policy.Adaptive.PeakIOPS > 0 {
+					summary += fmt.Sprintf("   • Peak IOPS: %d iops/TB\n", policy.Adaptive.PeakIOPS)
+				}
+				if policy.Adaptive.ExpectedIOPSAllocation != "" {
+					summary += fmt.Sprintf("   • Expected IOPS Allocation: %s\n", policy.Adaptive.ExpectedIOPSAllocation)
+				}
+				if policy.Adaptive.PeakIOPSAllocation != "" {
+					summary += fmt.Sprintf("   • Peak IOPS Allocation: %s\n", policy.Adaptive.PeakIOPSAllocation)
+				}
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    data,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -174,8 +358,21 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			policyUUID := args["policy_uuid"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			policyUUID, err := getStringParam(args, "policy_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -271,10 +468,37 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			policyName := args["policy_name"].(string)
-			svmName := args["svm_name"].(string)
-			policyType := args["policy_type"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			policyName, err := getStringParam(args, "policy_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			svmName, err := getStringParam(args, "svm_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			policyType, err := getStringParam(args, "policy_type", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -431,8 +655,21 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			policyUUID := args["policy_uuid"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			policyUUID, err := getStringParam(args, "policy_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {

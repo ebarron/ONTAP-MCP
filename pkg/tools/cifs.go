@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
+
+// Note: Parameter helpers now in params.go for shared use across all tools
 
 func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// 1. cluster_list_cifs_shares - List CIFS shares
@@ -31,7 +34,14 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			svmName := ""
 			shareName := ""
 			if svm, ok := args["svm_name"].(string); ok {
@@ -57,26 +67,73 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 				}, nil
 			}
 
-			if len(shares) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No CIFS shares found"}},
-				}, nil
-			}
-
-			result := fmt.Sprintf("CIFS Shares on cluster '%s' (%d):\n", clusterName, len(shares))
+			// Build structured data array (matching TypeScript CifsShareListInfo[])
+			data := make([]map[string]interface{}, 0, len(shares))
 			for _, share := range shares {
-				result += fmt.Sprintf("- %s: %s", share.Name, share.Path)
+				shareData := map[string]interface{}{
+					"name": share.Name,
+					"path": share.Path,
+				}
 				if share.SVM != nil {
-					result += fmt.Sprintf(" (SVM: %s)", share.SVM.Name)
+					shareData["svm_name"] = share.SVM.Name
+					shareData["svm_uuid"] = share.SVM.UUID
+				}
+				if share.Volume != nil {
+					shareData["volume_name"] = share.Volume.Name
+					shareData["volume_uuid"] = share.Volume.UUID
 				}
 				if share.Comment != "" {
-					result += fmt.Sprintf(" - %s", share.Comment)
+					shareData["comment"] = share.Comment
 				}
-				result += "\n"
+				if share.Properties != nil {
+					shareData["properties"] = map[string]interface{}{
+						"encryption":               share.Properties.Encryption,
+						"oplocks":                  share.Properties.Oplocks,
+						"offline_files":            share.Properties.OfflineFiles,
+						"access_based_enumeration": share.Properties.AccessBasedEnumeration,
+					}
+				}
+				data = append(data, shareData)
+			}
+
+			// Build human-readable summary (matching TypeScript format)
+			var summary string
+			if len(shares) == 0 {
+				summary = fmt.Sprintf("No CIFS shares found in cluster '%s' matching the criteria.", clusterName)
+			} else {
+				summary = fmt.Sprintf("Found %d CIFS share(s) in cluster '%s':\n\n", len(shares), clusterName)
+
+				for _, share := range shares {
+					summary += fmt.Sprintf("📁 **%s**\n", share.Name)
+					summary += fmt.Sprintf("   Path: %s\n", share.Path)
+					if share.SVM != nil {
+						summary += fmt.Sprintf("   SVM: %s\n", share.SVM.Name)
+					} else {
+						summary += "   SVM: Unknown\n"
+					}
+					if share.Comment != "" {
+						summary += fmt.Sprintf("   Comment: %s\n", share.Comment)
+					}
+					if share.Volume != nil {
+						summary += fmt.Sprintf("   Volume: %s\n", share.Volume.Name)
+					}
+					summary += "\n"
+				}
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    data,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -112,10 +169,37 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			name := args["name"].(string)
-			path := args["path"].(string)
-			svmName := args["svm_name"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			name, err := getStringParam(args, "name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			path, err := getStringParam(args, "path", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			svmName, err := getStringParam(args, "svm_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -174,9 +258,29 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			name := args["name"].(string)
-			svmName := args["svm_name"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			name, err := getStringParam(args, "name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			svmName, err := getStringParam(args, "svm_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -232,7 +336,22 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
-		name, path, svmName := args["name"].(string), args["path"].(string), args["svm_name"].(string)
+
+		name, err := getStringParam(args, "name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		path, err := getStringParam(args, "path", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		svmName, err := getStringParam(args, "svm_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
 		req := map[string]interface{}{"name": name, "path": path, "svm": map[string]string{"name": svmName}}
 		if err := client.CreateCIFSShare(ctx, req); err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
@@ -256,10 +375,21 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
-		if err := client.DeleteCIFSShare(ctx, args["svm_name"].(string), args["name"].(string)); err != nil {
+
+		svmName, err := getStringParam(args, "svm_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		name, err := getStringParam(args, "name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		if err := client.DeleteCIFSShare(ctx, svmName, name); err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 		}
-		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Deleted CIFS share '%s'", args["name"])}}}, nil
+		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Deleted CIFS share '%s'", name)}}}, nil
 	})
 
 	// get_cifs_share - Get CIFS share details (dual-mode)
@@ -276,12 +406,40 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
-		share, err := client.GetCIFSShare(ctx, args["svm_name"].(string), args["name"].(string))
+
+		svmName, err := getStringParam(args, "svm_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		name, err := getStringParam(args, "name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		share, err := client.GetCIFSShare(ctx, svmName, name)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 		}
-		result := fmt.Sprintf("CIFS Share: %s\nPath: %s\nSVM: %s\n", share.Name, share.Path, share.SVM.Name)
-		return &CallToolResult{Content: []Content{{Type: "text", Text: result}}}, nil
+
+		// Build human-readable summary
+		summary := fmt.Sprintf("CIFS Share: %s\nPath: %s\nSVM: %s\n", share.Name, share.Path, share.SVM.Name)
+
+		// Return hybrid format as single JSON text (TypeScript-compatible)
+		// Format: {summary: "human text", data: {...json object...}}
+		hybridResult := map[string]interface{}{
+			"summary": summary,
+			"data":    share,
+		}
+
+		hybridJSON, err := json.Marshal(hybridResult)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+		}
+
+		return &CallToolResult{
+			Content: []Content{{Type: "text", Text: string(hybridJSON)}},
+		}, nil
 	})
 
 	// list_cifs_shares - List CIFS shares (dual-mode)
@@ -326,13 +484,25 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
+
+		svmName, err := getStringParam(args, "svm_name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
+		name, err := getStringParam(args, "name", true)
+		if err != nil {
+			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
+		}
+
 		updates := make(map[string]interface{})
 		if comment, ok := args["comment"].(string); ok {
 			updates["comment"] = comment
 		}
-		if err := client.UpdateCIFSShare(ctx, args["svm_name"].(string), args["name"].(string), updates); err != nil {
+
+		if err := client.UpdateCIFSShare(ctx, svmName, name, updates); err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 		}
-		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Updated CIFS share '%s'", args["name"])}}}, nil
+		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Updated CIFS share '%s'", name)}}}, nil
 	})
 }

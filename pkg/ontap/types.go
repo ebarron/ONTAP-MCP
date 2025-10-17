@@ -10,10 +10,14 @@ type SVM struct {
 
 // Aggregate represents a storage aggregate
 type Aggregate struct {
-	UUID         string          `json:"uuid"`
-	Name         string          `json:"name"`
-	State        string          `json:"state"`
-	Space        *AggregateSpace `json:"space,omitempty"`
+	UUID  string          `json:"uuid"`
+	Name  string          `json:"name"`
+	State string          `json:"state"`
+	Space *AggregateSpace `json:"space,omitempty"`
+	Node  *struct {
+		Name string `json:"name"`
+		UUID string `json:"uuid"`
+	} `json:"node,omitempty"`
 	BlockStorage *struct {
 		Primary *struct {
 			DiskCount int    `json:"disk_count"`
@@ -33,12 +37,13 @@ type AggregateSpace struct {
 
 // Volume represents a storage volume
 type Volume struct {
-	UUID  string `json:"uuid"`
-	Name  string `json:"name"`
-	State string `json:"state"`
-	Type  string `json:"type,omitempty"`
-	Style string `json:"style,omitempty"`
-	SVM   *struct {
+	UUID    string `json:"uuid"`
+	Name    string `json:"name"`
+	State   string `json:"state"`
+	Type    string `json:"type,omitempty"`
+	Style   string `json:"style,omitempty"`
+	Comment string `json:"comment,omitempty"`
+	SVM     *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
@@ -46,9 +51,18 @@ type Volume struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"aggregates,omitempty"`
-	Space *VolumeSpace `json:"space,omitempty"`
-	NAS   *VolumeNAS   `json:"nas,omitempty"`
-	QoS   *VolumeQoS   `json:"qos,omitempty"`
+	Space          *VolumeSpace    `json:"space,omitempty"`
+	NAS            *VolumeNAS      `json:"nas,omitempty"`
+	QoS            *VolumeQoS      `json:"qos,omitempty"`
+	Autosize       *VolumeAutosize `json:"autosize,omitempty"`
+	SnapshotPolicy *struct {
+		Name string `json:"name,omitempty"`
+		UUID string `json:"uuid,omitempty"`
+	} `json:"snapshot_policy,omitempty"`
+	Efficiency *struct {
+		Compression string `json:"compression,omitempty"`
+		Dedupe      string `json:"dedupe,omitempty"`
+	} `json:"efficiency,omitempty"`
 }
 
 // VolumeSpace represents volume space information
@@ -109,14 +123,24 @@ type CreateVolumeResponse struct {
 
 // CIFSShare represents a CIFS/SMB share
 type CIFSShare struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-	SVM  *struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Comment string `json:"comment,omitempty"`
+	SVM     *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
-	Comment string    `json:"comment,omitempty"`
-	ACLs    []CIFSACL `json:"acls,omitempty"`
+	Volume *struct {
+		UUID string `json:"uuid"`
+		Name string `json:"name"`
+	} `json:"volume,omitempty"`
+	Properties *struct {
+		Encryption             bool   `json:"encryption,omitempty"`
+		Oplocks                bool   `json:"oplocks,omitempty"`
+		OfflineFiles           string `json:"offline_files,omitempty"`
+		AccessBasedEnumeration bool   `json:"access_based_enumeration,omitempty"`
+	} `json:"properties,omitempty"`
+	ACLs []CIFSACL `json:"acls,omitempty"`
 }
 
 // CIFSACL represents a CIFS access control entry
@@ -128,9 +152,10 @@ type CIFSACL struct {
 
 // ExportPolicy represents an NFS export policy
 type ExportPolicy struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	SVM  *struct {
+	ID      int    `json:"id"`
+	Name    string `json:"name"`
+	Comment string `json:"comment,omitempty"`
+	SVM     *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
@@ -177,14 +202,15 @@ type SnapshotPolicy struct {
 
 // QoSPolicy represents a QoS policy
 type QoSPolicy struct {
-	UUID string `json:"uuid"`
-	Name string `json:"name"`
-	SVM  *struct {
+	UUID        string `json:"uuid"`
+	Name        string `json:"name"`
+	PolicyClass string `json:"policy_class,omitempty"`
+	Shared      bool   `json:"shared,omitempty"`
+	SVM         *struct {
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	} `json:"svm,omitempty"`
-	PolicyClass string `json:"policy_class,omitempty"`
-	Fixed       *struct {
+	Fixed *struct {
 		MaxThroughputIOPS int64 `json:"max_throughput_iops,omitempty"`
 		MaxThroughputMBPS int64 `json:"max_throughput_mbps,omitempty"`
 		MinThroughputIOPS int64 `json:"min_throughput_iops,omitempty"`

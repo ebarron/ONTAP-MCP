@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
@@ -16,62 +15,30 @@ import (
 
 // ServeHTTPWithSDK runs the MCP server using the official MCP Go SDK
 func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
-	// Create session manager for per-session cluster isolation
-	sessionManager := NewSessionManager(s.logger)
+	// Create ONE MCP server instance that will be shared by all sessions
+	// This matches the Harvest implementation pattern
+	mcpServer := sdk.NewServer(
+		&sdk.Implementation{
+			Name:    "ontap-mcp-server",
+			Version: "2.0.0",
+		},
+		&sdk.ServerOptions{
+			Instructions: "NetApp ONTAP MCP Server - Provides tools for managing ONTAP storage clusters including volumes, CIFS shares, NFS exports, snapshots, and QoS policies.",
+		},
+	)
 
-	s.logger.Info().Msg("Session manager initialized for HTTP mode (per-session cluster isolation)")
+	// Register ALL tools once with the global cluster manager
+	// Note: This means clusters are shared across sessions (no per-session isolation)
+	if err := s.registerToolsWithSDKForSession(mcpServer, s.clusterManager); err != nil {
+		return fmt.Errorf("failed to register tools: %w", err)
+	}
 
-	// Create HTTP handler using SDK's StreamableHTTPHandler
-	// CRITICAL: We create a NEW server instance for EACH session to ensure cluster isolation
+	s.logger.Info().Msg("MCP server created with all tools registered")
+
+	// Create HTTP handler - return SAME server for all requests (like Harvest)
+	// The SDK will automatically generate unique session IDs for each connection
 	handler := sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
-		// Extract session ID from header (set by SDK during initialization)
-		sessionID := r.Header.Get("Mcp-Session-Id")
-		
-		s.logger.Debug().
-			Str("session_id", sessionID).
-			Str("request_uri", r.RequestURI).
-			Msg("Factory function called for request")
-		
-		// DEBUG: Print to stderr to ensure we see it
-		fmt.Fprintf(os.Stderr, "\n🔧 [FACTORY] ================================================\n")
-		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] Creating server for session: '%s'\n", sessionID)
-		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] Request URI: %s\n", r.RequestURI)
-		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] ================================================\n\n")
-		
-		// WORKAROUND: If session ID is empty (during initialization), generate a temporary one
-		// The SDK will call this factory before the session ID is generated
-		// This is a limitation of the SDK's factory pattern
-		if sessionID == "" {
-			// Use request pointer as unique identifier (each request has unique memory address)
-			sessionID = fmt.Sprintf("temp_%p", r)
-			fmt.Fprintf(os.Stderr, "⚠️  [FACTORY] Empty session ID, using temporary ID: %s\n", sessionID)
-		}
-		
-		// Get or create session-specific data (includes isolated cluster manager)
-		sessionData := sessionManager.GetOrCreateSession(sessionID)
-
-		// Create a NEW MCP server instance for this session
-		mcpServer := sdk.NewServer(
-			&sdk.Implementation{
-				Name:    "ontap-mcp-server",
-				Version: "2.0.0",
-			},
-			&sdk.ServerOptions{
-				Instructions: "NetApp ONTAP MCP Server - Provides tools for managing ONTAP storage clusters including volumes, CIFS shares, NFS exports, snapshots, and QoS policies.",
-			},
-		)
-
-		// Register tools with THIS session's cluster manager
-		if err := s.registerToolsWithSDKForSession(mcpServer, sessionData.ClusterManager); err != nil {
-			s.logger.Error().
-				Err(err).
-				Str("session_id", sessionID).
-				Msg("Failed to register tools for session")
-		}
-
-		fmt.Fprintf(os.Stderr, "🔧 [FACTORY] Server created and tools registered for session '%s'\n\n", sessionID)
-
-		return mcpServer
+		return mcpServer // Always return the same server instance
 	}, nil)
 
 	// Wrap with CORS middleware
@@ -79,6 +46,8 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Mcp-Protocol-Version, Mcp-Session-Id")
+		// CRITICAL: Expose session ID header so JavaScript can read it
+		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)

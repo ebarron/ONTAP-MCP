@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
@@ -46,25 +47,66 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
-			if len(snapshots) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No snapshots found"}},
-				}, nil
+			// Build structured data array (matching TypeScript VolumeSnapshotListInfo[])
+			dataArray := make([]map[string]interface{}, 0, len(snapshots))
+			for _, snap := range snapshots {
+				sizeBytes := int64(snap.Size)
+				sizeGB := float64(sizeBytes) / (1024 * 1024 * 1024)
+
+				item := map[string]interface{}{
+					"uuid":        snap.UUID,
+					"name":        snap.Name,
+					"create_time": snap.CreateTime,
+					"state":       snap.State,
+					"size":        sizeBytes,
+					"size_gb":     fmt.Sprintf("%.2f", sizeGB),
+				}
+
+				if snap.Comment != "" {
+					item["comment"] = snap.Comment
+				}
+
+				dataArray = append(dataArray, item)
 			}
 
-			result := fmt.Sprintf("Snapshots for volume %s (%d):\n", volumeUUID, len(snapshots))
-			for _, snap := range snapshots {
-				result += fmt.Sprintf("- %s (%s)", snap.Name, snap.UUID)
-				result += fmt.Sprintf(", Created: %s", snap.CreateTime)
-				if snap.Size > 0 {
-					sizeGB := float64(snap.Size) / (1024 * 1024 * 1024)
-					result += fmt.Sprintf(", Size: %.2f GB", sizeGB)
+			// Build human-readable summary (matching TypeScript format)
+			var summary string
+			if len(snapshots) == 0 {
+				summary = "No snapshots found"
+			} else {
+				summary = fmt.Sprintf("📸 **Snapshots for volume %s** (%d snapshots)\n\n", volumeUUID, len(snapshots))
+
+				for _, snap := range snapshots {
+					summary += fmt.Sprintf("📷 **%s** (UUID: %s)\n", snap.Name, snap.UUID)
+					summary += fmt.Sprintf("   🕒 Created: %s\n", snap.CreateTime)
+					summary += fmt.Sprintf("   📊 State: %s\n", snap.State)
+
+					if snap.Size > 0 {
+						sizeGB := float64(snap.Size) / (1024 * 1024 * 1024)
+						summary += fmt.Sprintf("   💾 Size: %.2f GB\n", sizeGB)
+					}
+
+					if snap.Comment != "" {
+						summary += fmt.Sprintf("   📝 Comment: %s\n", snap.Comment)
+					}
+
+					summary += "\n"
 				}
-				result += "\n"
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -163,20 +205,50 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
-			result := fmt.Sprintf("Snapshot: %s\n", snapshot.Name)
-			result += fmt.Sprintf("UUID: %s\n", snapshot.UUID)
-			result += fmt.Sprintf("Created: %s\n", snapshot.CreateTime)
-			result += fmt.Sprintf("State: %s\n", snapshot.State)
-			if snapshot.Size > 0 {
-				sizeGB := float64(snapshot.Size) / (1024 * 1024 * 1024)
-				result += fmt.Sprintf("Size: %.2f GB\n", sizeGB)
+			// Build structured data (matching TypeScript VolumeSnapshotData)
+			sizeBytes := int64(snapshot.Size)
+			sizeGB := float64(sizeBytes) / (1024 * 1024 * 1024)
+
+			snapshotData := map[string]interface{}{
+				"uuid":        snapshot.UUID,
+				"name":        snapshot.Name,
+				"create_time": snapshot.CreateTime,
+				"state":       snapshot.State,
+				"size":        sizeBytes,
+				"size_gb":     fmt.Sprintf("%.2f", sizeGB),
 			}
+
 			if snapshot.Comment != "" {
-				result += fmt.Sprintf("Comment: %s\n", snapshot.Comment)
+				snapshotData["comment"] = snapshot.Comment
+			}
+
+			// Build human-readable summary (matching TypeScript format)
+			summary := fmt.Sprintf("📸 **Snapshot: %s**\n\n", snapshot.Name)
+			summary += fmt.Sprintf("🆔 UUID: %s\n", snapshot.UUID)
+			summary += fmt.Sprintf("🕒 Created: %s\n", snapshot.CreateTime)
+			summary += fmt.Sprintf("📊 State: %s\n", snapshot.State)
+
+			if snapshot.Size > 0 {
+				summary += fmt.Sprintf("💾 Size: %.2f GB\n", sizeGB)
+			}
+
+			if snapshot.Comment != "" {
+				summary += fmt.Sprintf("📝 Comment: %s\n", snapshot.Comment)
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    snapshotData,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)

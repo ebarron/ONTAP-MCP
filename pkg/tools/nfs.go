@@ -2,7 +2,9 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
@@ -63,82 +65,98 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 				}, nil
 			}
 
-			if len(policies) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No export policies found matching the specified criteria."}},
-				}, nil
-			}
-
-			// Build structured data array
+			// Build structured data array (matching TypeScript ExportPolicyListInfo[])
 			dataArray := make([]map[string]interface{}, 0, len(policies))
 			for _, policy := range policies {
 				item := map[string]interface{}{
-					"id":         policy.ID,
-					"name":       policy.Name,
-					"rule_count": len(policy.Rules),
+					"id":   policy.ID,
+					"name": policy.Name,
 				}
+
+				if policy.Comment != "" {
+					item["comment"] = policy.Comment
+				}
+
 				if policy.SVM != nil {
-					item["svm_name"] = policy.SVM.Name
-					item["svm_uuid"] = policy.SVM.UUID
+					item["svm"] = map[string]interface{}{
+						"name": policy.SVM.Name,
+						"uuid": policy.SVM.UUID,
+					}
 				}
+
+				// Add rules preview (first 3 rules)
 				if len(policy.Rules) > 0 {
 					preview := make([]map[string]interface{}, 0)
 					for i, rule := range policy.Rules {
 						if i >= 3 {
 							break
 						}
-						clients := make([]string, len(rule.Clients))
-						for j, c := range rule.Clients {
-							clients[j] = c.Match
+						clients := make([]string, 0, len(rule.Clients))
+						for _, c := range rule.Clients {
+							clients = append(clients, c.Match)
 						}
 						preview = append(preview, map[string]interface{}{
 							"index":   rule.Index,
-							"clients": fmt.Sprintf("%v", clients),
+							"clients": clients,
 						})
 					}
 					item["rules_preview"] = preview
 				}
+
 				dataArray = append(dataArray, item)
 			}
 
-			// Build human-readable summary with emojis
-			summary := fmt.Sprintf("Found %d export policies:\n\n", len(policies))
-			for _, policy := range policies {
-				summary += fmt.Sprintf("🔐 **%s** (ID: %d)\n", policy.Name, policy.ID)
-				if policy.SVM != nil {
-					summary += fmt.Sprintf("   🏢 SVM: %s\n", policy.SVM.Name)
-				}
-				
-				if len(policy.Rules) > 0 {
-					summary += fmt.Sprintf("   📏 Rules: %d\n", len(policy.Rules))
-					for i, rule := range policy.Rules {
-						if i >= 3 {
-							break
-						}
-						clients := make([]string, len(rule.Clients))
-						for j, c := range rule.Clients {
-							clients[j] = c.Match
-						}
-						summary += fmt.Sprintf("     • Rule %d: %v\n", rule.Index, clients)
+			// Build human-readable summary (matching TypeScript format)
+			var summary string
+			if len(policies) == 0 {
+				summary = "No export policies found matching the specified criteria."
+			} else {
+				summary = fmt.Sprintf("Found %d export policies:\n\n", len(policies))
+
+				for _, policy := range policies {
+					summary += fmt.Sprintf("🔐 **%s** (ID: %d)\n", policy.Name, policy.ID)
+					if policy.SVM != nil {
+						summary += fmt.Sprintf("   🏢 SVM: %s\n", policy.SVM.Name)
 					}
-					if len(policy.Rules) > 3 {
-						summary += fmt.Sprintf("     • ... and %d more rules\n", len(policy.Rules)-3)
+					if policy.Comment != "" {
+						summary += fmt.Sprintf("   📝 Description: %s\n", policy.Comment)
 					}
-				} else {
-					summary += "   📏 Rules: None\n"
+
+					if len(policy.Rules) > 0 {
+						summary += fmt.Sprintf("   📏 Rules: %d\n", len(policy.Rules))
+						for i, rule := range policy.Rules {
+							if i >= 3 {
+								break
+							}
+							clients := make([]string, 0, len(rule.Clients))
+							for _, c := range rule.Clients {
+								clients = append(clients, c.Match)
+							}
+							summary += fmt.Sprintf("     • Rule %d: %s\n", rule.Index, strings.Join(clients, ", "))
+						}
+						if len(policy.Rules) > 3 {
+							summary += fmt.Sprintf("     • ... and %d more rules\n", len(policy.Rules)-3)
+						}
+					} else {
+						summary += "   📏 Rules: None\n"
+					}
+					summary += "\n"
 				}
-				summary += "\n"
 			}
 
-			// Return hybrid format
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+			}
+
 			return &CallToolResult{
-				Content: []Content{{
-					Type: "text",
-					Text: fmt.Sprintf("%s\n__DATA__\n%s", summary, toJSONString(map[string]interface{}{
-						"summary": summary,
-						"data":    dataArray,
-					})),
-				}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -224,7 +242,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 				for i, c := range rule.Clients {
 					clients[i] = map[string]string{"match": c.Match}
 				}
-				
+
 				ruleData := map[string]interface{}{
 					"index":     rule.Index,
 					"clients":   clients,
@@ -246,43 +264,53 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 				"name":  policy.Name,
 				"rules": dataArray,
 			}
+
+			if policy.Comment != "" {
+				policyData["comment"] = policy.Comment
+			}
+
 			if policy.SVM != nil {
-				policyData["svm"] = map[string]string{
+				policyData["svm"] = map[string]interface{}{
 					"name": policy.SVM.Name,
 					"uuid": policy.SVM.UUID,
 				}
 			}
 
-			// Build human-readable summary with emojis
+			// Build human-readable summary (matching TypeScript format)
 			summary := fmt.Sprintf("🔐 **Export Policy: %s**\n\n", policy.Name)
 			summary += fmt.Sprintf("🆔 ID: %d\n", policy.ID)
+
 			if policy.SVM != nil {
 				summary += fmt.Sprintf("🏢 SVM: %s (%s)\n", policy.SVM.Name, policy.SVM.UUID)
+			}
+
+			if policy.Comment != "" {
+				summary += fmt.Sprintf("📝 Description: %s\n", policy.Comment)
 			}
 
 			if len(policy.Rules) > 0 {
 				summary += fmt.Sprintf("\n📏 **Export Rules (%d):**\n\n", len(policy.Rules))
 				for _, rule := range policy.Rules {
 					summary += fmt.Sprintf("**Rule %d:**\n", rule.Index)
-					
+
 					// Clients
 					summary += "  👥 Clients: "
 					clientStrs := make([]string, len(rule.Clients))
 					for i, c := range rule.Clients {
 						clientStrs[i] = c.Match
 					}
-					summary += fmt.Sprintf("%v\n", clientStrs)
-					
+					summary += fmt.Sprintf("%s\n", strings.Join(clientStrs, ", "))
+
 					// Protocols
 					summary += fmt.Sprintf("  🔌 Protocols: %v\n", rule.Protocols)
-					
+
 					// Access rules
 					summary += fmt.Sprintf("  📖 Read-Only: %v\n", rule.RoRule)
 					summary += fmt.Sprintf("  📝 Read-Write: %v\n", rule.RwRule)
 					summary += fmt.Sprintf("  👑 Superuser: %v\n", rule.Superuser)
 					summary += fmt.Sprintf("  🔓 Allow SUID: %v\n", rule.AllowSuid)
 					summary += fmt.Sprintf("  � Allow Device Creation: %v\n", rule.AllowDeviceCreation)
-					
+
 					// Optional fields
 					if rule.AnonymousUser != "" {
 						summary += fmt.Sprintf("  � Anonymous User: %s\n", rule.AnonymousUser)
@@ -293,15 +321,19 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 				summary += "\n📏 **Export Rules:** None configured\n"
 			}
 
-			// Return hybrid format
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    policyData,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+			}
+
 			return &CallToolResult{
-				Content: []Content{{
-					Type: "text",
-					Text: fmt.Sprintf("%s\n__DATA__\n%s", summary, toJSONString(map[string]interface{}{
-						"summary": summary,
-						"data":    policyData,
-					})),
-				}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -379,7 +411,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			if comment, ok := args["comment"].(string); ok && comment != "" {
 				result += fmt.Sprintf("📝 Description: %s\n", comment)
 			}
-			
+
 			result += "\n💡 **Next Steps:**\n"
 			result += "   • Add export rules using: add_export_rule\n"
 			result += "   • Apply to volumes using: configure_volume_nfs_access\n"

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
@@ -33,6 +31,8 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
+// Note: Parameter helpers moved to params.go for shared use across all tools
+
 func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// 1. cluster_list_volumes - List volumes on a cluster
 	registry.Register(
@@ -53,7 +53,17 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
+			// Extract cluster_name with nil checking (prevents panic from malformed requests)
+			var clusterName string
+			if cn, ok := args["cluster_name"]; ok && cn != nil {
+				clusterName = cn.(string)
+			} else {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Missing required parameter: cluster_name (received args: %v)", args))},
+					IsError: true,
+				}, nil
+			}
+
 			svmName := ""
 			if svm, ok := args["svm_name"].(string); ok {
 				svmName = svm
@@ -75,17 +85,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			if len(volumes) == 0 {
-				msg := fmt.Sprintf("No volumes found on cluster \"%s\"", clusterName)
-				if svmName != "" {
-					msg = fmt.Sprintf("No volumes found in SVM \"%s\" on cluster \"%s\"", svmName, clusterName)
-				}
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: msg}},
-				}, nil
-			}
-
-			// Build structured data array
+			// Build structured data array (matching TypeScript VolumeListInfo[])
 			dataArray := make([]map[string]interface{}, 0, len(volumes))
 			for _, vol := range volumes {
 				item := map[string]interface{}{
@@ -99,6 +99,10 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 						"name": vol.SVM.Name,
 						"uuid": vol.SVM.UUID,
 					}
+				} else {
+					item["svm"] = map[string]interface{}{
+						"name": "N/A",
+					}
 				}
 				if len(vol.Aggregates) > 0 {
 					item["aggregate"] = map[string]interface{}{
@@ -109,7 +113,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				dataArray = append(dataArray, item)
 			}
 
-			// Build human-readable summary (matches TypeScript format)
+			// Build human-readable summary (matching TypeScript format)
 			summary := fmt.Sprintf("Volumes on cluster '%s': %d\n\n", clusterName, len(volumes))
 			for _, vol := range volumes {
 				svmName := "N/A"
@@ -120,15 +124,19 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					vol.Name, vol.UUID, vol.Space.Size, vol.State, svmName)
 			}
 
-			// Return hybrid format (Phase 2)
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+			}
+
 			return &CallToolResult{
-				Content: []Content{{
-					Type: "text",
-					Text: fmt.Sprintf("%s\n__DATA__\n%s", summary, toJSONString(map[string]interface{}{
-						"summary": summary,
-						"data":    dataArray,
-					})),
-				}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -152,7 +160,14 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			svmName := ""
 			if svm, ok := args["svm_name"].(string); ok {
 				svmName = svm
@@ -174,13 +189,15 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			if len(aggregates) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No aggregates found"}},
-				}, nil
+			// Determine description based on filters
+			var description string
+			if svmName != "" {
+				description = fmt.Sprintf("Aggregates assigned to SVM '%s' on cluster '%s'", svmName, clusterName)
+			} else {
+				description = fmt.Sprintf("All aggregates on cluster '%s'", clusterName)
 			}
 
-			// Build structured data array
+			// Build structured data array (matching TypeScript AggregateListInfo[])
 			dataArray := make([]map[string]interface{}, 0, len(aggregates))
 			for _, aggr := range aggregates {
 				item := map[string]interface{}{
@@ -188,43 +205,59 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					"name":  aggr.Name,
 					"state": aggr.State,
 				}
+
+				// Add space information if available
 				if aggr.Space != nil && aggr.Space.BlockStorage != nil {
-					item["space"] = map[string]interface{}{
+					spaceData := map[string]interface{}{
 						"available": aggr.Space.BlockStorage.Available,
 						"used":      aggr.Space.BlockStorage.Used,
 						"size":      aggr.Space.BlockStorage.Size,
 					}
 					if aggr.Space.BlockStorage.Size > 0 {
-						percentUsed := (aggr.Space.BlockStorage.Used * 100) / aggr.Space.BlockStorage.Size
-						item["space"].(map[string]interface{})["percent_used"] = percentUsed
+						percentUsed := int((float64(aggr.Space.BlockStorage.Used) / float64(aggr.Space.BlockStorage.Size)) * 100)
+						spaceData["percent_used"] = percentUsed
+					}
+					item["space"] = spaceData
+				}
+
+				// Add node information if available
+				if aggr.Node != nil {
+					item["node"] = map[string]interface{}{
+						"name": aggr.Node.Name,
+						"uuid": aggr.Node.UUID,
 					}
 				}
+
 				dataArray = append(dataArray, item)
 			}
 
-			// Build human-readable summary
-			summary := fmt.Sprintf("Aggregates on cluster '%s': %d\n\n", clusterName, len(aggregates))
+			// Build human-readable summary (matching TypeScript format)
+			summary := fmt.Sprintf("%s: %d\n\n", description, len(aggregates))
 			for _, aggr := range aggregates {
-				summary += fmt.Sprintf("- %s (%s)", aggr.Name, aggr.UUID)
+				line := fmt.Sprintf("- %s (%s)", aggr.Name, aggr.UUID)
 				if aggr.State != "" {
-					summary += fmt.Sprintf(" - State: %s", aggr.State)
+					line += fmt.Sprintf(" - State: %s", aggr.State)
 				}
 				if aggr.Space != nil && aggr.Space.BlockStorage != nil {
-					summary += fmt.Sprintf(", Available: %d, Used: %d",
+					line += fmt.Sprintf(", Available: %d, Used: %d",
 						aggr.Space.BlockStorage.Available, aggr.Space.BlockStorage.Used)
 				}
-				summary += "\n"
+				summary += line + "\n"
 			}
 
-			// Return hybrid format (Phase 2, Step 3)
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+			}
+
 			return &CallToolResult{
-				Content: []Content{{
-					Type: "text",
-					Text: fmt.Sprintf("%s\n__DATA__\n%s", summary, toJSONString(map[string]interface{}{
-						"summary": summary,
-						"data":    dataArray,
-					})),
-				}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -326,10 +359,37 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			svmName := args["svm_name"].(string)
-			volumeName := args["volume_name"].(string)
-			sizeStr := args["size"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			svmName, err := getStringParam(args, "svm_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			volumeName, err := getStringParam(args, "volume_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			sizeStr, err := getStringParam(args, "size", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -339,36 +399,13 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			// Parse size string (supports KB, MB, GB, TB)
-			var sizeBytes int64
-			sizeStr = strings.TrimSpace(sizeStr)
-
-			// Try to match pattern like "100MB", "1.5GB", "2TB"
-			var num float64
-			var unit string
-
-			// Extract number and unit
-			for i := len(sizeStr) - 1; i >= 0; i-- {
-				if sizeStr[i] >= '0' && sizeStr[i] <= '9' || sizeStr[i] == '.' {
-					num, _ = strconv.ParseFloat(sizeStr[:i+1], 64)
-					unit = strings.ToUpper(sizeStr[i+1:])
-					break
-				}
-			}
-
-			// Convert to bytes based on unit
-			switch unit {
-			case "KB":
-				sizeBytes = int64(num * 1024)
-			case "MB":
-				sizeBytes = int64(num * 1024 * 1024)
-			case "GB":
-				sizeBytes = int64(num * 1024 * 1024 * 1024)
-			case "TB":
-				sizeBytes = int64(num * 1024 * 1024 * 1024 * 1024)
-			default:
-				// If no unit or unknown unit, try to parse as bytes
-				sizeBytes, _ = strconv.ParseInt(sizeStr, 10, 64)
+			// Parse size using shared utility
+			sizeBytes, err := parseSizeString(sizeStr)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Invalid size: %v", err))},
+					IsError: true,
+				}, nil
 			}
 
 			req := &ontap.CreateVolumeRequest{
@@ -494,8 +531,21 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			volumeUUID := args["volume_uuid"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -601,8 +651,21 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			volumeUUID := args["volume_uuid"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -639,7 +702,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 		"Get volume statistics from a registered cluster by cluster name",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "volume_uuid"},
+			"required": []string{"cluster_name"},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
@@ -647,18 +710,80 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				},
 				"volume_uuid": map[string]interface{}{
 					"type":        "string",
-					"description": "UUID of the volume to get statistics for",
+					"description": "UUID of the volume (alternative to volume_name + svm_name)",
+				},
+				"volume_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the volume (requires svm_name)",
+				},
+				"svm_name": map[string]interface{}{
+					"type":        "string",
+					"description": "SVM name (required when using volume_name)",
 				},
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			volumeUUID := args["volume_uuid"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			// Support both volume_uuid and volume_name + svm_name
+			volumeUUID, _ := getStringParam(args, "volume_uuid", false)
+
+			// If no UUID provided, try to resolve from volume_name + svm_name
+			if volumeUUID == "" {
+				volumeName, _ := getStringParam(args, "volume_name", false)
+				if volumeName != "" {
+					svmName, err := getStringParam(args, "svm_name", true)
+					if err != nil {
+						return &CallToolResult{
+							Content: []Content{ErrorContent("volume_name requires svm_name parameter")},
+							IsError: true,
+						}, nil
+					}
+
+					// List volumes in the SVM to find the UUID
+					volumes, err := client.ListVolumes(ctx, svmName)
+					if err != nil {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("Failed to list volumes: %v", err))},
+							IsError: true,
+						}, nil
+					}
+
+					// Find the volume by name
+					for _, vol := range volumes {
+						if vol.Name == volumeName {
+							volumeUUID = vol.UUID
+							break
+						}
+					}
+
+					if volumeUUID == "" {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("Volume '%s' not found in SVM '%s'", volumeName, svmName))},
+							IsError: true,
+						}, nil
+					}
+				}
+			}
+
+			// At this point we need a UUID
+			if volumeUUID == "" {
+				return &CallToolResult{
+					Content: []Content{ErrorContent("Either volume_uuid or (volume_name + svm_name) must be provided")},
 					IsError: true,
 				}, nil
 			}
@@ -697,13 +822,13 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 	// Dual-Mode Volume Tools (support both registry and direct credentials)
 	// ====================
 
-	// resize_volume - Resize a volume (dual-mode)
+	// resize_volume - Resize a volume (dual-mode with name resolution)
 	registry.Register(
 		"resize_volume",
-		"Resize a volume to a new size. Can only increase size (ONTAP doesn't support shrinking volumes with data)",
+		"Resize a volume to a new size. Can only increase size (ONTAP doesn't support shrinking volumes with data). Supports volume_uuid or volume_name+svm_name.",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"volume_uuid", "new_size"},
+			"required": []string{"new_size"},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
@@ -723,7 +848,15 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				},
 				"volume_uuid": map[string]interface{}{
 					"type":        "string",
-					"description": "UUID of the volume",
+					"description": "UUID of the volume (alternative to volume_name)",
+				},
+				"volume_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Volume name (alternative to volume_uuid, requires svm_name)",
+				},
+				"svm_name": map[string]interface{}{
+					"type":        "string",
+					"description": "SVM name (required when using volume_name)",
 				},
 				"new_size": map[string]interface{}{
 					"type":        "string",
@@ -740,21 +873,106 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			volumeUUID := args["volume_uuid"].(string)
-			newSize := args["new_size"].(string)
+			newSize, err := getStringParam(args, "new_size", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
-			// Parse size
-			var sizeBytes int64
-			if len(newSize) > 2 {
-				unit := newSize[len(newSize)-2:]
-				numStr := newSize[:len(newSize)-2]
-				var num float64
-				fmt.Sscanf(numStr, "%f", &num)
-				if unit == "GB" {
-					sizeBytes = int64(num * 1024 * 1024 * 1024)
-				} else if unit == "TB" {
-					sizeBytes = int64(num * 1024 * 1024 * 1024 * 1024)
+			// Resolve volume UUID (either directly provided or via name lookup)
+			volumeUUID, err := getStringParam(args, "volume_uuid", false)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			if volumeUUID == "" {
+				// Try volume_name + svm_name
+				volumeName, err := getStringParam(args, "volume_name", false)
+				if err != nil {
+					return &CallToolResult{
+						Content: []Content{ErrorContent(err.Error())},
+						IsError: true,
+					}, nil
 				}
+
+				if volumeName == "" {
+					return &CallToolResult{
+						Content: []Content{ErrorContent("Either volume_uuid or volume_name must be provided")},
+						IsError: true,
+					}, nil
+				}
+
+				svmName, err := getStringParam(args, "svm_name", true)
+				if err != nil {
+					return &CallToolResult{
+						Content: []Content{ErrorContent("svm_name is required when using volume_name")},
+						IsError: true,
+					}, nil
+				}
+
+				// Resolve volume name to UUID
+				volumes, err := client.ListVolumes(ctx, svmName)
+				if err != nil {
+					return &CallToolResult{
+						Content: []Content{ErrorContent(fmt.Sprintf("Failed to list volumes: %v", err))},
+						IsError: true,
+					}, nil
+				}
+
+				for _, vol := range volumes {
+					if vol.Name == volumeName {
+						volumeUUID = vol.UUID
+						break
+					}
+				}
+
+				if volumeUUID == "" {
+					return &CallToolResult{
+						Content: []Content{ErrorContent(fmt.Sprintf("Volume '%s' not found in SVM '%s'", volumeName, svmName))},
+						IsError: true,
+					}, nil
+				}
+			}
+
+			// Parse size using shared utility
+			sizeBytes, err := parseSizeString(newSize)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Invalid size: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			// Get current volume size to prevent shrinking
+			currentVolume, err := client.GetVolume(ctx, volumeUUID)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get current volume info: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			currentSize := int64(0)
+			if currentVolume.Space != nil {
+				currentSize = currentVolume.Space.Size
+			}
+
+			// ONTAP doesn't allow shrinking volumes
+			if sizeBytes < currentSize {
+				currentMB := float64(currentSize) / (1024 * 1024)
+				targetMB := float64(sizeBytes) / (1024 * 1024)
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf(
+						"Cannot shrink volume from %.2f MB to %.2f MB. ONTAP only allows increasing volume size. Current size: %d bytes, requested: %d bytes",
+						currentMB, targetMB, currentSize, sizeBytes,
+					))},
+					IsError: true,
+				}, nil
 			}
 
 			updates := map[string]interface{}{
@@ -828,7 +1046,14 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			volumeUUID := args["volume_uuid"].(string)
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			updates := make(map[string]interface{})
 
 			if size, ok := args["size"].(string); ok {
@@ -891,7 +1116,15 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
-			volumeUUID := args["volume_uuid"].(string)
+
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			comment := ""
 			if c, ok := args["comment"].(string); ok {
 				comment = c
@@ -925,8 +1158,23 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
-			volumeUUID := args["volume_uuid"].(string)
-			securityStyle := args["security_style"].(string)
+
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			securityStyle, err := getStringParam(args, "security_style", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			err = client.UpdateVolume(ctx, volumeUUID, map[string]interface{}{"nas": map[string]interface{}{"security_style": securityStyle}})
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
@@ -940,14 +1188,15 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 		"get_volume_configuration",
 		"Get comprehensive configuration information for a volume including policies, security, and efficiency settings",
 		map[string]interface{}{
-			"type":     "object",
-			"required": []string{"volume_uuid"},
+			"type": "object",
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
 				"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN (direct mode)"},
 				"username":     map[string]interface{}{"type": "string", "description": "Username (direct mode)"},
 				"password":     map[string]interface{}{"type": "string", "description": "Password (direct mode)"},
-				"volume_uuid":  map[string]interface{}{"type": "string", "description": "UUID of the volume"},
+				"volume_uuid":  map[string]interface{}{"type": "string", "description": "UUID of the volume (alternative to volume_name + svm_name)"},
+				"volume_name":  map[string]interface{}{"type": "string", "description": "Name of the volume (requires svm_name and cluster_name)"},
+				"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name (required when using volume_name)"},
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
@@ -955,19 +1204,180 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
-			volumeUUID := args["volume_uuid"].(string)
+
+			// Support both volume_uuid and volume_name + svm_name
+			volumeUUID, _ := getStringParam(args, "volume_uuid", false)
+
+			// If no UUID provided, try to resolve from volume_name + svm_name
+			if volumeUUID == "" {
+				volumeName, _ := getStringParam(args, "volume_name", false)
+				if volumeName != "" {
+					svmName, err := getStringParam(args, "svm_name", true)
+					if err != nil {
+						return &CallToolResult{
+							Content: []Content{ErrorContent("volume_name requires svm_name parameter")},
+							IsError: true,
+						}, nil
+					}
+
+					// List volumes in the SVM to find the UUID
+					volumes, err := client.ListVolumes(ctx, svmName)
+					if err != nil {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("Failed to list volumes: %v", err))},
+							IsError: true,
+						}, nil
+					}
+
+					// Find the volume by name
+					for _, vol := range volumes {
+						if vol.Name == volumeName {
+							volumeUUID = vol.UUID
+							break
+						}
+					}
+
+					if volumeUUID == "" {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("Volume '%s' not found in SVM '%s'", volumeName, svmName))},
+							IsError: true,
+						}, nil
+					}
+				}
+			}
+
+			// At this point we need a UUID
+			if volumeUUID == "" {
+				return &CallToolResult{
+					Content: []Content{ErrorContent("Either volume_uuid or (volume_name + svm_name) must be provided")},
+					IsError: true,
+				}, nil
+			}
+
 			volume, err := client.GetVolume(ctx, volumeUUID)
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 			}
-			result := fmt.Sprintf("Volume: %s\nUUID: %s\nState: %s\n", volume.Name, volume.UUID, volume.State)
+
+			// Build human-readable summary
+			summary := fmt.Sprintf("Volume: %s\nUUID: %s\nState: %s\n", volume.Name, volume.UUID, volume.State)
 			if volume.Space != nil {
-				result += fmt.Sprintf("Size: %d bytes\n", volume.Space.Size)
+				summary += fmt.Sprintf("Size: %d bytes\n", volume.Space.Size)
 			}
 			if volume.SVM != nil {
-				result += fmt.Sprintf("SVM: %s\n", volume.SVM.Name)
+				summary += fmt.Sprintf("SVM: %s\n", volume.SVM.Name)
 			}
-			return &CallToolResult{Content: []Content{{Type: "text", Text: result}}}, nil
+
+			// Transform volume data to match TypeScript structure with MCP-friendly names
+			transformedData := map[string]interface{}{
+				"volume": map[string]interface{}{
+					"uuid":    volume.UUID,
+					"name":    volume.Name,
+					"size":    volume.Space.Size,
+					"state":   volume.State,
+					"type":    volume.Type,
+					"comment": volume.Comment,
+				},
+				"svm": map[string]interface{}{
+					"name": volume.SVM.Name,
+					"uuid": volume.SVM.UUID,
+				},
+			}
+
+			// Add aggregate if available
+			if len(volume.Aggregates) > 0 {
+				transformedData["aggregate"] = map[string]interface{}{
+					"name": volume.Aggregates[0].Name,
+					"uuid": volume.Aggregates[0].UUID,
+				}
+			}
+
+			// Transform autosize with MCP parameter names (maximum → maximum_size, etc.)
+			autosizeData := map[string]interface{}{
+				"mode": "off", // Default if not set
+			}
+			if volume.Autosize != nil {
+				if volume.Autosize.Mode != "" {
+					autosizeData["mode"] = volume.Autosize.Mode
+				}
+				if volume.Autosize.Maximum > 0 {
+					autosizeData["maximum_size"] = volume.Autosize.Maximum
+				}
+				if volume.Autosize.Minimum > 0 {
+					autosizeData["minimum_size"] = volume.Autosize.Minimum
+				}
+				if volume.Autosize.GrowThreshold > 0 {
+					autosizeData["grow_threshold_percent"] = volume.Autosize.GrowThreshold
+				}
+				if volume.Autosize.ShrinkThreshold > 0 {
+					autosizeData["shrink_threshold_percent"] = volume.Autosize.ShrinkThreshold
+				}
+			}
+			transformedData["autosize"] = autosizeData
+
+			// Add snapshot policy
+			snapshotPolicy := map[string]interface{}{}
+			if volume.SnapshotPolicy != nil {
+				snapshotPolicy["name"] = volume.SnapshotPolicy.Name
+				snapshotPolicy["uuid"] = volume.SnapshotPolicy.UUID
+			}
+			transformedData["snapshot_policy"] = snapshotPolicy
+
+			// Add QoS policy
+			qosData := map[string]interface{}{}
+			if volume.QoS != nil && volume.QoS.Policy != nil {
+				qosData["policy_name"] = volume.QoS.Policy.Name
+				qosData["policy_uuid"] = volume.QoS.Policy.UUID
+			}
+			transformedData["qos"] = qosData
+
+			// Add NFS export policy and security style
+			nfsData := map[string]interface{}{}
+			if volume.NAS != nil {
+				if volume.NAS.ExportPolicy != nil {
+					nfsData["export_policy"] = volume.NAS.ExportPolicy.Name
+				}
+				nfsData["security_style"] = volume.NAS.SecurityStyle
+			}
+			transformedData["nfs"] = nfsData
+
+			// Add space information
+			if volume.Space != nil {
+				spaceData := map[string]interface{}{
+					"size":      volume.Space.Size,
+					"available": volume.Space.Available,
+					"used":      volume.Space.Used,
+				}
+				if volume.Space.Size > 0 && volume.Space.Used > 0 {
+					usedPercent := int((float64(volume.Space.Used) / float64(volume.Space.Size)) * 100)
+					spaceData["used_percent"] = usedPercent
+				}
+				transformedData["space"] = spaceData
+			}
+
+			// Add efficiency settings
+			efficiencyData := map[string]interface{}{}
+			if volume.Efficiency != nil {
+				efficiencyData["compression"] = volume.Efficiency.Compression
+				efficiencyData["dedupe"] = volume.Efficiency.Dedupe
+			}
+			transformedData["efficiency"] = efficiencyData
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			// Format: {summary: "human text", data: {...transformed object...}}
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    transformedData,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+			}
+
+			return &CallToolResult{
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
+			}, nil
 		},
 	)
 
@@ -992,8 +1402,23 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
-			volumeUUID := args["volume_uuid"].(string)
-			policyName := args["export_policy_name"].(string)
+
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			policyName, err := getStringParam(args, "export_policy_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			err = client.UpdateVolume(ctx, volumeUUID, map[string]interface{}{"nas": map[string]interface{}{"export_policy": map[string]string{"name": policyName}}})
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
@@ -1022,7 +1447,15 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
-			volumeUUID := args["volume_uuid"].(string)
+
+			volumeUUID, err := getStringParam(args, "volume_uuid", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			err = client.UpdateVolume(ctx, volumeUUID, map[string]interface{}{"nas": map[string]interface{}{"export_policy": map[string]string{"name": "default"}}})
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil

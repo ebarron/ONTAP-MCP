@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
+
+// Note: Parameter helpers now in params.go for shared use across all tools
 
 func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// 1. cluster_get_volume_autosize_status - Get autosize configuration
@@ -94,25 +97,40 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
-			result := "Volume Autosize Configuration:\n\n"
-			result += fmt.Sprintf("Mode: %s\n", autosize.Mode)
+			summary := "Volume Autosize Configuration:\n\n"
+			summary += fmt.Sprintf("Mode: %s\n", autosize.Mode)
 			if autosize.Maximum > 0 {
-				result += fmt.Sprintf("Maximum: %s\n", formatBytes(autosize.Maximum))
+				summary += fmt.Sprintf("Maximum: %s\n", formatBytes(autosize.Maximum))
 			}
 			// Only show minimum if actually set (for grow_shrink mode)
 			if autosize.Mode == "grow_shrink" && autosize.Minimum > 0 {
-				result += fmt.Sprintf("Minimum: %s\n", formatBytes(autosize.Minimum))
+				summary += fmt.Sprintf("Minimum: %s\n", formatBytes(autosize.Minimum))
 			}
 			if autosize.GrowThreshold > 0 {
-				result += fmt.Sprintf("Grow Threshold: %d%%\n", autosize.GrowThreshold)
+				summary += fmt.Sprintf("Grow Threshold: %d%%\n", autosize.GrowThreshold)
 			}
 			// Only show shrink threshold for grow_shrink mode
 			if autosize.Mode == "grow_shrink" && autosize.ShrinkThreshold > 0 {
-				result += fmt.Sprintf("Shrink Threshold: %d%%\n", autosize.ShrinkThreshold)
+				summary += fmt.Sprintf("Shrink Threshold: %d%%\n", autosize.ShrinkThreshold)
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			// Format: {summary: "human text", data: {...json object...}}
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    autosize,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))},
+					IsError: true,
+				}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -165,8 +183,30 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
-			mode := args["mode"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Invalid cluster_name: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			mode, err := getStringParam(args, "mode", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Invalid mode: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
+			// Validate mode parameter
+			validModes := map[string]bool{"off": true, "grow": true, "grow_shrink": true}
+			if !validModes[mode] {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Invalid mode '%s'. Must be one of: off, grow, grow_shrink", mode))},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -177,117 +217,111 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 			}
 
 			// Validate mode-specific requirements
+			var maximumSize string
 			if mode != "off" {
-				if _, ok := args["maximum_size"].(string); !ok {
+				maximumSize, err = getStringParam(args, "maximum_size", true)
+				if err != nil {
 					return &CallToolResult{
-						Content: []Content{ErrorContent("maximum_size is required when enabling autosize (mode != 'off')")},
+						Content: []Content{ErrorContent(fmt.Sprintf("maximum_size is required when mode != 'off': %v", err))},
 						IsError: true,
 					}, nil
 				}
 			}
 
+			var minimumSize string
 			if mode == "grow_shrink" {
-				if _, ok := args["minimum_size"].(string); !ok {
+				minimumSize, err = getStringParam(args, "minimum_size", true)
+				if err != nil {
 					return &CallToolResult{
-						Content: []Content{ErrorContent("minimum_size is required when mode is 'grow_shrink'")},
+						Content: []Content{ErrorContent(fmt.Sprintf("minimum_size is required when mode is 'grow_shrink': %v", err))},
 						IsError: true,
 					}, nil
 				}
 			}
 
 			// Resolve volume UUID if name provided
-			volumeUUID := ""
-			if uuid, ok := args["volume_uuid"].(string); ok {
-				volumeUUID = uuid
-			} else if volName, ok := args["volume_name"].(string); ok {
-				svmName, ok := args["svm_name"].(string)
-				if !ok {
-					return &CallToolResult{
-						Content: []Content{ErrorContent("svm_name is required when using volume_name")},
-						IsError: true,
-					}, nil
-				}
-
-				volumes, err := client.ListVolumes(ctx, svmName)
-				if err != nil {
-					return &CallToolResult{
-						Content: []Content{ErrorContent(fmt.Sprintf("Failed to list volumes: %v", err))},
-						IsError: true,
-					}, nil
-				}
-
-				for _, vol := range volumes {
-					if vol.Name == volName {
-						volumeUUID = vol.UUID
-						break
+			volumeUUID, _ := getStringParam(args, "volume_uuid", false)
+			if volumeUUID == "" {
+				volName, _ := getStringParam(args, "volume_name", false)
+				if volName != "" {
+					svmName, err := getStringParam(args, "svm_name", true)
+					if err != nil {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("svm_name is required when using volume_name: %v", err))},
+							IsError: true,
+						}, nil
 					}
-				}
 
-				if volumeUUID == "" {
+					volumes, err := client.ListVolumes(ctx, svmName)
+					if err != nil {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("Failed to list volumes: %v", err))},
+							IsError: true,
+						}, nil
+					}
+
+					for _, vol := range volumes {
+						if vol.Name == volName {
+							volumeUUID = vol.UUID
+							break
+						}
+					}
+
+					if volumeUUID == "" {
+						return &CallToolResult{
+							Content: []Content{ErrorContent(fmt.Sprintf("Volume '%s' not found in SVM '%s'", volName, svmName))},
+							IsError: true,
+						}, nil
+					}
+				} else {
 					return &CallToolResult{
-						Content: []Content{ErrorContent(fmt.Sprintf("Volume '%s' not found in SVM '%s'", volName, svmName))},
+						Content: []Content{ErrorContent("Either volume_uuid or volume_name must be provided")},
 						IsError: true,
 					}, nil
 				}
-			} else {
-				return &CallToolResult{
-					Content: []Content{ErrorContent("Either volume_uuid or volume_name must be provided")},
-					IsError: true,
-				}, nil
 			}
 
 			config := map[string]interface{}{
 				"mode": mode,
 			}
 
-			if maxSize, ok := args["maximum_size"].(string); ok {
-				// Parse size (e.g., "1TB", "500GB")
-				var sizeBytes int64
-				if len(maxSize) > 2 {
-					unit := maxSize[len(maxSize)-2:]
-					numStr := maxSize[:len(maxSize)-2]
-					var num float64
-					fmt.Sscanf(numStr, "%f", &num)
-					if unit == "GB" {
-						sizeBytes = int64(num * 1024 * 1024 * 1024)
-					} else if unit == "TB" {
-						sizeBytes = int64(num * 1024 * 1024 * 1024 * 1024)
-					} else if unit == "MB" {
-						sizeBytes = int64(num * 1024 * 1024)
-					}
+			if maximumSize != "" {
+				sizeBytes, err := parseSizeString(maximumSize)
+				if err != nil {
+					return &CallToolResult{
+						Content: []Content{ErrorContent(fmt.Sprintf("Invalid maximum_size: %v", err))},
+						IsError: true,
+					}, nil
 				}
 				if sizeBytes > 0 {
 					config["maximum"] = sizeBytes
 				}
 			}
 
-			if minSize, ok := args["minimum_size"].(string); ok {
-				// Parse size (e.g., "100GB")
-				var sizeBytes int64
-				if len(minSize) > 2 {
-					unit := minSize[len(minSize)-2:]
-					numStr := minSize[:len(minSize)-2]
-					var num float64
-					fmt.Sscanf(numStr, "%f", &num)
-					if unit == "GB" {
-						sizeBytes = int64(num * 1024 * 1024 * 1024)
-					} else if unit == "TB" {
-						sizeBytes = int64(num * 1024 * 1024 * 1024 * 1024)
-					} else if unit == "MB" {
-						sizeBytes = int64(num * 1024 * 1024)
-					}
+			if minimumSize != "" {
+				sizeBytes, err := parseSizeString(minimumSize)
+				if err != nil {
+					return &CallToolResult{
+						Content: []Content{ErrorContent(fmt.Sprintf("Invalid minimum_size: %v", err))},
+						IsError: true,
+					}, nil
 				}
 				if sizeBytes > 0 {
 					config["minimum"] = sizeBytes
 				}
 			}
 
-			if growThresh, ok := args["grow_threshold_percent"].(float64); ok {
-				config["grow_threshold"] = int(growThresh)
+			// Safe handling for optional numeric parameters
+			if val, exists := args["grow_threshold_percent"]; exists && val != nil {
+				if growThresh, ok := val.(float64); ok {
+					config["grow_threshold"] = int(growThresh)
+				}
 			}
 
-			if shrinkThresh, ok := args["shrink_threshold_percent"].(float64); ok {
-				config["shrink_threshold"] = int(shrinkThresh)
+			if val, exists := args["shrink_threshold_percent"]; exists && val != nil {
+				if shrinkThresh, ok := val.(float64); ok {
+					config["shrink_threshold"] = int(shrinkThresh)
+				}
 			}
 
 			err = client.EnableVolumeAutosize(ctx, volumeUUID, config)
@@ -298,7 +332,7 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
-			result := fmt.Sprintf("✅ Volume autosize %s for volume %s", 
+			result := fmt.Sprintf("✅ Volume autosize %s for volume %s",
 				map[string]string{
 					"off":         "disabled",
 					"grow":        "enabled with grow mode",

@@ -2,11 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
+
+// Note: Parameter helpers now in params.go for shared use across all tools
 
 // RegisterClusterTools registers cluster management tools (4 tools)
 func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManager) {
@@ -53,31 +56,67 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 			clusters := clusterManager.ListClusters()
 			if len(clusters) == 0 {
+				summary := "No clusters registered."
+				hybridResult := map[string]interface{}{
+					"summary": summary,
+					"data":    []map[string]interface{}{},
+				}
+				hybridJSON, _ := json.Marshal(hybridResult)
 				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No clusters registered."}},
+					Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 				}, nil
 			}
 
-			result := "Cluster Information:\n\n"
+			// Build structured data array (matching TypeScript)
+			dataArray := make([]map[string]interface{}, 0, len(clusters))
+			summary := "Cluster Information:\n\n"
+
 			for _, name := range clusters {
 				client, err := clusterManager.GetClient(name)
 				if err != nil {
-					result += fmt.Sprintf("- %s: ERROR - %v\n", name, err)
+					summary += fmt.Sprintf("- %s: ERROR - %v\n", name, err)
+					dataArray = append(dataArray, map[string]interface{}{
+						"name":  name,
+						"error": err.Error(),
+					})
 					continue
 				}
 
 				info, err := client.GetClusterInfo(ctx)
 				if err != nil {
-					result += fmt.Sprintf("- %s: ERROR - %v\n", name, err)
+					summary += fmt.Sprintf("- %s: ERROR - %v\n", name, err)
+					dataArray = append(dataArray, map[string]interface{}{
+						"name":  name,
+						"error": err.Error(),
+					})
 					continue
 				}
 
-				result += fmt.Sprintf("- %s: %s (%s) - %s\n",
+				summary += fmt.Sprintf("- %s: %s (%s) - %s\n",
 					name, info.Name, info.Version.Full, info.State)
+
+				dataArray = append(dataArray, map[string]interface{}{
+					"registered_name": name,
+					"name":            info.Name,
+					"version":         info.Version.Full,
+					"state":           info.State,
+					"uuid":            info.UUID,
+				})
+			}
+
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
 			}
 
 			return &CallToolResult{
-				Content: []Content{{Type: "text", Text: result}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
@@ -113,10 +152,38 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			name := args["name"].(string)
-			clusterIP := args["cluster_ip"].(string)
-			username := args["username"].(string)
-			password := args["password"].(string)
+			name, err := getStringParam(args, "name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			clusterIP, err := getStringParam(args, "cluster_ip", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			username, err := getStringParam(args, "username", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
+			password, err := getStringParam(args, "password", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
+
 			description := ""
 			if desc, ok := args["description"].(string); ok {
 				description = desc
@@ -130,7 +197,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 				Description: description,
 			}
 
-			err := clusterManager.AddCluster(cfg)
+			err = clusterManager.AddCluster(cfg)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to add cluster: %v", err))},
@@ -169,7 +236,13 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
+			clusterName, err := getStringParam(args, "cluster_name", true)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(err.Error())},
+					IsError: true,
+				}, nil
+			}
 
 			client, err := clusterManager.GetClient(clusterName)
 			if err != nil {
@@ -187,13 +260,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 				}, nil
 			}
 
-			if len(svms) == 0 {
-				return &CallToolResult{
-					Content: []Content{{Type: "text", Text: "No SVMs found"}},
-				}, nil
-			}
-
-			// Build structured data array
+			// Build structured data array (matching TypeScript SvmListInfo[])
 			dataArray := make([]map[string]interface{}, 0, len(svms))
 			for _, svm := range svms {
 				item := map[string]interface{}{
@@ -202,24 +269,29 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 					"state":   svm.State,
 					"subtype": svm.Subtype,
 				}
+				// Note: aggregates field would be added here if available in SVM struct
 				dataArray = append(dataArray, item)
 			}
 
-			// Build human-readable summary
+			// Build human-readable summary (matching TypeScript format)
 			summary := fmt.Sprintf("SVMs on cluster '%s': %d\n\n", clusterName, len(svms))
 			for _, svm := range svms {
 				summary += fmt.Sprintf("- %s (%s) - State: %s\n", svm.Name, svm.UUID, svm.State)
 			}
 
-			// Return hybrid format (Phase 2, Step 2)
+			// Return hybrid format as single JSON text (TypeScript-compatible)
+			hybridResult := map[string]interface{}{
+				"summary": summary,
+				"data":    dataArray,
+			}
+
+			hybridJSON, err := json.Marshal(hybridResult)
+			if err != nil {
+				return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed to serialize hybrid result: %v", err))}, IsError: true}, nil
+			}
+
 			return &CallToolResult{
-				Content: []Content{{
-					Type: "text",
-					Text: fmt.Sprintf("%s\n__DATA__\n%s", summary, toJSONString(map[string]interface{}{
-						"summary": summary,
-						"data":    dataArray,
-					})),
-				}},
+				Content: []Content{{Type: "text", Text: string(hybridJSON)}},
 			}, nil
 		},
 	)
