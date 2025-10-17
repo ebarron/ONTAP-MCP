@@ -422,14 +422,84 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
 		}
 
-		// Build human-readable summary
-		summary := fmt.Sprintf("CIFS Share: %s\nPath: %s\nSVM: %s\n", share.Name, share.Path, share.SVM.Name)
+		// Build structured data object matching TypeScript CifsShareData
+		data := map[string]interface{}{
+			"name": share.Name,
+			"path": share.Path,
+		}
+		if share.SVM != nil {
+			data["svm_name"] = share.SVM.Name
+			data["svm_uuid"] = share.SVM.UUID
+		}
+		if share.Comment != "" {
+			data["comment"] = share.Comment
+		}
+		if share.Volume != nil {
+			data["volume_name"] = share.Volume.Name
+			data["volume_uuid"] = share.Volume.UUID
+		}
+		if share.ACLs != nil && len(share.ACLs) > 0 {
+			acls := make([]map[string]interface{}, 0, len(share.ACLs))
+			for _, ace := range share.ACLs {
+				aclData := map[string]interface{}{
+					"user_or_group": ace.UserOrGroup,
+					"permission":    ace.Permission,
+				}
+				if ace.Type != "" {
+					aclData["type"] = ace.Type
+				}
+				acls = append(acls, aclData)
+			}
+			data["access_control"] = acls
+		}
+		if share.Properties != nil {
+			data["properties"] = map[string]interface{}{
+				"oplocks":                  share.Properties.Oplocks,
+				"encryption":               share.Properties.Encryption,
+				"access_based_enumeration": share.Properties.AccessBasedEnumeration,
+				"offline_files":            share.Properties.OfflineFiles,
+			}
+		}
+
+		// Build human-readable summary (matching TypeScript format)
+		summary := fmt.Sprintf("📁 **CIFS Share: %s**\n\n", share.Name)
+		summary += "**Basic Information:**\n"
+		summary += fmt.Sprintf("- Path: %s\n", share.Path)
+		if share.SVM != nil {
+			summary += fmt.Sprintf("- SVM: %s\n", share.SVM.Name)
+		}
+		if share.Comment != "" {
+			summary += fmt.Sprintf("- Comment: %s\n", share.Comment)
+		}
+		if share.Volume != nil {
+			summary += fmt.Sprintf("- Volume: %s (%s)\n", share.Volume.Name, share.Volume.UUID)
+		}
+
+		if share.Properties != nil {
+			summary += "\n**Share Properties:**\n"
+			summary += fmt.Sprintf("- oplocks: %v\n", share.Properties.Oplocks)
+			summary += fmt.Sprintf("- encryption: %v\n", share.Properties.Encryption)
+			summary += fmt.Sprintf("- access_based_enumeration: %v\n", share.Properties.AccessBasedEnumeration)
+			if share.Properties.OfflineFiles != "" {
+				summary += fmt.Sprintf("- offline_files: %s\n", share.Properties.OfflineFiles)
+			}
+		}
+
+		if share.ACLs != nil && len(share.ACLs) > 0 {
+			summary += "\n**Access Control:**\n"
+			for _, ace := range share.ACLs {
+				summary += fmt.Sprintf("- %s: %s", ace.UserOrGroup, ace.Permission)
+				if ace.Type != "" {
+					summary += fmt.Sprintf(" (%s)", ace.Type)
+				}
+				summary += "\n"
+			}
+		}
 
 		// Return hybrid format as single JSON text (TypeScript-compatible)
-		// Format: {summary: "human text", data: {...json object...}}
 		hybridResult := map[string]interface{}{
 			"summary": summary,
-			"data":    share,
+			"data":    data,
 		}
 
 		hybridJSON, err := json.Marshal(hybridResult)

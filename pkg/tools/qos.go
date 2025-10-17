@@ -233,12 +233,17 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			}
 
 			// Build structured data (matching TypeScript QosPolicyData)
+			// Determine policy type from policy class
+			policyType := "fixed"
+			if policy.Adaptive != nil {
+				policyType = "adaptive"
+			}
+			
 			data := map[string]interface{}{
-				"uuid":           policy.UUID,
-				"name":           policy.Name,
-				"type":           policy.PolicyClass,
-				"is_shared":      policy.Shared,
-				"workload_count": 0, // Would need separate query
+				"uuid":      policy.UUID,
+				"name":      policy.Name,
+				"type":      policyType,
+				"is_shared": policy.Shared,
 			}
 
 			if policy.SVM != nil {
@@ -290,7 +295,7 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			if policy.SVM != nil {
 				summary += fmt.Sprintf("   • SVM: %s (%s)\n", policy.SVM.Name, policy.SVM.UUID)
 			}
-			summary += fmt.Sprintf("   • Type: %s\n", policy.PolicyClass)
+			summary += fmt.Sprintf("   • Type: %s\n", policyType)
 			summary += fmt.Sprintf("   • Shared: %v\n", policy.Shared)
 			summary += "   • Workloads Using Policy: 0\n\n"
 
