@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "tool": "get_snapshot_schedule",
+    "category": "snapshot-schedule",
+    "capturedAt": "2025-10-17T19:06:54.175Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",
+      "schedule_name": "daily"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "⏰ **Snapshot Schedule: daily**\n\n🆔 UUID: dbc37243-9557-11f0-b21b-005056bd74cc\n🔧 Type: cron\n📅 **Cron Configuration:**\n   • Minutes: 10\n   • Hours: 0\n\n💡 **Usage:**\n   • Use this schedule in snapshot policies\n   • Reference by name: \"daily\"\n",
+          "data": {
+            "uuid": "dbc37243-9557-11f0-b21b-005056bd74cc",
+            "name": "daily",
+            "type": "cron",
+            "cron": {
+              "minutes": [
+                10
+              ],
+              "hours": [
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

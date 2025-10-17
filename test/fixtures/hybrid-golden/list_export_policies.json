@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "tool": "list_export_policies",
+    "category": "export-policy",
+    "capturedAt": "2025-10-17T19:06:53.016Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "Found 6 export policies:\n\n🔐 **default** (ID: 12884901889)\n   🏢 SVM: vs0\n   📏 Rules: 2\n     • Rule 1: 0.0.0.0/0\n     • Rule 2: 0:0:0:0:0:0:0:0/0\n\n🔐 **mcp_export_policy** (ID: 12884901890)\n   🏢 SVM: vs0\n   📏 Rules: None\n\n🔐 **test-policy-rest-1760499500788** (ID: 12884901906)\n   🏢 SVM: vs0\n   📏 Rules: 1\n     • Rule 1: 192.168.1.0/24\n\n🔐 **test-policy-rest-1760499877042** (ID: 12884901908)\n   🏢 SVM: vs0\n   📏 Rules: 1\n     • Rule 1: 192.168.1.0/24\n\n🔐 **test-policy-rest-1760500083472** (ID: 12884901909)\n   🏢 SVM: vs0\n   📏 Rules: 1\n     • Rule 1: 192.168.1.0/24\n\n🔐 **test-policy-stdio-1760671162048** (ID: 12884901923)\n   🏢 SVM: vs0\n   📏 Rules: 1\n     • Rule 1: 192.168.1.0/24\n\n",
+          "data": [
+            {
+              "id": 12884901889,
+              "name": "default",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "rule_count": 2,
+              "rules_preview": [
+                {
+                  "index": 1,
+                  "clients": "0.0.0.0/0"
+                },
+                {
+                  "index": 2,
+                  "clients": "0:0:0:0:0:0:0:0/0"
+                }
+              ]
+            },
+            {
+              "id": 12884901890,
+              "name": "mcp_export_policy",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "rule_count": 0
+            },
+            {
+              "id": 12884901906,
+              "name": "test-policy-rest-1760499500788",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "rule_count": 1,
+              "rules_preview": [
+                {
+                  "index": 1,
+                  "clients": "192.168.1.0/24"
+                }
+              ]
+            },
+            {
+              "id": 12884901908,
+              "name": "test-policy-rest-1760499877042",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "rule_count": 1,
+              "rules_preview": [
+                {
+                  "index": 1,
+                  "clients": "192.168.1.0/24"
+                }
+              ]
+            },
+            {
+              "id": 12884901909,
+              "name": "test-policy-rest-1760500083472",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "rule_count": 1,
+              "rules_preview": [
+                {
+                  "index": 1,
+                  "clients": "192.168.1.0/24"
+                }
+              ]
+            },
+            {
+              "id": 12884901923,
+              "name": "test-policy-stdio-1760671162048",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "rule_count": 1,
+              "rules_preview": [
+                {
+                  "index": 1,
+                  "clients": "192.168.1.0/24"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

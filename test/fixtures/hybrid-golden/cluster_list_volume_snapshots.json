@@ -1,0 +1,90 @@
+{
+  "metadata": {
+    "tool": "cluster_list_volume_snapshots",
+    "category": "volume-snapshot",
+    "capturedAt": "2025-10-17T19:06:54.569Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",
+      "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "📸 **Volume Snapshots** (8 total):\n\n1. **daily.2025-10-16_0010**\n   • UUID: 6d00dcaa-0ad6-4b54-bac1-6329b92953cb\n   • Created: 2025-10-16T00:10:00-04:00\n   • Size: 640.00 KB\n\n2. **daily.2025-10-17_0010**\n   • UUID: d5b212e0-3827-4b90-89a7-e55d4f6b37d8\n   • Created: 2025-10-17T00:10:00-04:00\n   • Size: 640.00 KB\n\n3. **hourly.2025-10-17_1005**\n   • UUID: 3efdd661-dd3f-44e1-b484-02ec2365a5e1\n   • Created: 2025-10-17T10:05:00-04:00\n   • Size: 1.41 MB\n\n4. **hourly.2025-10-17_1105**\n   • UUID: 743bea49-f60d-4b1c-a534-4bf6e12c5588\n   • Created: 2025-10-17T11:05:00-04:00\n   • Size: 1.48 MB\n\n5. **hourly.2025-10-17_1205**\n   • UUID: ba59a201-5dee-4e67-aab5-28553ed6268f\n   • Created: 2025-10-17T12:05:00-04:00\n   • Size: 1.55 MB\n\n6. **hourly.2025-10-17_1305**\n   • UUID: f592b1b7-a4a7-4769-bd4c-c5292d8ed619\n   • Created: 2025-10-17T13:05:00-04:00\n   • Size: 1.62 MB\n\n7. **hourly.2025-10-17_1405**\n   • UUID: bcb78b72-32dd-487d-8f7d-5f94d5b578f6\n   • Created: 2025-10-17T14:05:00-04:00\n   • Size: 1.70 MB\n\n8. **hourly.2025-10-17_1505**\n   • UUID: dc1f452a-55fa-4b71-ab2f-367ca69fdd7f\n   • Created: 2025-10-17T15:05:00-04:00\n   • Size: 1.79 MB\n\n",
+          "data": [
+            {
+              "uuid": "6d00dcaa-0ad6-4b54-bac1-6329b92953cb",
+              "name": "daily.2025-10-16_0010",
+              "create_time": "2025-10-16T00:10:00-04:00",
+              "size": 655360,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "d5b212e0-3827-4b90-89a7-e55d4f6b37d8",
+              "name": "daily.2025-10-17_0010",
+              "create_time": "2025-10-17T00:10:00-04:00",
+              "size": 655360,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "3efdd661-dd3f-44e1-b484-02ec2365a5e1",
+              "name": "hourly.2025-10-17_1005",
+              "create_time": "2025-10-17T10:05:00-04:00",
+              "size": 1482752,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "743bea49-f60d-4b1c-a534-4bf6e12c5588",
+              "name": "hourly.2025-10-17_1105",
+              "create_time": "2025-10-17T11:05:00-04:00",
+              "size": 1556480,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "ba59a201-5dee-4e67-aab5-28553ed6268f",
+              "name": "hourly.2025-10-17_1205",
+              "create_time": "2025-10-17T12:05:00-04:00",
+              "size": 1630208,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "f592b1b7-a4a7-4769-bd4c-c5292d8ed619",
+              "name": "hourly.2025-10-17_1305",
+              "create_time": "2025-10-17T13:05:00-04:00",
+              "size": 1695744,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "bcb78b72-32dd-487d-8f7d-5f94d5b578f6",
+              "name": "hourly.2025-10-17_1405",
+              "create_time": "2025-10-17T14:05:00-04:00",
+              "size": 1781760,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            },
+            {
+              "uuid": "dc1f452a-55fa-4b71-ab2f-367ca69fdd7f",
+              "name": "hourly.2025-10-17_1505",
+              "create_time": "2025-10-17T15:05:00-04:00",
+              "size": 1871872,
+              "volume_uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "volume_name": "test_cifs_vol_1760493385887"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "tool": "cluster_list_svms",
+    "category": "cluster-management",
+    "capturedAt": "2025-10-17T19:06:52.780Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "SVMs on cluster 'C1_sti245-vsim-ocvs026a_1758285854': 1\n\n- vs0 (8da5dbc6-9558-11f0-b21b-005056bd74cc) - State: running",
+          "data": [
+            {
+              "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "name": "vs0",
+              "state": "running"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

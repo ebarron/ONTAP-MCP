@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "tool": "get_export_policy",
+    "category": "export-policy",
+    "capturedAt": "2025-10-17T19:06:53.237Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",
+      "policy_name": "default"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "🔐 **Export Policy: default**\n\n🆔 ID: 12884901889\n🏢 SVM: vs0 (8da5dbc6-9558-11f0-b21b-005056bd74cc)\n\n📏 **Export Rules (2):**\n\n   📏 **Rule 1**\n      👥 Clients: 0.0.0.0/0\n      🔌 Protocols: any\n      📖 Read-Only: any\n      📝 Read-Write: any\n      👑 Superuser: any\n      🔧 Device Creation: ✅\n      🔒 Allow SUID: ✅\n      👤 Anonymous User: 65534\n\n   📏 **Rule 2**\n      👥 Clients: 0:0:0:0:0:0:0:0/0\n      🔌 Protocols: any\n      📖 Read-Only: any\n      📝 Read-Write: any\n      👑 Superuser: none\n      🔧 Device Creation: ✅\n      🔒 Allow SUID: ✅\n      👤 Anonymous User: 65534\n\n",
+          "data": {
+            "id": 12884901889,
+            "name": "default",
+            "svm": {
+              "name": "vs0",
+              "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+            },
+            "rules": [
+              {
+                "index": 1,
+                "clients": [
+                  {
+                    "match": "0.0.0.0/0"
+                  }
+                ],
+                "ro_rule": [
+                  "any"
+                ],
+                "rw_rule": [
+                  "any"
+                ],
+                "superuser": [
+                  "any"
+                ],
+                "protocols": [
+                  "any"
+                ],
+                "allow_suid": true,
+                "allow_device_creation": true,
+                "anonymous_user": "65534"
+              },
+              {
+                "index": 2,
+                "clients": [
+                  {
+                    "match": "0:0:0:0:0:0:0:0/0"
+                  }
+                ],
+                "ro_rule": [
+                  "any"
+                ],
+                "rw_rule": [
+                  "any"
+                ],
+                "superuser": [
+                  "none"
+                ],
+                "protocols": [
+                  "any"
+                ],
+                "allow_suid": true,
+                "allow_device_creation": true,
+                "anonymous_user": "65534"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

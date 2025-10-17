@@ -47,6 +47,16 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
+			// Get volume details for volume_name (TypeScript format requires it)
+			volume, err := client.GetVolume(ctx, volumeUUID)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get volume details: %v", err))},
+					IsError: true,
+				}, nil
+			}
+			volumeName := volume.Name
+
 			// Build structured data array (matching TypeScript VolumeSnapshotListInfo[])
 			dataArray := make([]map[string]interface{}, 0, len(snapshots))
 			for _, snap := range snapshots {
@@ -60,6 +70,8 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 					"state":       snap.State,
 					"size":        sizeBytes,
 					"size_gb":     fmt.Sprintf("%.2f", sizeGB),
+					"volume_uuid": volumeUUID,   // Add volume_uuid for TypeScript compatibility
+					"volume_name": volumeName,    // Add volume_name for TypeScript compatibility
 				}
 
 				if snap.Comment != "" {
@@ -205,6 +217,15 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
+			// Get volume details for volume_name (TypeScript format requires it)
+			volume, err := client.GetVolume(ctx, volumeUUID)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get volume details: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
 			// Build structured data (matching TypeScript VolumeSnapshotData)
 			sizeBytes := int64(snapshot.Size)
 			sizeGB := float64(sizeBytes) / (1024 * 1024 * 1024)
@@ -216,6 +237,8 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				"state":       snapshot.State,
 				"size":        sizeBytes,
 				"size_gb":     fmt.Sprintf("%.2f", sizeGB),
+				"volume_uuid": volumeUUID,      // Add volume_uuid for TypeScript compatibility
+				"volume_name": volume.Name,     // Add volume_name for TypeScript compatibility
 			}
 
 			if snapshot.Comment != "" {

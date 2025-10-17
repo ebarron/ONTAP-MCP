@@ -132,10 +132,10 @@ const HYBRID_TOOLS = [
   {
     name: 'cluster_get_volume_snapshot_info',
     category: 'volume-snapshot',
-    getParams: (cluster, volumeUuid, snapshotUuid) => ({ 
+    getParams: (cluster) => ({ 
       cluster_name: cluster.name,
-      volume_uuid: volumeUuid || 'auto-detect',
-      snapshot_uuid: snapshotUuid || 'auto-detect'
+      volume_uuid: 'auto-detect',
+      snapshot_name: 'auto-detect'
     }),
     needsDiscovery: 'cluster_list_volume_snapshots',
     optional: true
@@ -181,11 +181,55 @@ async function discoverResource(client, tool, params) {
   const result = await client.callTool(tool, params);
   const parsed = client.parseHybridFormat(result);
   
-  if (!parsed.data || (Array.isArray(parsed.data) && parsed.data.length === 0)) {
-    return null;
+  // Check if it returned data in hybrid format
+  if (parsed.data) {
+    if (Array.isArray(parsed.data) && parsed.data.length === 0) {
+      return null;
+    }
+    return parsed.data;
   }
   
-  return parsed.data;
+  // For plain text responses, try to extract information from the text
+  // This is needed for tools like list_snapshot_policies that don't use hybrid format
+  const text = parsed.summary || '';
+  
+  // Try to extract UUIDs from plain text (for snapshot policies, QoS policies, etc.)
+  if (tool === 'list_snapshot_policies') {
+    // Parse output like "1. default\n   🆔 UUID: dc05d9d4-9557-11f0-b21b-005056bd74cc"
+    const policyMatches = [...text.matchAll(/\*\*(\d+)\.\s+([^\n*]+)\*\*\s*\n\s*🆔\s*UUID:\s*([a-f0-9-]+)/g)];
+    if (policyMatches.length > 0) {
+      return policyMatches.map(m => ({
+        name: m[2].trim(),
+        uuid: m[3]
+      }));
+    }
+  }
+  
+  // Try to extract volume info from plain text
+  if (tool === 'cluster_list_volumes') {
+    // Parse output like "- volname (uuid) - Size: X, State: online, SVM: svm0"
+    const volMatches = [...text.matchAll(/-\s+([^\s(]+)\s+\(([a-f0-9-]+)\)/g)];
+    if (volMatches.length > 0) {
+      return volMatches.map(m => ({
+        name: m[1],
+        uuid: m[2]
+      }));
+    }
+  }
+  
+  // Try to extract snapshot info from plain text  
+  if (tool === 'cluster_list_volume_snapshots') {
+    // Parse output like "1. **snapshot_name**\n   • UUID: uuid"
+    const snapMatches = [...text.matchAll(/\d+\.\s+\*\*([^\*]+)\*\*\s*\n\s*•\s*UUID:\s*([a-f0-9-]+)/g)];
+    if (snapMatches.length > 0) {
+      return snapMatches.map(m => ({
+        name: m[1].trim(),
+        uuid: m[2]
+      }));
+    }
+  }
+  
+  return null;
 }
 
 async function captureToolResponse(client, tool, cluster, discoveries = {}) {
@@ -203,7 +247,23 @@ async function captureToolResponse(client, tool, cluster, discoveries = {}) {
         // Discover the resource
         const discoveryTool = HYBRID_TOOLS.find(t => t.name === discoveryKey);
         if (discoveryTool) {
-          const discoveryParams = discoveryTool.getParams(cluster);
+          let discoveryParams = discoveryTool.getParams(cluster);
+          
+          // Special case: cluster_list_volume_snapshots needs a volume_uuid
+          if (discoveryKey === 'cluster_list_volume_snapshots') {
+            // First ensure we have volumes discovered
+            if (!discoveries['cluster_list_volumes']) {
+              const volTool = HYBRID_TOOLS.find(t => t.name === 'cluster_list_volumes');
+              if (volTool) {
+                discoveries['cluster_list_volumes'] = await discoverResource(client, 'cluster_list_volumes', volTool.getParams(cluster));
+              }
+            }
+            const volumes = discoveries['cluster_list_volumes'];
+            if (volumes && volumes.length > 0) {
+              discoveryParams.volume_uuid = volumes[0].uuid;
+            }
+          }
+          
           discoveries[discoveryKey] = await discoverResource(client, discoveryKey, discoveryParams);
         }
       }
@@ -224,11 +284,29 @@ async function captureToolResponse(client, tool, cluster, discoveries = {}) {
           console.log(`  ℹ️  Using volume: ${volumes[0].name} (${volumes[0].uuid})`);
         }
       } else if (tool.name === 'cluster_get_volume_snapshot_info') {
-        // Need volume UUID and snapshot UUID
+        // Need volume UUID and snapshot NAME (or UUID)
+        // First, we need the volume UUID from a previous discovery
+        if (!discoveries['cluster_list_volumes']) {
+          const volTool = HYBRID_TOOLS.find(t => t.name === 'cluster_list_volumes');
+          if (volTool) {
+            discoveries['cluster_list_volumes'] = await discoverResource(client, 'cluster_list_volumes', volTool.getParams(cluster));
+          }
+        }
+        const volumes = discoveries['cluster_list_volumes'];
+        if (volumes && volumes.length > 0) {
+          params.volume_uuid = volumes[0].uuid;
+          console.log(`  ℹ️  Using volume: ${volumes[0].name} (${volumes[0].uuid})`);
+        }
+        
+        // Now get snapshot info
         const snapshots = Array.isArray(resourceData) ? resourceData : [resourceData];
-        if (snapshots.length > 0) {
-          params.snapshot_uuid = snapshots[0].uuid;
-          console.log(`  ℹ️  Using snapshot: ${snapshots[0].name} (${snapshots[0].uuid})`);
+        if (snapshots && snapshots.length > 0 && snapshots[0].name) {
+          // Use snapshot_name instead of snapshot_uuid
+          params.snapshot_name = snapshots[0].name;
+          delete params.snapshot_uuid;  // Remove UUID param, use name
+          console.log(`  ℹ️  Using snapshot: ${snapshots[0].name}`);
+        } else {
+          console.log(`  ⚠️  No snapshots discovered, resourceData:`, JSON.stringify(resourceData).substring(0, 200));
         }
       } else if (tool.name === 'cluster_get_qos_policy') {
         // Need QoS policy UUID
@@ -238,10 +316,11 @@ async function captureToolResponse(client, tool, cluster, discoveries = {}) {
           console.log(`  ℹ️  Using QoS policy: ${policies[0].name} (${policies[0].uuid})`);
         }
       } else if (tool.name === 'get_snapshot_policy') {
-        // Need snapshot policy UUID
+        // Need snapshot policy NAME (not UUID)
         const policies = Array.isArray(resourceData) ? resourceData : [resourceData];
-        if (policies.length > 0 && policies[0].uuid) {
-          params.policy_uuid = policies[0].uuid;
+        if (policies.length > 0) {
+          params.policy_name = policies[0].name;  // Use name, not uuid!
+          delete params.policy_uuid;  // Remove uuid param
           console.log(`  ℹ️  Using snapshot policy: ${policies[0].name} (${policies[0].uuid})`);
         }
       }

@@ -77,12 +77,14 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 					item["comment"] = policy.Comment
 				}
 
+				// TypeScript format: svm_name and svm_uuid as separate fields (not nested svm object)
 				if policy.SVM != nil {
-					item["svm"] = map[string]interface{}{
-						"name": policy.SVM.Name,
-						"uuid": policy.SVM.UUID,
-					}
+					item["svm_name"] = policy.SVM.Name
+					item["svm_uuid"] = policy.SVM.UUID
 				}
+
+				// Add rule_count field (TypeScript format)
+				item["rule_count"] = len(policy.Rules)
 
 				// Add rules preview (first 3 rules)
 				if len(policy.Rules) > 0 {
@@ -91,13 +93,14 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 						if i >= 3 {
 							break
 						}
+						// TypeScript format: clients as comma-separated string, not array
 						clients := make([]string, 0, len(rule.Clients))
 						for _, c := range rule.Clients {
 							clients = append(clients, c.Match)
 						}
 						preview = append(preview, map[string]interface{}{
 							"index":   rule.Index,
-							"clients": clients,
+							"clients": strings.Join(clients, ", "),
 						})
 					}
 					item["rules_preview"] = preview

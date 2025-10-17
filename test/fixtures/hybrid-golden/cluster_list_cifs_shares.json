@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "tool": "cluster_list_cifs_shares",
+    "category": "cifs",
+    "capturedAt": "2025-10-17T19:06:52.907Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "Found 9 CIFS share(s) in cluster 'C1_sti245-vsim-ocvs026a_1758285854':\n\n📁 **c$**\n   Path: /\n   SVM: vs0\n   Volume: root_vs0\n\n📁 **ipc$**\n   Path: /\n   SVM: vs0\n   Volume: root_vs0\n\n📁 **ROOTSHARE**\n   Path: /\n   SVM: vs0\n   Comment: \\\"Share mapped to top of Vserver global namespace, created bydeux_init \\\"\n   Volume: root_vs0\n\n📁 **simple-test-share**\n   Path: /\n   SVM: vs0\n   Comment: Simple test without ACLs\n   Volume: root_vs0\n\n📁 **test-debug-share**\n   Path: /\n   SVM: vs0\n   Comment: Test deletion with debug\n   Volume: root_vs0\n\n📁 **test-delete-share**\n   Path: /\n   SVM: vs0\n   Comment: Test deletion\n   Volume: root_vs0\n\n📁 **test-uuid-share**\n   Path: /\n   SVM: vs0\n   Comment: Test deletion with SVM UUID\n   Volume: root_vs0\n\n📁 **test_cifs_share_1760669477576**\n   Path: /\n   SVM: vs0\n   Comment: Test CIFS share created by automated test\n   Volume: root_vs0\n\n📁 **test_cifs_share_1760671271580**\n   Path: /\n   SVM: vs0\n   Comment: Test CIFS share created by automated test\n   Volume: root_vs0\n\n",
+          "data": [
+            {
+              "name": "c$",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906"
+            },
+            {
+              "name": "ipc$",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906"
+            },
+            {
+              "name": "ROOTSHARE",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "\\\"Share mapped to top of Vserver global namespace, created bydeux_init \\\""
+            },
+            {
+              "name": "simple-test-share",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "Simple test without ACLs"
+            },
+            {
+              "name": "test-debug-share",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "Test deletion with debug"
+            },
+            {
+              "name": "test-delete-share",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "Test deletion"
+            },
+            {
+              "name": "test-uuid-share",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "Test deletion with SVM UUID"
+            },
+            {
+              "name": "test_cifs_share_1760669477576",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "Test CIFS share created by automated test"
+            },
+            {
+              "name": "test_cifs_share_1760671271580",
+              "path": "/",
+              "svm_name": "vs0",
+              "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+              "volume_name": "root_vs0",
+              "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "comment": "Test CIFS share created by automated test"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

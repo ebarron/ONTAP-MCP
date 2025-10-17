@@ -1,0 +1,305 @@
+{
+  "metadata": {
+    "tool": "cluster_list_volumes",
+    "category": "cluster-management",
+    "capturedAt": "2025-10-17T19:06:52.522Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "Volumes on cluster 'C1_sti245-vsim-ocvs026a_1758285854': 20\n\n- test_cifs_vol_1760493385887 (000a8c01-a96a-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760495553799 (0c2973d7-a96f-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760493838595 (0dcf418a-a96b-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- full_vol_1 (14b94833-ab63-11f0-b21b-005056bd74cc) - Size: 107376640, State: online, SVM: vs0\n- full_vol_2 (14c0a45a-ab63-11f0-b21b-005056bd74cc) - Size: 104857600, State: online, SVM: vs0\n- full_vol_3 (14c4aabd-ab63-11f0-b21b-005056bd74cc) - Size: 104857600, State: online, SVM: vs0\n- fullvolume (14c56f22-ab63-11f0-b21b-005056bd74cc) - Size: 104857600, State: online, SVM: vs0\n- test_cifs_vol_1760671271580 (28d9ee4d-ab08-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760499899025 (2a0965bc-a979-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760499523202 (4a084a27-a978-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760493100853 (563097e9-a969-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760492728952 (787476df-a968-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760492304118 (7b438411-a967-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760494887701 (7f1ce8d8-a96d-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760500491899 (8b66f1d2-a97a-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- root_vs0 (8d5ab2db-9558-11f0-b44d-005056bd2906) - Size: 104857600, State: online, SVM: vs0\n- vs0_vol_1000mb_0925T1344 (c39f50cc-9a15-11f0-b21b-005056bd74cc) - Size: 1048576000, State: online, SVM: vs0\n- test_cifs_vol_1760496807472 (f75b98b9-a971-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760494235796 (fa8def80-a96b-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0\n- test_cifs_vol_1760669477576 (fb951840-ab03-11f0-b21b-005056bd74cc) - Size: 1073741824, State: online, SVM: vs0",
+          "data": [
+            {
+              "uuid": "000a8c01-a96a-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760493385887",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "0c2973d7-a96f-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760495553799",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "0dcf418a-a96b-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760493838595",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "14b94833-ab63-11f0-b21b-005056bd74cc",
+              "name": "full_vol_1",
+              "size": 107376640,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026b_aggr1",
+                "uuid": "4b7d6cf8-d222-4787-9aa9-75dd37c36274"
+              }
+            },
+            {
+              "uuid": "14c0a45a-ab63-11f0-b21b-005056bd74cc",
+              "name": "full_vol_2",
+              "size": 104857600,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026b_aggr1",
+                "uuid": "4b7d6cf8-d222-4787-9aa9-75dd37c36274"
+              }
+            },
+            {
+              "uuid": "14c4aabd-ab63-11f0-b21b-005056bd74cc",
+              "name": "full_vol_3",
+              "size": 104857600,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026b_aggr1",
+                "uuid": "4b7d6cf8-d222-4787-9aa9-75dd37c36274"
+              }
+            },
+            {
+              "uuid": "14c56f22-ab63-11f0-b21b-005056bd74cc",
+              "name": "fullvolume",
+              "size": 104857600,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026b_aggr1",
+                "uuid": "4b7d6cf8-d222-4787-9aa9-75dd37c36274"
+              }
+            },
+            {
+              "uuid": "28d9ee4d-ab08-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760671271580",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "2a0965bc-a979-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760499899025",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "4a084a27-a978-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760499523202",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "563097e9-a969-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760493100853",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "787476df-a968-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760492728952",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "7b438411-a967-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760492304118",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "7f1ce8d8-a96d-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760494887701",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "8b66f1d2-a97a-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760500491899",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906",
+              "name": "root_vs0",
+              "size": 104857600,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "c39f50cc-9a15-11f0-b21b-005056bd74cc",
+              "name": "vs0_vol_1000mb_0925T1344",
+              "size": 1048576000,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "f75b98b9-a971-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760496807472",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "fa8def80-a96b-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760494235796",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            },
+            {
+              "uuid": "fb951840-ab03-11f0-b21b-005056bd74cc",
+              "name": "test_cifs_vol_1760669477576",
+              "size": 1073741824,
+              "state": "online",
+              "svm": {
+                "name": "vs0",
+                "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+              },
+              "aggregate": {
+                "name": "sti245_vsim_ocvs026a_aggr1",
+                "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

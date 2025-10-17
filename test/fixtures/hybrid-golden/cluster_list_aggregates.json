@@ -1,0 +1,47 @@
+{
+  "metadata": {
+    "tool": "cluster_list_aggregates",
+    "category": "cluster-management",
+    "capturedAt": "2025-10-17T19:06:52.667Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "All aggregates on cluster 'C1_sti245-vsim-ocvs026a_1758285854': 2\n\n- sti245_vsim_ocvs026a_aggr1 (47902bc2-6bd5-4efb-b735-ee14d0f60f59) - State: online, Available: 9400451072, Used: 16293699584\n- sti245_vsim_ocvs026b_aggr1 (4b7d6cf8-d222-4787-9aa9-75dd37c36274) - State: online, Available: 25267335168, Used: 426815488",
+          "data": [
+            {
+              "uuid": "47902bc2-6bd5-4efb-b735-ee14d0f60f59",
+              "name": "sti245_vsim_ocvs026a_aggr1",
+              "state": "online",
+              "space": {
+                "available": 9400451072,
+                "used": 16293699584,
+                "size": 25694150656,
+                "percent_used": 63
+              }
+            },
+            {
+              "uuid": "4b7d6cf8-d222-4787-9aa9-75dd37c36274",
+              "name": "sti245_vsim_ocvs026b_aggr1",
+              "state": "online",
+              "space": {
+                "available": 25267335168,
+                "used": 426815488,
+                "size": 25694150656,
+                "percent_used": 2
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

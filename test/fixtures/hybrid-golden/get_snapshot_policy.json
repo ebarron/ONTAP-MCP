@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "tool": "get_snapshot_policy",
+    "category": "snapshot-policy",
+    "capturedAt": "2025-10-17T19:06:54.055Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",
+      "policy_name": "database-snapshot-protection"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "📋 **Snapshot Policy Details: database-snapshot-protection**\n\n🆔 **UUID:** 72c8faa8-9ad8-11f0-b21b-005056bd74cc\n📝 **Description:** None\n⚡ **Enabled:** ✅ Yes\n🔄 **Scope:** svm\n\n📅 **Copies:** None configured\n\n🚀 **Available Actions:**\n   • Apply to volume: apply_snapshot_policy_to_volume\n   • Update policy: update_snapshot_policy\n   • Delete policy: delete_snapshot_policy\n",
+          "data": {
+            "uuid": "72c8faa8-9ad8-11f0-b21b-005056bd74cc",
+            "name": "database-snapshot-protection",
+            "enabled": true
+          }
+        }
+      }
+    ]
+  }
+}

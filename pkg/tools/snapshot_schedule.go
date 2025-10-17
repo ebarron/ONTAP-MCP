@@ -60,13 +60,61 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		for _, s := range schedules {
 			if s.Name == scheduleName {
 				// Build human-readable summary
-				summary := fmt.Sprintf("Schedule: %s\nUUID: %s\nType: %s\n", s.Name, s.UUID, s.Type)
+				summary := fmt.Sprintf("⏰ **Snapshot Schedule: %s**\n\n🆔 UUID: %s\n🔧 Type: %s\n", s.Name, s.UUID, s.Type)
+				
+				if s.Type == "cron" && s.Cron != nil {
+					summary += "📅 **Cron Configuration:**\n"
+					if len(s.Cron.Minutes) > 0 {
+						summary += fmt.Sprintf("   • Minutes: %v\n", s.Cron.Minutes[0])
+					}
+					if len(s.Cron.Hours) > 0 {
+						summary += fmt.Sprintf("   • Hours: %v\n", s.Cron.Hours[0])
+					}
+					if len(s.Cron.Days) > 0 {
+						summary += fmt.Sprintf("   • Days: %v\n", s.Cron.Days)
+					}
+					if len(s.Cron.Months) > 0 {
+						summary += fmt.Sprintf("   • Months: %v\n", s.Cron.Months)
+					}
+					if len(s.Cron.Weekdays) > 0 {
+						summary += fmt.Sprintf("   • Weekdays: %v\n", s.Cron.Weekdays)
+					}
+					summary += "\n"
+				}
+				
+				summary += "💡 **Usage:**\n"
+				summary += "   • Use this schedule in snapshot policies\n"
+				summary += fmt.Sprintf("   • Reference by name: \"%s\"\n", s.Name)
+
+				// Build data object matching TypeScript format exactly
+				data := map[string]interface{}{
+					"uuid": s.UUID,
+					"name": s.Name,
+					"type": s.Type,
+				}
+				
+				// Add cron details if present
+				if s.Type == "cron" && s.Cron != nil {
+					data["cron"] = map[string]interface{}{
+						"minutes":  s.Cron.Minutes,
+						"hours":    s.Cron.Hours,
+					}
+					if len(s.Cron.Days) > 0 {
+						data["cron"].(map[string]interface{})["days"] = s.Cron.Days
+					}
+					if len(s.Cron.Months) > 0 {
+						data["cron"].(map[string]interface{})["months"] = s.Cron.Months
+					}
+					if len(s.Cron.Weekdays) > 0 {
+						data["cron"].(map[string]interface{})["weekdays"] = s.Cron.Weekdays
+					}
+				}
 
 				// Return hybrid format as single JSON text (TypeScript-compatible)
 				// Format: {summary: "human text", data: {...json object...}}
 				hybridResult := map[string]interface{}{
 					"summary": summary,
-					"data":    s,
+					"data":    data,
 				}
 
 				hybridJSON, err := json.Marshal(hybridResult)

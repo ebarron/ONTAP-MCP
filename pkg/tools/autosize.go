@@ -97,6 +97,15 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
+			// Also get volume details for current_size and space (TypeScript format)
+			volume, err := client.GetVolumeWithFullSpace(ctx, volumeUUID)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get volume details: %v", err))},
+					IsError: true,
+				}, nil
+			}
+
 			summary := "Volume Autosize Configuration:\n\n"
 			summary += fmt.Sprintf("Mode: %s\n", autosize.Mode)
 			if autosize.Maximum > 0 {
@@ -114,11 +123,18 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 				summary += fmt.Sprintf("Shrink Threshold: %d%%\n", autosize.ShrinkThreshold)
 			}
 
+			// Build data object matching TypeScript format exactly
+			data := map[string]interface{}{
+				"current_size": volume.Space.Size,
+				"autosize":     autosize,
+				"space":        volume.Space,
+			}
+
 			// Return hybrid format as single JSON text (TypeScript-compatible)
 			// Format: {summary: "human text", data: {...json object...}}
 			hybridResult := map[string]interface{}{
 				"summary": summary,
-				"data":    autosize,
+				"data":    data,
 			}
 
 			hybridJSON, err := json.Marshal(hybridResult)

@@ -67,16 +67,63 @@ type Volume struct {
 
 // VolumeSpace represents volume space information
 type VolumeSpace struct {
-	Size         int64 `json:"size,omitempty"`
-	Available    int64 `json:"available,omitempty"`
-	Used         int64 `json:"used,omitempty"`
-	LogicalSpace *struct {
-		Used      int64 `json:"used,omitempty"`
-		Available int64 `json:"available,omitempty"`
+	Size                        int64  `json:"size"`
+	Available                   int64  `json:"available"`
+	Used                        int64  `json:"used"`
+	IsUsedStale                 bool   `json:"is_used_stale"`
+	LocalTierFootprint          int64  `json:"local_tier_footprint"`
+	Footprint                   int64  `json:"footprint"`
+	OverProvisioned             int64  `json:"over_provisioned"`
+	Metadata                    int64  `json:"metadata"`
+	TotalFootprint              int64  `json:"total_footprint"`
+	DelayedFreeFootprint        int64  `json:"delayed_free_footprint"`
+	FileOperationMetadata       int64  `json:"file_operation_metadata"`
+	VolumeGuaranteeFootprint    int64  `json:"volume_guarantee_footprint"`
+	EffectiveTotalFootprint     int64  `json:"effective_total_footprint"`
+	UserData                    int64  `json:"user_data"`
+	UsedByAfs                   int64  `json:"used_by_afs"`
+	AvailablePercent            int    `json:"available_percent"`
+	AfsTotal                    int64  `json:"afs_total"`
+	FullThresholdPercent        int    `json:"full_threshold_percent"`
+	NearlyFullThresholdPercent  int    `json:"nearly_full_threshold_percent"`
+	OverwriteReserve            int64  `json:"overwrite_reserve"`
+	OverwriteReserveUsed        int64  `json:"overwrite_reserve_used"`
+	SizeAvailableForSnapshots   int64  `json:"size_available_for_snapshots"`
+	PercentUsed                 int    `json:"percent_used"`
+	FractionalReserve           int    `json:"fractional_reserve"`
+	PhysicalUsedPercent         int    `json:"physical_used_percent"`
+	PhysicalUsed                int64  `json:"physical_used"`
+	ExpectedAvailable           int64  `json:"expected_available"`
+	FilesystemSize              int64  `json:"filesystem_size"`
+	FilesystemSizeFixed         bool   `json:"filesystem_size_fixed"`
+	LargeSizeEnabled            bool   `json:"large_size_enabled"`
+	TotalMetadata               int64  `json:"total_metadata"`
+	TotalMetadataFootprint      int64  `json:"total_metadata_footprint"`
+	LogicalSpace                *struct {
+		Reporting       bool  `json:"reporting"`
+		Enforcement     bool  `json:"enforcement"`
+		UsedByAfs       int64 `json:"used_by_afs"`
+		UsedPercent     int   `json:"used_percent"`
+		Used            int64 `json:"used"`
+		UsedBySnapshots int64 `json:"used_by_snapshots"`
 	} `json:"logical_space,omitempty"`
 	Snapshot *struct {
-		Used           int64 `json:"used,omitempty"`
-		ReservePercent int   `json:"reserve_percent,omitempty"`
+		Used              int64  `json:"used"`
+		ReservePercent    int    `json:"reserve_percent"`
+		AutodeleteEnabled bool   `json:"autodelete_enabled"`
+		ReserveSize       int64  `json:"reserve_size"`
+		SpaceUsedPercent  int    `json:"space_used_percent"`
+		ReserveAvailable  int64  `json:"reserve_available"`
+		AutodeleteTrigger string `json:"autodelete_trigger"`
+		Autodelete        *struct {
+			Enabled         bool   `json:"enabled"`
+			Trigger         string `json:"trigger"`
+			DeleteOrder     string `json:"delete_order"`
+			DeferDelete     string `json:"defer_delete"`
+			Commitment      string `json:"commitment"`
+			TargetFreeSpace int    `json:"target_free_space"`
+			Prefix          string `json:"prefix"`
+		} `json:"autodelete,omitempty"`
 	} `json:"snapshot,omitempty"`
 }
 
@@ -244,7 +291,17 @@ type VolumeAutosize struct {
 
 // SnapshotSchedule represents a snapshot schedule (cron job)
 type SnapshotSchedule struct {
-	UUID string `json:"uuid"`
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"` // cron, interval
+	UUID string                 `json:"uuid"`
+	Name string                 `json:"name"`
+	Type string                 `json:"type,omitempty"` // cron, interval
+	Cron *SnapshotScheduleCron `json:"cron,omitempty"`
+}
+
+// SnapshotScheduleCron represents cron schedule configuration
+type SnapshotScheduleCron struct {
+	Minutes  []int `json:"minutes,omitempty"`
+	Hours    []int `json:"hours,omitempty"`
+	Days     []int `json:"days,omitempty"`
+	Months   []int `json:"months,omitempty"`
+	Weekdays []int `json:"weekdays,omitempty"`
 }

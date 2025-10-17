@@ -80,6 +80,19 @@ func (c *Client) GetVolume(ctx context.Context, uuid string) (*Volume, error) {
 	return &volume, nil
 }
 
+// GetVolumeWithFullSpace gets a volume with all space fields (for autosize status)
+func (c *Client) GetVolumeWithFullSpace(ctx context.Context, uuid string) (*Volume, error) {
+	var volume Volume
+	// Match TypeScript implementation: request autosize,size,space (ONTAP returns all nested fields)
+	path := fmt.Sprintf("/storage/volumes/%s?fields=autosize,size,space", uuid)
+
+	if err := c.get(ctx, path, &volume); err != nil {
+		return nil, fmt.Errorf("failed to get volume: %w", err)
+	}
+
+	return &volume, nil
+}
+
 // CreateVolume creates a new volume
 func (c *Client) CreateVolume(ctx context.Context, req *CreateVolumeRequest) (*CreateVolumeResponse, error) {
 	var response CreateVolumeResponse

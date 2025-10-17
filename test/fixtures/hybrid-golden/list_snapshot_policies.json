@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "tool": "list_snapshot_policies",
+    "category": "snapshot-policy",
+    "capturedAt": "2025-10-17T19:06:53.837Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "📋 **Found 4 snapshot policies:**\n\n**1. database-snapshot-protection**\n   🆔 UUID: 72c8faa8-9ad8-11f0-b21b-005056bd74cc\n   ⚡ Enabled: ✅ Yes\n   📅 Copies: None configured\n\n**2. default**\n   🆔 UUID: dc05d9d4-9557-11f0-b21b-005056bd74cc\n   📝 Description: Default policy with hourly, daily & weekly schedules.\n   ⚡ Enabled: ✅ Yes\n   📅 Copies: None configured\n\n**3. default-1weekly**\n   🆔 UUID: dc095458-9557-11f0-b21b-005056bd74cc\n   📝 Description: Default policy with 6 hourly, 2 daily & 1 weekly schedule.\n   ⚡ Enabled: ✅ Yes\n   📅 Copies: None configured\n\n**4. none**\n   🆔 UUID: dc319957-9557-11f0-b21b-005056bd74cc\n   📝 Description: Policy for no automatic snapshots.\n   ⚡ Enabled: ❌ No\n   📅 Copies: None configured\n\n📖 **Usage:**\n   • View details: get_snapshot_policy\n   • Apply to volume: apply_snapshot_policy_to_volume\n   • Update policy: update_snapshot_policy\n"
+      }
+    ]
+  }
+}

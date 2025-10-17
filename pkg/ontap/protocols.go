@@ -333,7 +333,8 @@ func (c *Client) ListSnapshotSchedules(ctx context.Context) ([]SnapshotSchedule,
 	var response struct {
 		Records []SnapshotSchedule `json:"records"`
 	}
-	if err := c.get(ctx, "/cluster/schedules", &response); err != nil {
+	// Request cron details with fields parameter
+	if err := c.get(ctx, "/cluster/schedules?fields=uuid,name,type,cron", &response); err != nil {
 		return nil, fmt.Errorf("failed to list snapshot schedules: %w", err)
 	}
 	return response.Records, nil

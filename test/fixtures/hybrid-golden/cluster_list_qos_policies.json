@@ -1,0 +1,76 @@
+{
+  "metadata": {
+    "tool": "cluster_list_qos_policies",
+    "category": "qos",
+    "capturedAt": "2025-10-17T19:06:53.490Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "📊 **QoS Policies on C1_sti245-vsim-ocvs026a_1758285854** (6 policies):\n\n🎛️ **test-fixed-extremefixed-596825** (79d911d5-a971-11f0-b21b-005056bd74cc)\n   • SVM: Unknown\n   • Type: unknown\n   • Shared: No\n   • Workloads: 0\n\n🎛️ **test-fixed-default-898234** (7d9b4bb4-a97b-11f0-b21b-005056bd74cc)\n   • SVM: Unknown\n   • Type: unknown\n   • Shared: No\n   • Workloads: 0\n\n🎛️ **test-fixed-extremefixed-958137** (a14d5e71-a97b-11f0-b21b-005056bd74cc)\n   • SVM: Unknown\n   • Type: unknown\n   • Shared: No\n   • Workloads: 0\n\n🎛️ **extreme-fixed** (hardcoded-extreme-fixed-58285854)\n   • SVM: C1_sti245-vsim-ocvs026a_1758285854\n   • Type: fixed\n   • Shared: No\n   • Workloads: 0\n   • Max Throughput: 50000IOPS,1.53GB/s\n   • Min Throughput: 0IOPS\n\n🎛️ **performance-fixed** (hardcoded-performance-fixed-58285854)\n   • SVM: C1_sti245-vsim-ocvs026a_1758285854\n   • Type: fixed\n   • Shared: No\n   • Workloads: 0\n   • Max Throughput: 30000IOPS,937.5MB/s\n   • Min Throughput: 0IOPS\n\n🎛️ **value-fixed** (hardcoded-value-fixed-58285854)\n   • SVM: C1_sti245-vsim-ocvs026a_1758285854\n   • Type: fixed\n   • Shared: No\n   • Workloads: 0\n   • Max Throughput: 15000IOPS,468.8MB/s\n   • Min Throughput: 0IOPS\n\n",
+          "data": [
+            {
+              "uuid": "79d911d5-a971-11f0-b21b-005056bd74cc",
+              "name": "test-fixed-extremefixed-596825"
+            },
+            {
+              "uuid": "7d9b4bb4-a97b-11f0-b21b-005056bd74cc",
+              "name": "test-fixed-default-898234"
+            },
+            {
+              "uuid": "a14d5e71-a97b-11f0-b21b-005056bd74cc",
+              "name": "test-fixed-extremefixed-958137"
+            },
+            {
+              "uuid": "hardcoded-extreme-fixed-58285854",
+              "name": "extreme-fixed",
+              "svm_name": "C1_sti245-vsim-ocvs026a_1758285854",
+              "svm_uuid": "d44a361d-9557-11f0-b21b-005056bd74cc",
+              "type": "fixed",
+              "is_shared": false,
+              "workload_count": 0,
+              "fixed": {
+                "max_throughput": "50000IOPS,1.53GB/s",
+                "min_throughput": "0IOPS"
+              }
+            },
+            {
+              "uuid": "hardcoded-performance-fixed-58285854",
+              "name": "performance-fixed",
+              "svm_name": "C1_sti245-vsim-ocvs026a_1758285854",
+              "svm_uuid": "d44a361d-9557-11f0-b21b-005056bd74cc",
+              "type": "fixed",
+              "is_shared": false,
+              "workload_count": 0,
+              "fixed": {
+                "max_throughput": "30000IOPS,937.5MB/s",
+                "min_throughput": "0IOPS"
+              }
+            },
+            {
+              "uuid": "hardcoded-value-fixed-58285854",
+              "name": "value-fixed",
+              "svm_name": "C1_sti245-vsim-ocvs026a_1758285854",
+              "svm_uuid": "d44a361d-9557-11f0-b21b-005056bd74cc",
+              "type": "fixed",
+              "is_shared": false,
+              "workload_count": 0,
+              "fixed": {
+                "max_throughput": "15000IOPS,468.8MB/s",
+                "min_throughput": "0IOPS"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
