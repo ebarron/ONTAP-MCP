@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
@@ -64,10 +66,32 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		
+		// Get session statistics from global session manager
+		sessionMgr := session.GetGlobalSessionManager()
+		sessionCount := 0
+		var distribution map[string]int
+		if sessionMgr != nil {
+			sessionCount = sessionMgr.SessionCount()
+			distribution = sessionMgr.GetSessionDistribution()
+		}
+		
+		// Get timeout configurations
+		inactivityTimeout := s.getInactivityTimeout()
+		maxLifetime := s.getMaxLifetime()
+		
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":  "healthy",
 			"server":  "NetApp ONTAP MCP Server",
 			"version": "2.0.0",
+			"sessions": map[string]interface{}{
+				"active":       sessionCount,
+				"distribution": distribution,
+			},
+			"sessionConfig": map[string]interface{}{
+				"inactivityTimeoutMinutes": float64(inactivityTimeout) / float64(time.Minute),
+				"maxLifetimeHours":         float64(maxLifetime) / float64(time.Hour),
+			},
 		})
 	})
 
@@ -77,6 +101,9 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 		Handler:           mux,
 		ReadHeaderTimeout: 60 * time.Second,
 	}
+
+	// Start session cleanup goroutine
+	go s.startSessionCleanup(ctx)
 
 	// Graceful shutdown
 	go func() {
@@ -274,4 +301,97 @@ func (s *Server) LoadClustersFromInitOptions(initOptions map[string]interface{})
 	}
 
 	return nil
+}
+
+// startSessionCleanup runs a periodic task to clean up inactive and expired sessions
+func (s *Server) startSessionCleanup(ctx context.Context) {
+	// Read timeout configurations from environment variables
+	inactivityTimeout := s.getInactivityTimeout()
+	maxLifetime := s.getMaxLifetime()
+	
+	// Set cleanup interval based on the shorter of the two timeouts
+	// Run cleanup at 1/3 of the shortest timeout to ensure timely cleanup
+	minTimeout := inactivityTimeout
+	if maxLifetime < minTimeout {
+		minTimeout = maxLifetime
+	}
+	cleanupInterval := minTimeout / 3
+	
+	// Minimum cleanup interval of 1 second, maximum of 60 seconds
+	if cleanupInterval < time.Second {
+		cleanupInterval = time.Second
+	} else if cleanupInterval > 60*time.Second {
+		cleanupInterval = 60 * time.Second
+	}
+
+	s.logger.Info().
+		Dur("inactivity_timeout", inactivityTimeout).
+		Dur("max_lifetime", maxLifetime).
+		Dur("cleanup_interval", cleanupInterval).
+		Msg("Starting session cleanup goroutine")
+
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			sessionMgr := session.GetGlobalSessionManager()
+			if sessionMgr == nil {
+				continue
+			}
+
+			// Clean up inactive sessions
+			inactiveRemoved := sessionMgr.CleanupInactiveSessions(inactivityTimeout)
+			if inactiveRemoved > 0 {
+				s.logger.Info().
+					Int("removed", inactiveRemoved).
+					Msg("Cleaned up inactive sessions")
+			}
+
+			// Clean up expired sessions (max lifetime)
+			expiredRemoved := sessionMgr.CleanupExpiredSessions(maxLifetime)
+			if expiredRemoved > 0 {
+				s.logger.Info().
+					Int("removed", expiredRemoved).
+					Msg("Cleaned up expired sessions")
+			}
+
+		case <-ctx.Done():
+			s.logger.Info().Msg("Session cleanup goroutine stopped")
+			return
+		}
+	}
+}
+
+// getInactivityTimeout reads the inactivity timeout from environment variable
+// Default: 30 minutes
+func (s *Server) getInactivityTimeout() time.Duration {
+	if val := os.Getenv("MCP_SESSION_INACTIVITY_TIMEOUT"); val != "" {
+		// Try parsing as milliseconds (integer)
+		if ms, err := strconv.ParseInt(val, 10, 64); err == nil {
+			return time.Duration(ms) * time.Millisecond
+		}
+		// Try parsing as duration string (e.g., "5s", "30m")
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
+		}
+	}
+	return 30 * time.Minute // Default: 30 minutes
+}
+
+// getMaxLifetime reads the max lifetime from environment variable
+// Default: 24 hours
+func (s *Server) getMaxLifetime() time.Duration {
+	if val := os.Getenv("MCP_SESSION_MAX_LIFETIME"); val != "" {
+		// Try parsing as milliseconds (integer)
+		if ms, err := strconv.ParseInt(val, 10, 64); err == nil {
+			return time.Duration(ms) * time.Millisecond
+		}
+		// Try parsing as duration string (e.g., "1h", "24h")
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
+		}
+	}
+	return 24 * time.Hour // Default: 24 hours
 }

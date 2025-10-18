@@ -123,7 +123,44 @@ func (sm *SessionManager) RemoveSession(sessionID string) {
 func (sm *SessionManager) SessionCount() int {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return len(sm.sessions)
+	count := len(sm.sessions)
+	sm.logger.Debug().
+		Int("session_count", count).
+		Msg("SessionCount called")
+	return count
+}
+
+// GetSessionDistribution returns sessions grouped by age
+func (sm *SessionManager) GetSessionDistribution() map[string]int {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	distribution := map[string]int{
+		"< 5min":    0,
+		"5-30min":   0,
+		"30-60min":  0,
+		"1-24hr":    0,
+		"> 24hr":    0,
+	}
+
+	now := time.Now()
+	for _, session := range sm.sessions {
+		age := now.Sub(session.CreatedAt)
+		switch {
+		case age < 5*time.Minute:
+			distribution["< 5min"]++
+		case age < 30*time.Minute:
+			distribution["5-30min"]++
+		case age < 60*time.Minute:
+			distribution["30-60min"]++
+		case age < 24*time.Hour:
+			distribution["1-24hr"]++
+		default:
+			distribution["> 24hr"]++
+		}
+	}
+
+	return distribution
 }
 
 // CleanupInactiveSessions removes sessions inactive for longer than the timeout
@@ -142,6 +179,31 @@ func (sm *SessionManager) CleanupInactiveSessions(timeout time.Duration) int {
 				Str("session_id", sessionID).
 				Dur("inactive_duration", now.Sub(session.LastActivityAt)).
 				Msg("Cleaned up inactive session")
+		}
+	}
+
+	return removed
+}
+
+// CleanupExpiredSessions removes sessions that have exceeded their maximum lifetime
+// regardless of activity. This enforces an absolute session expiration time.
+func (sm *SessionManager) CleanupExpiredSessions(maxLifetime time.Duration) int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	now := time.Now()
+	removed := 0
+
+	for sessionID, session := range sm.sessions {
+		age := now.Sub(session.CreatedAt)
+		if age > maxLifetime {
+			delete(sm.sessions, sessionID)
+			removed++
+			sm.logger.Info().
+				Str("session_id", sessionID).
+				Dur("session_age", age).
+				Dur("max_lifetime", maxLifetime).
+				Msg("Cleaned up expired session (max lifetime exceeded)")
 		}
 	}
 
