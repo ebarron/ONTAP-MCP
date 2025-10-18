@@ -1,40 +1,55 @@
 #!/bin/bash
 
-# NetApp ONTAP MCP Demo Startup Script
+# NetApp ONTAP MCP Demo Start Script (Go Version)
 # 
-# This script properly starts both servers required for the demo:
-# 1. MCP HTTP server with all clusters from test/clusters.json
-# 2. Demo web server from the demo directory (no /demo URL suffix needed)
+# This script starts the Go implementation of the MCP server and demo web interface
 #
-# Usage: ./start-demo.sh
-# Access demo at: http://localhost:8080 (no /demo suffix needed)
+# Requirements:
+# - Go binary compiled at ./ontap-mcp-server
+# - test/clusters.json with cluster configurations
+# - demo/ directory with web interface
+#
+# Architecture:
+# 1. MCP HTTP Server (Go): Port 3000 (Streamable HTTP - MCP 2025-06-18)
+# 2. Demo Web Server (Python): Port 8080
+#
+# Usage: ./start-demo-go.sh
+# Access demo at: http://localhost:8080
 
-set -e  # Exit on any error
+set -e  # Exit on error
 
 # If not already backgrounded, relaunch in background with nohup
-if [[ -z "$START_DEMO_BACKGROUNDED" ]]; then
-    export START_DEMO_BACKGROUNDED=1
-    echo "🚀 Launching demo in background..."
+if [[ -z "$START_DEMO_GO_BACKGROUNDED" ]]; then
+    export START_DEMO_GO_BACKGROUNDED=1
+    echo "🚀 Launching Go demo in background..."
     nohup "$0" "$@" > start-demo.log 2>&1 &
     BG_PID=$!
-    echo "✅ Demo started in background (PID: $BG_PID)"
+    echo "✅ Go demo started in background (PID: $BG_PID)"
     echo "📋 Logs: start-demo.log"
-    echo "🛑 To stop: ./stop-demo.sh"
+    echo "🛑 To stop: ./stop-demo-go.sh"
     echo ""
     echo "Demo will be available at:"
     echo "  http://localhost:8080"
     echo ""
     echo "Waiting for servers to start..."
-    sleep 5
+    sleep 8
     
     # Show initial status
-    if ps -p $BG_PID > /dev/null 2>&1; then
-        echo "✅ Demo is running"
-        tail -20 start-demo.log
+    echo "Checking server status..."
+    if pgrep -f "ontap-mcp-server" >/dev/null; then
+        echo "✅ Go MCP server is running"
     else
-        echo "❌ Demo failed to start. Check start-demo.log for details"
-        exit 1
+        echo "❌ Go MCP server not detected - check start-demo.log"
     fi
+    
+    if lsof -ti :8080 >/dev/null 2>&1; then
+        echo "✅ Demo web server is running on port 8080"
+    else
+        echo "❌ Demo web server not detected - check start-demo.log"
+    fi
+    
+    echo ""
+    echo "🌐 Open http://localhost:8080 to access the demo"
     exit 0
 fi
 
@@ -45,7 +60,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Function to print colored output
 print_status() {
     echo -e "${BLUE}[DEMO]${NC} $1"
 }
@@ -62,94 +76,104 @@ print_error() {
     echo -e "${RED}[DEMO]${NC} $1"
 }
 
-# Function to cleanup background processes on exit (only if Ctrl+C in foreground)
+# Cleanup function for graceful shutdown
 cleanup() {
-    # Only cleanup if we receive an interrupt signal
-    # Don't cleanup on normal exit (EXIT trap) to keep servers running
+    echo
     print_status "Shutting down demo servers..."
-    pkill -f "node build/index.js" 2>/dev/null || true
-    pkill -f "python3 -m http.server" 2>/dev/null || true
-    pkill -f "start-demo.sh" 2>/dev/null || true  # Kill monitoring loops
-    print_success "Demo servers stopped"
+    
+    # Kill MCP server
+    if [[ -n "${MCP_PID:-}" ]]; then
+        kill $MCP_PID 2>/dev/null || true
+    fi
+    pkill -f "ontap-mcp-server" 2>/dev/null || true
+    
+    # Kill demo web server
+    if [[ -n "${DEMO_PID:-}" ]]; then
+        kill $DEMO_PID 2>/dev/null || true
+    fi
+    pkill -f "python3 -m http.server 8080" 2>/dev/null || true
+    
+    # Kill log monitor
+    if [[ -n "${LOG_PID:-}" ]]; then
+        kill $LOG_PID 2>/dev/null || true
+    fi
+    
+    print_success "Demo stopped"
     exit 0
 }
 
-# Set up cleanup only on interrupt signals, not EXIT
-trap cleanup INT TERM
+# Set up cleanup on exit
+trap cleanup SIGINT SIGTERM
 
-# Check if we're in the right directory
-if [[ ! -f "package.json" ]] || [[ ! -d "demo" ]] || [[ ! -d "test" ]]; then
-    print_error "Please run this script from the ONTAP-MCP root directory"
-    print_error "Expected structure: package.json, demo/, test/ directories"
+# Step 1: Verify we're in the correct directory
+if [[ ! -f "start-demo-go.sh" ]]; then
+    print_error "Must run from ONTAP-MCP root directory"
     exit 1
 fi
 
-# Check if clusters.json exists
+print_status "Starting NetApp ONTAP MCP Demo (Go Version)..."
+
+# Step 2: Check for Go binary
+if [[ ! -f "ontap-mcp-server" ]]; then
+    print_error "Go binary not found: ./ontap-mcp-server"
+    print_error "Please build first with: go build -o ontap-mcp-server ./cmd/mcp-server"
+    exit 1
+fi
+
+# Step 3: Load cluster configurations
+print_status "Loading cluster configurations..."
+
 if [[ ! -f "test/clusters.json" ]]; then
     print_error "test/clusters.json not found"
-    print_error "Please ensure cluster configuration file exists"
+    print_error "Run ./test/setup-test-env.sh to create cluster configuration"
     exit 1
 fi
 
-# Check if demo files exist
-if [[ ! -f "demo/index.html" ]] || [[ ! -f "demo/app.js" ]]; then
-    print_error "Demo files not found in demo/ directory"
-    print_error "Please ensure demo/index.html and demo/app.js exist"
+# Validate clusters.json is valid JSON
+if ! jq empty test/clusters.json 2>/dev/null; then
+    print_error "test/clusters.json is not valid JSON"
     exit 1
 fi
 
-print_status "Starting NetApp ONTAP MCP Demo..."
+# Load clusters into environment variable
+# Go server reads ONTAP_CLUSTERS env var directly
+CLUSTERS_JSON=$(cat test/clusters.json)
+CLUSTER_COUNT=$(echo "$CLUSTERS_JSON" | jq 'length')
 
-# Step 1: Build the MCP server if needed
-if [[ ! -f "build/index.js" ]] || [[ "src/index.ts" -nt "build/index.js" ]]; then
-    print_status "Building MCP server..."
-    npm run build
-    if [[ $? -ne 0 ]]; then
-        print_error "Build failed"
-        exit 1
-    fi
-    print_success "MCP server built successfully"
-else
-    print_status "Using existing build (up to date)"
-fi
-
-# Step 2: Convert clusters.json to environment variable format
-print_status "Loading cluster configuration from test/clusters.json..."
-
-# Read clusters.json and convert to ONTAP_CLUSTERS format
-CLUSTERS_JSON=$(node -e "
-const fs = require('fs');
-const clusters = JSON.parse(fs.readFileSync('test/clusters.json', 'utf8'));
-const clusterArray = Object.entries(clusters).map(([name, config]) => ({
-    name: name,
-    cluster_ip: config.cluster_ip,
-    username: config.username,
-    password: config.password,
-    description: config.description
-}));
-console.log(JSON.stringify(clusterArray));
-")
-
-if [[ $? -ne 0 ]] || [[ -z "$CLUSTERS_JSON" ]]; then
-    print_error "Failed to parse test/clusters.json"
+if [[ "$CLUSTER_COUNT" -eq 0 ]]; then
+    print_error "No clusters configured in test/clusters.json"
     exit 1
 fi
 
-# Count clusters
-CLUSTER_COUNT=$(echo "$CLUSTERS_JSON" | node -e "
-const clusters = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-console.log(clusters.length);
-")
+print_success "Loaded $CLUSTER_COUNT cluster(s) from test/clusters.json"
 
-print_success "Loaded $CLUSTER_COUNT clusters from configuration file"
+# Step 3.5: Stop any existing demo servers
+print_status "Checking for existing demo servers..."
 
-# Step 3: Kill any existing servers and check for port conflicts
-print_status "Stopping any existing demo servers..."
-pkill -f "node build/index.js" 2>/dev/null || true
-pkill -f "python3 -m http.server" 2>/dev/null || true
+# Stop previous instances of start-demo-go.sh
+if pgrep -f "start-demo-go.sh" >/dev/null 2>&1; then
+    print_status "Stopping existing start-demo-go.sh processes..."
+    pkill -f "start-demo-go.sh"
+    sleep 2
+fi
+
+# Stop Go MCP server
+if pgrep -f "ontap-mcp-server" >/dev/null 2>&1; then
+    print_status "Stopping existing Go MCP server..."
+    pkill -f "ontap-mcp-server"
+    sleep 2
+fi
+
+# Stop Python demo server on port 8080
+if lsof -ti :8080 >/dev/null 2>&1; then
+    print_status "Stopping existing demo web server on port 8080..."
+    lsof -ti :8080 | xargs kill -9 2>/dev/null || true
+    sleep 2
+fi
+
 sleep 2
 
-# Check for port conflicts (only check for LISTEN state, not established connections)
+# Check for port conflicts (only check for LISTEN state)
 if lsof -i :3000 -sTCP:LISTEN >/dev/null 2>&1; then
     print_error "Port 3000 is in use by another process:"
     lsof -i :3000 -sTCP:LISTEN
@@ -169,11 +193,12 @@ if lsof -i :8080 -sTCP:LISTEN >/dev/null 2>&1; then
     print_success "Port 8080 freed successfully"
 fi
 
-# Step 4: Start MCP HTTP server with all clusters (Streamable HTTP transport)
-print_status "Starting MCP HTTP server on port 3000 (Streamable HTTP - MCP 2025-06-18)..."
+# Step 4: Start Go MCP HTTP server with all clusters
+print_status "Starting Go MCP HTTP server on port 3000 (Streamable HTTP - MCP 2025-06-18)..."
 export ONTAP_CLUSTERS="$CLUSTERS_JSON"
-# export HARVEST_TSDB_URL="http://10.193.49.74:9090"
-nohup node build/index.js --http=3000 > mcp-server.log 2>&1 &
+
+# Launch Go server in background
+nohup ./ontap-mcp-server --http=3000 > mcp-server.log 2>&1 &
 MCP_PID=$!
 
 # Wait for MCP server to start
@@ -181,24 +206,26 @@ sleep 3
 
 # Check if MCP server is running
 if ! kill -0 $MCP_PID 2>/dev/null; then
-    print_error "MCP server failed to start"
+    print_error "Go MCP server failed to start"
     print_error "Check mcp-server.log for details:"
     tail -n 20 mcp-server.log
     exit 1
 fi
 
 # Test MCP server health
-if curl -s http://localhost:3000/health > /dev/null; then
-    print_success "MCP HTTP server started successfully on port 3000"
+if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+    print_success "Go MCP HTTP server started successfully on port 3000"
 else
-    print_error "MCP server not responding to health check"
+    print_error "Go MCP server not responding to health check"
+    print_error "Check mcp-server.log for details:"
+    tail -n 20 mcp-server.log
     exit 1
 fi
 
 # Step 5: Start demo web server from demo directory
 print_status "Starting demo web server on port 8080..."
 
-# Ensure we start from the demo directory to avoid /demo URL suffix
+# Ensure we start from the demo directory
 if [[ ! -d "demo" ]]; then
     print_error "demo/ directory not found"
     exit 1
@@ -208,7 +235,7 @@ cd demo || exit 1
 nohup python3 -m http.server 8080 > ../demo-server.log 2>&1 &
 DEMO_PID=$!
 
-# Return to root directory for remaining operations
+# Return to root directory
 cd .. || exit 1
 
 # Wait for demo server to start
@@ -222,7 +249,7 @@ if ! kill -0 $DEMO_PID 2>/dev/null; then
     exit 1
 fi
 
-# Test demo server - should serve the demo HTML, not a directory listing
+# Test demo server - should serve the demo HTML
 DEMO_TEST=$(curl -s http://localhost:8080 | head -n 5)
 if echo "$DEMO_TEST" | grep -qi "<!DOCTYPE html"; then
     if echo "$DEMO_TEST" | grep -q "Directory listing"; then
@@ -241,7 +268,7 @@ fi
 # Step 6: Final validation - test MCP API connectivity
 print_status "Validating MCP API connectivity..."
 CLUSTER_TEST=$(curl -s -X POST http://localhost:3000/api/tools/list_registered_clusters \
-    -H "Content-Type: application/json" -d '{}' | head -c 100)
+    -H "Content-Type: application/json" -d '{}' 2>/dev/null | head -c 100)
 
 if [[ -n "$CLUSTER_TEST" ]]; then
     print_success "MCP API responding correctly"
@@ -251,13 +278,14 @@ fi
 
 # Success message and instructions
 echo
-print_success "🚀 NetApp ONTAP MCP Demo is ready!"
+print_success "🚀 NetApp ONTAP MCP Demo is ready! (Go Implementation)"
 echo
 echo -e "${GREEN}=================================="
 echo -e "  Demo Access Information"  
 echo -e "==================================${NC}"
 echo -e "${BLUE}Demo URL:${NC}        http://localhost:8080"
 echo -e "${BLUE}MCP API:${NC}         http://localhost:3000"
+echo -e "${BLUE}Implementation:${NC}  Go (./ontap-mcp-server)"
 echo -e "${BLUE}Clusters:${NC}        $CLUSTER_COUNT loaded from test/clusters.json"
 echo -e "${BLUE}Logs:${NC}            mcp-server.log, demo-server.log"
 echo
@@ -270,33 +298,14 @@ echo -e "  2. Click 'Provision Storage' to start testing"
 echo -e "  3. Select cluster, SVM, and configure volume"
 echo -e "  4. Submit to test complete MCP API workflow"
 echo
-echo -e "${BLUE}Press Ctrl+C to stop both servers${NC}"
-
-# Keep script running and show live logs
-print_status "Monitoring servers... (Press Ctrl+C to stop)"
+echo -e "${BLUE}To stop servers:${NC} ./stop-demo-go.sh"
+echo -e "${BLUE}View logs:${NC} tail -f mcp-server.log (or demo-server.log)"
 echo
 
-# Function to show rotating logs
-show_logs() {
-    while true; do
-        if [[ -f mcp-server.log ]]; then
-            echo -e "${BLUE}--- MCP Server Activity (last 3 lines) ---${NC}"
-            tail -n 3 mcp-server.log 2>/dev/null || echo "No recent activity"
-        fi
-        
-        if [[ -f demo-server.log ]]; then
-            echo -e "${BLUE}--- Demo Server Activity (last 3 lines) ---${NC}"  
-            tail -n 3 demo-server.log 2>/dev/null || echo "No recent activity"
-        fi
-        
-        sleep 10
-        echo "---"
-    done
-}
+# Keep servers running until cleanup signal
+# This runs in background via nohup, so it will continue even after script exits
+print_success "Servers are running in background"
+print_status "Use ./stop-demo-go.sh to stop the demo"
 
-# Start log monitoring in background
-show_logs &
-LOG_PID=$!
-
-# Wait for user interrupt
-wait
+# Exit cleanly - servers continue in background
+exit 0

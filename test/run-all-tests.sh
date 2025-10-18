@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Comprehensive regression test suite for NetApp ONTAP MCP Server
-# Runs all available tests to validate functionality
-# Usage: ./run-all-tests.sh [test_number]
+# Comprehensive regression test suite for NetApp ONTAP MCP Server (Go Implementation)
+# Runs all available tests against the Go binary to validate functionality
+# Usage: ./run-all-tests-go.sh [test_number]
 #   test_number: Optional - run only specific test (e.g., 1, 18, 20)
 
 set -e
@@ -54,13 +54,13 @@ run_test() {
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     log "Running Test $CURRENT_TEST_NUM: $test_name"
     
-    if eval "$test_command" > /tmp/test_output_$CURRENT_TEST_NUM.log 2>&1; then
+    if eval "$test_command" > /tmp/test_output_go_$CURRENT_TEST_NUM.log 2>&1; then
         success "Test $CURRENT_TEST_NUM PASSED: $test_name"
         PASSED_TESTS=$((PASSED_TESTS + 1))
     else
         error "Test $CURRENT_TEST_NUM FAILED: $test_name"
         echo "Error output:"
-        cat /tmp/test_output_$CURRENT_TEST_NUM.log
+        cat /tmp/test_output_go_$CURRENT_TEST_NUM.log
         FAILED_TESTS=$((FAILED_TESTS + 1))
     fi
 }
@@ -69,21 +69,25 @@ run_test() {
 cd "$(dirname "$0")/.."
 
 if [ ! -z "$SPECIFIC_TEST" ]; then
-    log "🎯 Running Specific Test #$SPECIFIC_TEST"
+    log "🎯 Running Specific Test #$SPECIFIC_TEST (Go Implementation)"
 else
-    log "🚀 Starting Comprehensive Regression Test Suite"
+    log "🚀 Starting Comprehensive Regression Test Suite (Go Implementation)"
 fi
 
-log "Building project first..."
-npm run build
+log "Building Go binary first..."
+if ! go build -o ontap-mcp-server ./cmd/ontap-mcp; then
+    error "Failed to build Go binary"
+    exit 1
+fi
+success "Go binary built successfully ($(ls -lh ontap-mcp-server | awk '{print $5}'))"
 
 echo ""
-log "=== Starting Shared HTTP Server for Test Suite ==="
+log "=== Starting Shared HTTP Server for Test Suite (Go) ==="
 # Using Streamable HTTP transport (MCP 2025-06-18)
 # Clusters must be loaded via MCP API into each session
-node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
+./ontap-mcp-server --http=3000 > /tmp/mcp-test-suite-server-go.log 2>&1 &
 SERVER_PID=$!
-log "Server started with PID: $SERVER_PID"
+log "Go server started with PID: $SERVER_PID"
 
 # Wait for server to be healthy (up to 20 seconds)
 log "Waiting for server to be ready..."
@@ -182,8 +186,14 @@ run_test "Volume Snapshot Lifecycle (STDIO Mode)" "node test/tools/test-volume-s
 # Test 25: Volume Snapshot Lifecycle Test (HTTP Mode)
 run_test "Volume Snapshot Lifecycle (HTTP Mode)" "node test/tools/test-volume-snapshot-lifecycle-v2.js http --server-running"
 
-# Test 26: Session Management (HTTP Mode Only)
+# Test 26: Session Isolation (HTTP Mode Only)
+# This test validates that sessions cannot access each other's clusters
+# Uses the shared server that's already running - no restart needed!
+run_test "Session Isolation (HTTP Mode)" "node test/core/test-session-isolation.js"
+
+# Test 27: Session Management (HTTP Mode Only)
 # Note: This test starts its own server with custom timeouts, so we stop the shared server first
+# Moved to end so it doesn't disrupt other tests with server restarts
 echo ""
 log "=== Stopping Shared HTTP Server for Session Management Test ==="
 kill $SERVER_PID 2>/dev/null || true
@@ -192,56 +202,13 @@ log "Shared server stopped"
 
 run_test "Session Management (HTTP Mode)" "node test/core/test-session-management.js"
 
-# Test 27: Session Isolation (HTTP Mode Only)
-# This test validates that sessions cannot access each other's clusters
-echo ""
-log "=== Starting Fresh HTTP Server for Session Isolation Test ==="
-
-# Make sure port 3000 is free
-pkill -f "node build/index.js --http=3000" 2>/dev/null || true
-sleep 2
-
-node build/index.js --http=3000 --streamable > /tmp/mcp-isolation-test-server.log 2>&1 &
-SERVER_PID=$!
-log "Server started with PID: $SERVER_PID"
-
-# Wait for server to be ready with health check  
-for i in {1..20}; do
-    if curl -s -f http://localhost:3000/health > /dev/null 2>&1; then
-        success "HTTP server is ready for isolation test"
-        sleep 2  # Give SSE endpoint time to fully initialize
-        break
-    fi
-    sleep 0.5
-done
-
-run_test "Session Isolation (HTTP Mode)" "node test/core/test-session-isolation.js"
-
-# Stop the isolation test server
-kill $SERVER_PID 2>/dev/null || true
-wait $SERVER_PID 2>/dev/null || true
-log "Isolation test server stopped"
-
-# Restart shared server and session for any remaining tests
-log "=== Restarting Shared HTTP Server ==="
-node build/index.js --http=3000 > /tmp/mcp-test-suite-server.log 2>&1 &
-SERVER_PID=$!
-log "Server restarted with PID: $SERVER_PID"
-sleep 2
-
-echo ""
-log "=== Stopping Shared HTTP Server ==="
-
-if [ ! -z "$SERVER_PID" ]; then
-    kill $SERVER_PID 2>/dev/null || true
-    log "Server stopped (PID: $SERVER_PID)"
-fi
+# No need to restart server - this is the last test
 
 # Clean up temp files
 rm -f /tmp/test-session.log
 
 echo ""
-log "=== Test Summary ==="
+log "=== Test Summary (Go Implementation) ==="
 log "Total Tests: $TOTAL_TESTS"
 success "Passed: $PASSED_TESTS"
 if [ $FAILED_TESTS -gt 0 ]; then
@@ -255,7 +222,7 @@ SUCCESS_RATE=$((PASSED_TESTS * 100 / TOTAL_TESTS))
 log "Success Rate: ${SUCCESS_RATE}%"
 
 if [ $FAILED_TESTS -eq 0 ]; then
-    success "🎉 ALL TESTS PASSED! Regression test suite completed successfully."
+    success "🎉 ALL TESTS PASSED! Regression test suite completed successfully (Go Implementation)."
     exit 0
 else
     error "❌ Some tests failed. Please review the output above."
