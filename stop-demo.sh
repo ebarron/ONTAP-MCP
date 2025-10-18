@@ -4,7 +4,7 @@
 # 
 # This script cleanly stops both Go demo servers and cleans up log files
 #
-# Usage: ./stop-demo-go.sh
+# Usage: ./stop-demo.sh
 
 # Colors for output
 RED='\033[0;31m'
@@ -22,15 +22,15 @@ print_success() {
 
 print_status "Stopping NetApp ONTAP MCP Demo servers (Go Version)..."
 
-# Stop any lingering start-demo-go.sh processes first
-START_DEMO_PIDS=$(pgrep -f "start-demo-go.sh" 2>/dev/null || true)
+# Stop any lingering start-demo.sh processes first
+START_DEMO_PIDS=$(pgrep -f "start-demo.sh" 2>/dev/null || true)
 if [[ -n "$START_DEMO_PIDS" ]]; then
-    print_status "Stopping start-demo-go.sh monitoring processes..."
-    pkill -f "start-demo-go.sh"
+    print_status "Stopping start-demo.sh monitoring processes..."
+    pkill -f "start-demo.sh"
     sleep 1
-    print_success "start-demo-go.sh processes stopped"
+    print_success "start-demo.sh processes stopped"
 else
-    print_status "No start-demo-go.sh processes running"
+    print_status "No start-demo.sh processes running"
 fi
 
 # Stop Go MCP server

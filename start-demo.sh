@@ -13,7 +13,7 @@
 # 1. MCP HTTP Server (Go): Port 3000 (Streamable HTTP - MCP 2025-06-18)
 # 2. Demo Web Server (Python): Port 8080
 #
-# Usage: ./start-demo-go.sh
+# Usage: ./start-demo.sh
 # Access demo at: http://localhost:8080
 
 set -e  # Exit on error
@@ -26,7 +26,7 @@ if [[ -z "$START_DEMO_GO_BACKGROUNDED" ]]; then
     BG_PID=$!
     echo "✅ Go demo started in background (PID: $BG_PID)"
     echo "📋 Logs: start-demo.log"
-    echo "🛑 To stop: ./stop-demo-go.sh"
+    echo "🛑 To stop: ./stop-demo.sh"
     echo ""
     echo "Demo will be available at:"
     echo "  http://localhost:8080"
@@ -106,7 +106,7 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Step 1: Verify we're in the correct directory
-if [[ ! -f "start-demo-go.sh" ]]; then
+if [[ ! -f "start-demo.sh" ]]; then
     print_error "Must run from ONTAP-MCP root directory"
     exit 1
 fi
@@ -150,10 +150,10 @@ print_success "Loaded $CLUSTER_COUNT cluster(s) from test/clusters.json"
 # Step 3.5: Stop any existing demo servers
 print_status "Checking for existing demo servers..."
 
-# Stop previous instances of start-demo-go.sh
-if pgrep -f "start-demo-go.sh" >/dev/null 2>&1; then
-    print_status "Stopping existing start-demo-go.sh processes..."
-    pkill -f "start-demo-go.sh"
+# Stop previous instances of start-demo.sh
+if pgrep -f "start-demo.sh" >/dev/null 2>&1; then
+    print_status "Stopping existing start-demo.sh processes..."
+    pkill -f "start-demo.sh"
     sleep 2
 fi
 
