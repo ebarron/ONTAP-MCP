@@ -31,6 +31,10 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 					"type":        "string",
 					"description": "Filter by share name pattern",
 				},
+				"volume_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Filter by volume name",
+				},
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
@@ -165,6 +169,53 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 				"comment": map[string]interface{}{
 					"type":        "string",
 					"description": "Optional share comment",
+				},
+				"properties": map[string]interface{}{
+					"type":        "object",
+					"description": "Share properties",
+					"properties": map[string]interface{}{
+						"access_based_enumeration": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Enable access-based enumeration",
+						},
+						"encryption": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Enable encryption",
+						},
+						"offline_files": map[string]interface{}{
+							"type":        "string",
+							"description": "Offline files policy",
+							"enum":        []string{"none", "manual", "documents", "programs"},
+						},
+						"oplocks": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Oplocks",
+						},
+					},
+				},
+				"access_control": map[string]interface{}{
+					"type":        "array",
+					"description": "Access control entries",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"permission": map[string]interface{}{
+								"type":        "string",
+								"description": "Permission level",
+								"enum":        []string{"no_access", "read", "change", "full_control"},
+							},
+							"user_or_group": map[string]interface{}{
+								"type":        "string",
+								"description": "User or group name",
+							},
+							"type": map[string]interface{}{
+								"type":        "string",
+								"description": "Type of user/group",
+								"enum":        []string{"windows", "unix_user", "unix_group"},
+							},
+						},
+						"required": []string{"permission", "user_or_group"},
+					},
 				},
 			},
 		},
@@ -319,17 +370,68 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 	// Dual-Mode CIFS Tools (support both registry and direct credentials)
 	// ====================
 
-	// create_cifs_share - Create CIFS share (dual-mode)
-	registry.Register("create_cifs_share", "Create a new CIFS share with specified access permissions", map[string]interface{}{
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
+	registry.Register("create_cifs_share", "Create a new CIFS share with specified access permissions and user groups", map[string]interface{}{
 		"type": "object", "required": []string{"name", "path", "svm_name"},
 		"properties": map[string]interface{}{
 			"cluster_name": map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
-			"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN (direct mode)"},
-			"username":     map[string]interface{}{"type": "string", "description": "Username (direct mode)"},
-			"password":     map[string]interface{}{"type": "string", "description": "Password (direct mode)"},
+			"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
+			"username":     map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
+			"password":     map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
 			"name":         map[string]interface{}{"type": "string", "description": "CIFS share name"},
 			"path":         map[string]interface{}{"type": "string", "description": "Volume path (typically /vol/volume_name)"},
 			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name where share will be created"},
+			"comment": map[string]interface{}{
+				"type":        "string",
+				"description": "Optional share comment",
+			},
+			"properties": map[string]interface{}{
+				"type":        "object",
+				"description": "Share properties",
+				"properties": map[string]interface{}{
+					"access_based_enumeration": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Enable access-based enumeration",
+					},
+					"encryption": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Enable encryption",
+					},
+					"offline_files": map[string]interface{}{
+						"type":        "string",
+						"description": "Offline files policy",
+						"enum":        []string{"none", "manual", "documents", "programs"},
+					},
+					"oplocks": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Oplocks",
+					},
+				},
+			},
+			"access_control": map[string]interface{}{
+				"type":        "array",
+				"description": "Access control entries",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"permission": map[string]interface{}{
+							"type":        "string",
+							"description": "Permission level",
+							"enum":        []string{"no_access", "read", "change", "full_control"},
+						},
+						"user_or_group": map[string]interface{}{
+							"type":        "string",
+							"description": "User or group name",
+						},
+						"type": map[string]interface{}{
+							"type":        "string",
+							"description": "Type of user/group",
+							"enum":        []string{"windows", "unix_user", "unix_group"},
+						},
+					},
+					"required": []string{"permission", "user_or_group"},
+				},
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -359,14 +461,14 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Created CIFS share '%s' at path '%s'", name, path)}}}, nil
 	})
 
-	// delete_cifs_share - Delete CIFS share (dual-mode)
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("delete_cifs_share", "Delete a CIFS share. WARNING: This will remove client access", map[string]interface{}{
 		"type": "object", "required": []string{"name", "svm_name"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string", "description": "Registry mode"},
-			"cluster_ip":   map[string]interface{}{"type": "string", "description": "Direct mode"},
-			"username":     map[string]interface{}{"type": "string", "description": "Direct mode"},
-			"password":     map[string]interface{}{"type": "string", "description": "Direct mode"},
+			"cluster_name": map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
+			"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
+			"username":     map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
+			"password":     map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
 			"name":         map[string]interface{}{"type": "string", "description": "CIFS share name"},
 			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name"},
 		},
@@ -392,14 +494,16 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Deleted CIFS share '%s'", name)}}}, nil
 	})
 
-	// get_cifs_share - Get CIFS share details (dual-mode)
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("get_cifs_share", "Get detailed information about a specific CIFS share", map[string]interface{}{
 		"type": "object", "required": []string{"name", "svm_name"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"name":     map[string]interface{}{"type": "string", "description": "CIFS share name"},
-			"svm_name": map[string]interface{}{"type": "string", "description": "SVM name"},
+			"cluster_name": map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
+			"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
+			"username":     map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
+			"password":     map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
+			"name":         map[string]interface{}{"type": "string", "description": "CIFS share name"},
+			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -417,6 +521,7 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
 
+		// GetCIFSShare now accepts SVM name directly (matches TypeScript)
 		share, err := client.GetCIFSShare(ctx, svmName, name)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(fmt.Sprintf("Failed: %v", err))}, IsError: true}, nil
@@ -512,13 +617,17 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		}, nil
 	})
 
-	// list_cifs_shares - List CIFS shares (dual-mode)
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("list_cifs_shares", "List all CIFS shares in the cluster or filtered by SVM", map[string]interface{}{
 		"type": "object", "required": []string{},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"svm_name": map[string]interface{}{"type": "string", "description": "Filter by SVM"},
+			"cluster_name":        map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
+			"cluster_ip":          map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
+			"username":            map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
+			"password":            map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
+			"svm_name":            map[string]interface{}{"type": "string", "description": "Filter by SVM name"},
+			"share_name_pattern":  map[string]interface{}{"type": "string", "description": "Filter by share name pattern"},
+			"volume_name":         map[string]interface{}{"type": "string", "description": "Filter by volume name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -540,14 +649,64 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 		return &CallToolResult{Content: []Content{{Type: "text", Text: result}}}, nil
 	})
 
-	// update_cifs_share - Update CIFS share (dual-mode)
-	registry.Register("update_cifs_share", "Update an existing CIFS share's properties", map[string]interface{}{
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
+	registry.Register("update_cifs_share", "Update an existing CIFS share's properties and access control", map[string]interface{}{
 		"type": "object", "required": []string{"name", "svm_name"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"name": map[string]interface{}{"type": "string"}, "svm_name": map[string]interface{}{"type": "string"},
-			"comment": map[string]interface{}{"type": "string", "description": "Updated share comment"},
+			"cluster_name": map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
+			"cluster_ip":   map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
+			"username":     map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
+			"password":     map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
+			"name":         map[string]interface{}{"type": "string", "description": "CIFS share name"},
+			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name where share exists"},
+			"comment":      map[string]interface{}{"type": "string", "description": "Updated share comment"},
+			"properties": map[string]interface{}{
+				"type":        "object",
+				"description": "Updated share properties",
+				"properties": map[string]interface{}{
+					"access_based_enumeration": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Enable access-based enumeration",
+					},
+					"encryption": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Enable encryption",
+					},
+					"offline_files": map[string]interface{}{
+						"type":        "string",
+						"description": "Offline files policy",
+						"enum":        []string{"none", "manual", "documents", "programs"},
+					},
+					"oplocks": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Oplocks",
+					},
+				},
+			},
+			"access_control": map[string]interface{}{
+				"type":        "array",
+				"description": "Updated access control entries",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"permission": map[string]interface{}{
+							"type":        "string",
+							"description": "Permission level",
+							"enum":        []string{"no_access", "read", "change", "full_control"},
+						},
+						"user_or_group": map[string]interface{}{
+							"type":        "string",
+							"description": "User or group name",
+						},
+						"type": map[string]interface{}{
+							"type":        "string",
+							"description": "Type of user/group",
+							"enum":        []string{"windows", "unix_user", "unix_group"},
+						},
+					},
+					"required": []string{"permission", "user_or_group"},
+				},
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)

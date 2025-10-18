@@ -3,6 +3,7 @@ package ontap
 import (
 	"context"
 	"fmt"
+	"net/url"
 )
 
 // ListCIFSShares retrieves CIFS/SMB shares
@@ -26,16 +27,26 @@ func (c *Client) ListCIFSShares(ctx context.Context, svmName string, shareName s
 	return response.Records, nil
 }
 
-// GetCIFSShare retrieves a specific CIFS share
-func (c *Client) GetCIFSShare(ctx context.Context, svmUUID, shareName string) (*CIFSShare, error) {
-	var share CIFSShare
-	path := fmt.Sprintf("/protocols/cifs/shares/%s/%s?fields=*", svmUUID, shareName)
+// GetCIFSShare retrieves a specific CIFS share by name and SVM name
+func (c *Client) GetCIFSShare(ctx context.Context, svmName, shareName string) (*CIFSShare, error) {
+	// Use query-based API to support SVM name (matching TypeScript implementation)
+	path := fmt.Sprintf("/protocols/cifs/shares?name=%s&svm.name=%s&fields=*",
+		url.QueryEscape(shareName),
+		url.QueryEscape(svmName))
 
-	if err := c.get(ctx, path, &share); err != nil {
+	var response struct {
+		Records []CIFSShare `json:"records"`
+	}
+
+	if err := c.get(ctx, path, &response); err != nil {
 		return nil, fmt.Errorf("failed to get CIFS share: %w", err)
 	}
 
-	return &share, nil
+	if len(response.Records) == 0 {
+		return nil, fmt.Errorf("CIFS share '%s' not found in SVM '%s'", shareName, svmName)
+	}
+
+	return &response.Records[0], nil
 }
 
 // CreateCIFSShare creates a new CIFS/SMB share
@@ -46,9 +57,15 @@ func (c *Client) CreateCIFSShare(ctx context.Context, req map[string]interface{}
 	return nil
 }
 
-// UpdateCIFSShare updates a CIFS share
-func (c *Client) UpdateCIFSShare(ctx context.Context, svmUUID, shareName string, updates map[string]interface{}) error {
-	path := fmt.Sprintf("/protocols/cifs/shares/%s/%s", svmUUID, shareName)
+// UpdateCIFSShare updates a CIFS share (accepts SVM name, resolves to UUID internally)
+func (c *Client) UpdateCIFSShare(ctx context.Context, svmName, shareName string, updates map[string]interface{}) error {
+	// First get the share to resolve SVM name to UUID
+	share, err := c.GetCIFSShare(ctx, svmName, shareName)
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("/protocols/cifs/shares/%s/%s", share.SVM.UUID, shareName)
 
 	if err := c.patch(ctx, path, updates); err != nil {
 		return fmt.Errorf("failed to update CIFS share: %w", err)
@@ -57,9 +74,15 @@ func (c *Client) UpdateCIFSShare(ctx context.Context, svmUUID, shareName string,
 	return nil
 }
 
-// DeleteCIFSShare deletes a CIFS share
-func (c *Client) DeleteCIFSShare(ctx context.Context, svmUUID, shareName string) error {
-	path := fmt.Sprintf("/protocols/cifs/shares/%s/%s", svmUUID, shareName)
+// DeleteCIFSShare deletes a CIFS share (accepts SVM name, resolves to UUID internally)
+func (c *Client) DeleteCIFSShare(ctx context.Context, svmName, shareName string) error {
+	// First get the share to resolve SVM name to UUID (matches TypeScript pattern)
+	share, err := c.GetCIFSShare(ctx, svmName, shareName)
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("/protocols/cifs/shares/%s/%s", share.SVM.UUID, shareName)
 
 	if err := c.delete(ctx, path); err != nil {
 		return fmt.Errorf("failed to delete CIFS share: %w", err)

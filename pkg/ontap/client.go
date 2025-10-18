@@ -124,6 +124,11 @@ func (c *Client) get(ctx context.Context, path string, result interface{}) error
 		return fmt.Errorf("API error (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 
+	// DEBUG: Log autosize GET responses
+	if bytes.Contains([]byte(path), []byte("autosize")) {
+		fmt.Printf("DEBUG GET %s response: %s\n", path, string(body))
+	}
+
 	if err := json.Unmarshal(body, result); err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
@@ -184,6 +189,11 @@ func (c *Client) patch(ctx context.Context, path string, body interface{}) error
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// DEBUG: Log autosize PATCH requests
+	if bytes.Contains(bodyBytes, []byte("autosize")) {
+		fmt.Printf("DEBUG PATCH %s: %s\n", path, string(bodyBytes))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(bodyBytes))

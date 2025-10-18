@@ -166,7 +166,12 @@ export function createClusterListQosPoliciesToolDefinition(): Tool {
     description: "List QoS policy groups on a registered ONTAP cluster, optionally filtered by SVM or policy name pattern",
     inputSchema: {
       type: "object",
-      properties: ClusterListQosPoliciesSchema.shape,
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        svm_name: { type: "string", description: "Filter by SVM name" },
+        policy_name_pattern: { type: "string", description: "Filter by policy name pattern" },
+        policy_type: { type: "string", enum: ["fixed", "adaptive"], description: "Filter by policy type (fixed or adaptive)" }
+      },
       required: ["cluster_name"],
       additionalProperties: false
     }
@@ -231,7 +236,18 @@ export function createClusterUpdateQosPolicyToolDefinition(): Tool {
     description: "Update an existing QoS policy group's name, limits, or allocation settings on a registered cluster",
     inputSchema: {
       type: "object",
-      properties: ClusterUpdateQosPolicySchema.shape,
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        policy_uuid: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description: "UUID of the QoS policy to update" },
+        new_name: { type: "string", pattern: "^[a-zA-Z0-9_-]+$", minLength: 1, maxLength: 127, description: "New policy name" },
+        max_throughput: { type: "string", pattern: "^\\d+(?:\\.\\d+)?(iops|IOPS|mb\\/s|MB\\/s|gb\\/s|GB\\/s)$", description: "New maximum throughput (fixed policies only)" },
+        min_throughput: { type: "string", pattern: "^\\d+(?:\\.\\d+)?(iops|IOPS|mb\\/s|MB\\/s|gb\\/s|GB\\/s)$", description: "New minimum throughput (fixed policies only)" },
+        expected_iops: { type: "string", pattern: "^\\d+(?:\\.\\d+)?iops\\/(tb|TB|gb|GB)$", description: "New expected IOPS (adaptive policies only)" },
+        peak_iops: { type: "string", pattern: "^\\d+(?:\\.\\d+)?iops\\/(tb|TB|gb|GB)$", description: "New peak IOPS (adaptive policies only)" },
+        expected_iops_allocation: { type: "string", enum: ["used-space", "allocated-space"], description: "New expected IOPS allocation method (adaptive policies only)" },
+        peak_iops_allocation: { type: "string", enum: ["used-space", "allocated-space"], description: "New peak IOPS allocation method (adaptive policies only)" },
+        is_shared: { type: "boolean", description: "New shared setting" }
+      },
       required: ["cluster_name", "policy_uuid"],
       additionalProperties: false
     }
@@ -247,7 +263,10 @@ export function createClusterDeleteQosPolicyToolDefinition(): Tool {
     description: "Delete a QoS policy group from a registered cluster. WARNING: Policy must not be in use by any workloads.",
     inputSchema: {
       type: "object",
-      properties: ClusterDeleteQosPolicySchema.shape,
+      properties: {
+        cluster_name: { type: "string", description: "Name of the registered cluster" },
+        policy_uuid: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description: "UUID of the QoS policy to delete" }
+      },
       required: ["cluster_name", "policy_uuid"],
       additionalProperties: false
     }

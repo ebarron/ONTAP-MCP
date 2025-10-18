@@ -70,9 +70,17 @@ func (r *Registry) Register(name string, description string, inputSchema map[str
 		Handler: handler,
 	}
 
-	r.logger.Debug().
-		Str("tool", name).
-		Msg("Tool registered")
+	// Debug: Log schema details
+	if name == "cluster_list_qos_policies" {
+		r.logger.Info().
+			Str("tool", name).
+			Interface("inputSchema", inputSchema).
+			Msg("Registered tool with schema")
+	} else {
+		r.logger.Debug().
+			Str("tool", name).
+			Msg("Tool registered")
+	}
 }
 
 // ListTools returns all registered tools

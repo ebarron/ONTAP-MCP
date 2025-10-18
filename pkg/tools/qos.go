@@ -27,6 +27,15 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 					"type":        "string",
 					"description": "Filter by SVM name",
 				},
+				"policy_name_pattern": map[string]interface{}{
+					"type":        "string",
+					"description": "Filter by policy name pattern",
+				},
+				"policy_type": map[string]interface{}{
+					"type":        "string",
+					"description": "Filter by policy type (fixed or adaptive)",
+					"enum":        []string{"fixed", "adaptive"},
+				},
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
@@ -187,7 +196,7 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 		"Get detailed information about a specific QoS policy group on a registered cluster",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "policy_uuid"},
+			"required": []string{"cluster_name"},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
@@ -196,6 +205,15 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				"policy_uuid": map[string]interface{}{
 					"type":        "string",
 					"description": "UUID of the QoS policy",
+					"pattern":     "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+				},
+				"policy_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the QoS policy",
+				},
+				"svm_name": map[string]interface{}{
+					"type":        "string",
+					"description": "SVM name to search within",
 				},
 			},
 		},

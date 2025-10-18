@@ -12,7 +12,7 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 	// 1. cluster_list_volume_snapshots - List snapshots for a volume
 	registry.Register(
 		"cluster_list_volume_snapshots",
-		"List all snapshots for a volume on a registered cluster. Snapshots can be sorted by creation time, size, or name.",
+		"List all snapshots for a volume on a registered cluster. Snapshots can be sorted by creation time (to find oldest/newest), size, or name. Useful for identifying snapshots to delete when reclaiming space.",
 		map[string]interface{}{
 			"type":     "object",
 			"required": []string{"cluster_name", "volume_uuid"},
@@ -24,6 +24,24 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				"volume_uuid": map[string]interface{}{
 					"type":        "string",
 					"description": "UUID of the volume",
+				},
+				"volume_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Volume name (alternative to volume_uuid)",
+				},
+				"svm_name": map[string]interface{}{
+					"type":        "string",
+					"description": "SVM name (required if using volume_name)",
+				},
+				"sort_by": map[string]interface{}{
+					"type":        "string",
+					"description": "Sort snapshots by: 'create_time' (find oldest/newest), 'size' (find largest), or 'name'",
+					"enum":        []string{"create_time", "size", "name"},
+				},
+				"order": map[string]interface{}{
+					"type":        "string",
+					"description": "Sort order: 'asc' for ascending (oldest first when sorting by time), 'desc' for descending (newest first)",
+					"enum":        []string{"asc", "desc"},
 				},
 			},
 		},
@@ -126,10 +144,10 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 	// 2. cluster_delete_volume_snapshot - Delete a volume snapshot
 	registry.Register(
 		"cluster_delete_volume_snapshot",
-		"Delete a volume snapshot on a registered cluster to reclaim space. WARNING: This permanently removes the snapshot and cannot be undone.",
+		"Delete a volume snapshot on a registered cluster to reclaim space. WARNING: This permanently removes the snapshot and cannot be undone. Use cluster_list_volume_snapshots to find snapshots before deleting.",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "volume_uuid", "snapshot_uuid"},
+			"required": []string{"cluster_name", "volume_uuid"},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
@@ -142,6 +160,10 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				"snapshot_uuid": map[string]interface{}{
 					"type":        "string",
 					"description": "UUID of the snapshot to delete",
+				},
+				"snapshot_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Snapshot name to delete (alternative to snapshot_uuid - will be resolved automatically)",
 				},
 			},
 		},
@@ -180,7 +202,7 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 		"Get detailed information about a specific volume snapshot on a registered cluster, including creation time, size, state, and any comments.",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "volume_uuid", "snapshot_uuid"},
+			"required": []string{"cluster_name", "volume_uuid"},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
@@ -193,6 +215,10 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				"snapshot_uuid": map[string]interface{}{
 					"type":        "string",
 					"description": "UUID of the snapshot",
+				},
+				"snapshot_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Snapshot name (alternative to snapshot_uuid - will be resolved automatically)",
 				},
 			},
 		},

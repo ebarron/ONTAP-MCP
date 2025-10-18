@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "tool": "cluster_get_qos_policy",
+    "category": "qos",
+    "capturedAt": "2025-10-17T19:41:12.241Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",
+      "policy_uuid": "79d911d5-a971-11f0-b21b-005056bd74cc"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "📊 **QoS Policy Details**\n\n🎛️ **test-fixed-extremefixed-596825** (79d911d5-a971-11f0-b21b-005056bd74cc)\n   • SVM: vs0 (8da5dbc6-9558-11f0-b21b-005056bd74cc)\n   • Type: fixed\n   • Shared: Yes\n   • Workloads Using Policy: 0\n\n📈 **Fixed Limits:**\n",
+          "data": {
+            "uuid": "79d911d5-a971-11f0-b21b-005056bd74cc",
+            "name": "test-fixed-extremefixed-596825",
+            "svm": {
+              "name": "vs0",
+              "uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc"
+            },
+            "type": "fixed",
+            "is_shared": true,
+            "fixed": {}
+          }
+        }
+      }
+    ]
+  }
+}

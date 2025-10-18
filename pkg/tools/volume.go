@@ -502,7 +502,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 	// 4. cluster_update_volume - Update volume properties
 	registry.Register(
 		"cluster_update_volume",
-		"Update multiple volume properties on a registered cluster including size, comment, security style, state, QoS policy, snapshot policy, and NFS export policy",
+		"Update multiple volume properties on a registered cluster including size, comment, security style, state, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
 		map[string]interface{}{
 			"type":     "object",
 			"required": []string{"cluster_name", "volume_uuid"},
@@ -523,10 +523,27 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					"type":        "string",
 					"description": "New comment/description",
 				},
+				"security_style": map[string]interface{}{
+					"type":        "string",
+					"description": "New security style",
+					"enum":        []string{"unix", "ntfs", "mixed", "unified"},
+				},
 				"state": map[string]interface{}{
 					"type":        "string",
 					"description": "Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access",
 					"enum":        []string{"online", "offline", "restricted"},
+				},
+				"qos_policy": map[string]interface{}{
+					"type":        "string",
+					"description": "New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)",
+				},
+				"snapshot_policy": map[string]interface{}{
+					"type":        "string",
+					"description": "New snapshot policy name",
+				},
+				"nfs_export_policy": map[string]interface{}{
+					"type":        "string",
+					"description": "New NFS export policy name",
 				},
 			},
 		},
@@ -997,7 +1014,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 	// update_volume - Update volume properties (dual-mode)
 	registry.Register(
 		"update_volume",
-		"Update multiple volume properties in a single operation",
+		"Update multiple volume properties in a single operation including size, comment, security style, state, QoS policy, snapshot policy, and NFS export policy. QoS policies can be from the volume's SVM or admin SVM.",
 		map[string]interface{}{
 			"type":     "object",
 			"required": []string{"volume_uuid"},
@@ -1030,10 +1047,27 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					"type":        "string",
 					"description": "New comment/description",
 				},
+				"security_style": map[string]interface{}{
+					"type":        "string",
+					"description": "New security style",
+					"enum":        []string{"unix", "ntfs", "mixed", "unified"},
+				},
 				"state": map[string]interface{}{
 					"type":        "string",
-					"description": "Volume state: 'online', 'offline', or 'restricted'",
+					"description": "Volume state: 'online' for normal access, 'offline' to make inaccessible (required before deletion), 'restricted' for admin-only access",
 					"enum":        []string{"online", "offline", "restricted"},
+				},
+				"qos_policy": map[string]interface{}{
+					"type":        "string",
+					"description": "New QoS policy name (can be from volume's SVM or admin SVM, empty string to remove)",
+				},
+				"snapshot_policy": map[string]interface{}{
+					"type":        "string",
+					"description": "New snapshot policy name",
+				},
+				"nfs_export_policy": map[string]interface{}{
+					"type":        "string",
+					"description": "New NFS export policy name",
 				},
 			},
 		},

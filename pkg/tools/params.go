@@ -144,20 +144,13 @@ func parseSizeString(sizeStr string) (int64, error) {
 
 	sizeStr = strings.TrimSpace(sizeStr)
 
-	// Try parsing as raw number (bytes) first
-	var sizeBytes int64
-	if num, err := fmt.Sscanf(sizeStr, "%d", &sizeBytes); err == nil && num == 1 {
-		// Successfully parsed as raw bytes
-		return sizeBytes, nil
-	}
-
-	// Parse with unit suffix (e.g., "100MB", "2GB", "100M", "2G")
+	// Parse with unit suffix first (e.g., "100MB", "2GB", "100M", "2G")
 	var num float64
 	var unit string
 
 	// Try parsing "100MB", "100GB", "100TB" format
 	if n, err := fmt.Sscanf(sizeStr, "%f%s", &num, &unit); err == nil && n == 2 {
-		// Normalize unit to uppercase
+		// Successfully parsed number with unit
 		unit = strings.ToUpper(unit)
 
 		switch unit {
@@ -172,6 +165,13 @@ func parseSizeString(sizeStr string) (int64, error) {
 		default:
 			return 0, fmt.Errorf("invalid size unit '%s'. Supported: KB, MB, GB, TB (or K, M, G, T), or raw bytes", unit)
 		}
+	}
+
+	// Try parsing as raw number (bytes) - only if no unit was found
+	var sizeBytes int64
+	if num, err := fmt.Sscanf(sizeStr, "%d", &sizeBytes); err == nil && num == 1 {
+		// Successfully parsed as raw bytes
+		return sizeBytes, nil
 	}
 
 	return 0, fmt.Errorf("invalid size format '%s'. Use '100MB', '2GB', '1TB', or raw bytes", sizeStr)

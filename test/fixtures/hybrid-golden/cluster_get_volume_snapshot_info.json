@@ -2,7 +2,7 @@
   "metadata": {
     "tool": "cluster_get_volume_snapshot_info",
     "category": "volume-snapshot",
-    "capturedAt": "2025-10-17T19:06:54.933Z",
+    "capturedAt": "2025-10-17T19:34:06.217Z",
     "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
     "params": {
       "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",

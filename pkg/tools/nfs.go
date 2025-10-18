@@ -11,27 +11,28 @@ import (
 
 func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// 1. list_export_policies - List NFS export policies
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"list_export_policies",
 		"List all NFS export policies on an ONTAP cluster, optionally filtered by SVM or name pattern",
 		map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"svm_name": map[string]interface{}{
 					"type":        "string",
@@ -164,7 +165,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 		},
 	)
 
-	// 2. get_export_policy - Get export policy details with rules
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"get_export_policy",
 		"Get detailed information about a specific export policy including all rules",
@@ -172,21 +173,21 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			"type":     "object",
 			"required": []string{"policy_name"},
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",
@@ -341,7 +342,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 		},
 	)
 
-	// 3. create_export_policy - Create a new export policy
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"create_export_policy",
 		"Create a new NFS export policy (rules must be added separately)",
@@ -349,21 +350,21 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			"type":     "object",
 			"required": []string{"policy_name", "svm_name"},
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",
@@ -426,7 +427,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 		},
 	)
 
-	// 4. delete_export_policy - Delete an export policy
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"delete_export_policy",
 		"Delete an NFS export policy. Warning: Policy must not be in use by any volumes.",
@@ -434,21 +435,21 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			"type":     "object",
 			"required": []string{"policy_name"},
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",
@@ -519,7 +520,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 		},
 	)
 
-	// 5. add_export_rule - Add a rule to an export policy
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"add_export_rule",
 		"Add a new export rule to an existing export policy",
@@ -527,21 +528,21 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			"type":     "object",
 			"required": []string{"policy_name", "clients"},
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",
@@ -792,7 +793,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 		},
 	)
 
-	// 6. update_export_rule - Update an existing export rule
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"update_export_rule",
 		"Update an existing export rule in an export policy",
@@ -800,21 +801,21 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			"type":     "object",
 			"required": []string{"policy_name", "rule_index"},
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",
@@ -1065,7 +1066,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 		},
 	)
 
-	// 7. delete_export_rule - Delete a rule from an export policy
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"delete_export_rule",
 		"Delete an export rule from an export policy",
@@ -1073,21 +1074,21 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			"type":     "object",
 			"required": []string{"policy_name", "rule_index"},
 			"properties": map[string]interface{}{
+				"cluster_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the registered cluster (registry mode)",
+				},
 				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "IP address or FQDN of the ONTAP cluster",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
 				},
 				"username": map[string]interface{}{
 					"type":        "string",
-					"description": "Username for authentication",
+					"description": "Username for authentication (direct mode)",
 				},
 				"password": map[string]interface{}{
 					"type":        "string",
-					"description": "Password for authentication",
-				},
-				"cluster_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Password for authentication (direct mode)",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",

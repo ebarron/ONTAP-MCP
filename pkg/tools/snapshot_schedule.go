@@ -11,12 +11,35 @@ import (
 // Note: Parameter helpers now in params.go for shared use across all tools
 
 func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.ClusterManager) {
-	// list_snapshot_schedules - List all snapshot schedules (dual-mode)
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("list_snapshot_schedules", "List all snapshot schedules (cron jobs) on an ONTAP cluster", map[string]interface{}{
-		"type": "object", "required": []string{},
+		"type":     "object",
+		"required": []string{},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
+			"cluster_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the registered cluster (registry mode)",
+			},
+			"cluster_ip": map[string]interface{}{
+				"type":        "string",
+				"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
+			},
+			"username": map[string]interface{}{
+				"type":        "string",
+				"description": "Username for authentication (direct mode)",
+			},
+			"password": map[string]interface{}{
+				"type":        "string",
+				"description": "Password for authentication (direct mode)",
+			},
+			"schedule_name_pattern": map[string]interface{}{
+				"type":        "string",
+				"description": "Filter by schedule name pattern",
+			},
+			"schedule_type": map[string]interface{}{
+				"type":        "string",
+				"description": "Filter by schedule type (cron, interval)",
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -34,13 +57,31 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		return &CallToolResult{Content: []Content{{Type: "text", Text: result}}}, nil
 	})
 
-	// get_snapshot_schedule - Get snapshot schedule details (dual-mode)
+	// Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("get_snapshot_schedule", "Get detailed information about a specific snapshot schedule by name", map[string]interface{}{
-		"type": "object", "required": []string{"schedule_name"},
+		"type":     "object",
+		"required": []string{"schedule_name"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"schedule_name": map[string]interface{}{"type": "string", "description": "Name of the snapshot schedule"},
+			"cluster_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the registered cluster (registry mode)",
+			},
+			"cluster_ip": map[string]interface{}{
+				"type":        "string",
+				"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
+			},
+			"username": map[string]interface{}{
+				"type":        "string",
+				"description": "Username for authentication (direct mode)",
+			},
+			"password": map[string]interface{}{
+				"type":        "string",
+				"description": "Password for authentication (direct mode)",
+			},
+			"schedule_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the snapshot schedule",
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -130,14 +171,85 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		return &CallToolResult{Content: []Content{ErrorContent("Schedule not found")}, IsError: true}, nil
 	})
 
-	// create_snapshot_schedule - Create new snapshot schedule (dual-mode)
+	// create_snapshot_schedule - Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("create_snapshot_schedule", "Create a new snapshot schedule (cron job) for use in snapshot policies", map[string]interface{}{
-		"type": "object", "required": []string{"schedule_name", "schedule_type"},
+		"type":     "object",
+		"required": []string{"schedule_name", "schedule_type"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"schedule_name": map[string]interface{}{"type": "string", "description": "Name for the snapshot schedule"},
-			"schedule_type": map[string]interface{}{"type": "string", "description": "Type: 'cron' or 'interval'", "enum": []string{"cron", "interval"}},
+			"cluster_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the registered cluster (registry mode)",
+			},
+			"cluster_ip": map[string]interface{}{
+				"type":        "string",
+				"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
+			},
+			"username": map[string]interface{}{
+				"type":        "string",
+				"description": "Username for authentication (direct mode)",
+			},
+			"password": map[string]interface{}{
+				"type":        "string",
+				"description": "Password for authentication (direct mode)",
+			},
+			"schedule_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name for the snapshot schedule",
+			},
+			"schedule_type": map[string]interface{}{
+				"type":        "string",
+				"description": "Type of schedule: 'cron' for specific times, 'interval' for regular intervals",
+				"enum":        []string{"cron", "interval"},
+			},
+			"interval": map[string]interface{}{
+				"type":        "string",
+				"description": "Interval string (e.g., '1h', '30m', '1d') - used with interval type",
+			},
+			"cron_minutes": map[string]interface{}{
+				"type":        "array",
+				"description": "Minutes when to run (0-59) - used with cron type",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 0,
+					"maximum": 59,
+				},
+			},
+			"cron_hours": map[string]interface{}{
+				"type":        "array",
+				"description": "Hours when to run (0-23) - used with cron type",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 0,
+					"maximum": 23,
+				},
+			},
+			"cron_days": map[string]interface{}{
+				"type":        "array",
+				"description": "Days of month when to run (1-31) - used with cron type",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 1,
+					"maximum": 31,
+				},
+			},
+			"cron_months": map[string]interface{}{
+				"type":        "array",
+				"description": "Months when to run (1-12) - used with cron type",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 1,
+					"maximum": 12,
+				},
+			},
+			"cron_weekdays": map[string]interface{}{
+				"type":        "array",
+				"description": "Days of week when to run (0-6, 0=Sunday) - used with cron type",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 0,
+					"maximum": 6,
+				},
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -165,13 +277,31 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		return &CallToolResult{Content: []Content{{Type: "text", Text: fmt.Sprintf("Created schedule '%s'", scheduleName)}}}, nil
 	})
 
-	// delete_snapshot_schedule - Delete snapshot schedule (dual-mode)
+	// delete_snapshot_schedule - Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("delete_snapshot_schedule", "Delete a snapshot schedule. WARNING: Schedule must not be in use by any policies", map[string]interface{}{
-		"type": "object", "required": []string{"schedule_name"},
+		"type":     "object",
+		"required": []string{"schedule_name"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"schedule_name": map[string]interface{}{"type": "string", "description": "Name of the schedule to delete"},
+			"cluster_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the registered cluster (registry mode)",
+			},
+			"cluster_ip": map[string]interface{}{
+				"type":        "string",
+				"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
+			},
+			"username": map[string]interface{}{
+				"type":        "string",
+				"description": "Username for authentication (direct mode)",
+			},
+			"password": map[string]interface{}{
+				"type":        "string",
+				"description": "Password for authentication (direct mode)",
+			},
+			"schedule_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the schedule to delete",
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)
@@ -199,14 +329,89 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 		return &CallToolResult{Content: []Content{ErrorContent("Schedule not found")}, IsError: true}, nil
 	})
 
-	// update_snapshot_schedule - Update snapshot schedule (dual-mode)
+	// update_snapshot_schedule - Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register("update_snapshot_schedule", "Update an existing snapshot schedule's configuration", map[string]interface{}{
-		"type": "object", "required": []string{"schedule_name"},
+		"type":     "object",
+		"required": []string{"schedule_name"},
 		"properties": map[string]interface{}{
-			"cluster_name": map[string]interface{}{"type": "string"}, "cluster_ip": map[string]interface{}{"type": "string"},
-			"username": map[string]interface{}{"type": "string"}, "password": map[string]interface{}{"type": "string"},
-			"schedule_name": map[string]interface{}{"type": "string", "description": "Name of the schedule to update"},
-			"new_name":      map[string]interface{}{"type": "string", "description": "New name for the schedule"},
+			"cluster_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the registered cluster (registry mode)",
+			},
+			"cluster_ip": map[string]interface{}{
+				"type":        "string",
+				"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
+			},
+			"username": map[string]interface{}{
+				"type":        "string",
+				"description": "Username for authentication (direct mode)",
+			},
+			"password": map[string]interface{}{
+				"type":        "string",
+				"description": "Password for authentication (direct mode)",
+			},
+			"schedule_name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of the schedule to update",
+			},
+			"new_name": map[string]interface{}{
+				"type":        "string",
+				"description": "New name for the schedule",
+			},
+			"schedule_type": map[string]interface{}{
+				"type":        "string",
+				"description": "Updated schedule type",
+				"enum":        []string{"cron", "interval"},
+			},
+			"interval": map[string]interface{}{
+				"type":        "string",
+				"description": "Updated interval string",
+			},
+			"cron_minutes": map[string]interface{}{
+				"type":        "array",
+				"description": "Updated minutes (0-59)",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 0,
+					"maximum": 59,
+				},
+			},
+			"cron_hours": map[string]interface{}{
+				"type":        "array",
+				"description": "Updated hours (0-23)",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 0,
+					"maximum": 23,
+				},
+			},
+			"cron_days": map[string]interface{}{
+				"type":        "array",
+				"description": "Updated days (1-31)",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 1,
+					"maximum": 31,
+				},
+			},
+			"cron_months": map[string]interface{}{
+				"type":        "array",
+				"description": "Updated months (1-12)",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 1,
+					"maximum": 12,
+				},
+			},
+			"cron_weekdays": map[string]interface{}{
+				"type":        "array",
+				"description": "Updated weekdays (0-6, 0=Sunday)",
+				"items": map[string]interface{}{
+					"type":    "number",
+					"minimum": 0,
+					"maximum": 6,
+				},
+			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 		client, err := getApiClient(clusterManager, args)

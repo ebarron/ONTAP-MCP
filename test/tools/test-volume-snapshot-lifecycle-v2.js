@@ -727,6 +727,13 @@ class VolumeSnapshotTest {
     };
 
     const result = await this.callTool('cluster_create_volume', createArgs);
+    
+    // Check for errors before proceeding
+    if (result.isError) {
+      const text = this.extractText(result);
+      throw new Error(`Volume creation failed: ${text}`);
+    }
+    
     const text = this.extractText(result);
     await this.log(`✅ Volume created: ${text.substring(0, 100)}...`);
     

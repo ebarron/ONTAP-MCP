@@ -16,7 +16,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 	// 1. list_registered_clusters - List all registered clusters
 	registry.Register(
 		"list_registered_clusters",
-		"List all registered ONTAP clusters in the cluster manager",
+		"List all registered clusters in the cluster manager",
 		map[string]interface{}{
 			"type":       "object",
 			"properties": map[string]interface{}{},

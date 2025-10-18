@@ -2,7 +2,7 @@
   "metadata": {
     "tool": "get_snapshot_schedule",
     "category": "snapshot-schedule",
-    "capturedAt": "2025-10-17T19:06:54.175Z",
+    "capturedAt": "2025-10-17T19:34:12.374Z",
     "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
     "params": {
       "cluster_name": "C1_sti245-vsim-ocvs026a_1758285854",

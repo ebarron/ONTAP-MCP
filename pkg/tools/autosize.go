@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
@@ -347,6 +348,11 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 					IsError: true,
 				}, nil
 			}
+
+			// ONTAP REST API has eventual consistency for autosize settings
+			// Add small delay to ensure settings are committed before subsequent reads
+			// This is particularly important in HTTP mode where requests may be load-balanced
+			time.Sleep(200 * time.Millisecond)
 
 			result := fmt.Sprintf("✅ Volume autosize %s for volume %s",
 				map[string]string{

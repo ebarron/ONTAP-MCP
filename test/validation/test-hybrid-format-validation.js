@@ -21,6 +21,7 @@
 
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 import { McpTestClient } from '../utils/mcp-test-client.js';
 import { HybridFormatValidator, hasGoldenFixture } from '../utils/hybrid-format-validator.js';
 
@@ -28,6 +29,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const GO_SERVER_PORT = process.env.MCP_PORT || 3000;
+const GOLDEN_DIR = join(__dirname, '../fixtures/hybrid-golden');
 
 // All 14 tools that should return hybrid format
 const TOOLS_TO_VALIDATE = [
@@ -95,7 +97,20 @@ async function getToolParams(client, toolName, cluster, discoveries = {}) {
   // Tools that need specific parameters
   switch (toolName) {
     case 'get_cifs_share':
-      // Try to discover a CIFS share
+      // This is a LEGACY tool - use cluster_ip/username/password from golden fixture if available
+      // Try to load params from golden fixture first
+      const cifsFixturePath = join(GOLDEN_DIR, `${toolName}.json`);
+      try {
+        const cifsFixture = JSON.parse(readFileSync(cifsFixturePath, 'utf8'));
+        if (cifsFixture.metadata?.params) {
+          console.log('  ℹ️  Using legacy params from golden fixture');
+          return cifsFixture.metadata.params;
+        }
+      } catch (e) {
+        // No golden fixture, try discovery
+      }
+      
+      // Fallback: try to discover a CIFS share
       if (!discoveries.cifs_shares) {
         discoveries.cifs_shares = await discoverResource(
           client,
@@ -116,6 +131,19 @@ async function getToolParams(client, toolName, cluster, discoveries = {}) {
       return { ...baseParams, policy_name: 'default' };
       
     case 'cluster_get_qos_policy':
+      // Try to load params from golden fixture first
+      const qosFixturePath = join(GOLDEN_DIR, `${toolName}.json`);
+      try {
+        const qosFixture = JSON.parse(readFileSync(qosFixturePath, 'utf8'));
+        if (qosFixture.metadata?.params) {
+          console.log('  ℹ️  Using params from golden fixture');
+          return qosFixture.metadata.params;
+        }
+      } catch (e) {
+        // No golden fixture, try discovery
+      }
+      
+      // Fallback: try to discover QoS policies
       if (!discoveries.qos_policies) {
         discoveries.qos_policies = await discoverResource(
           client,

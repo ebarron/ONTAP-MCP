@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "tool": "get_cifs_share",
+    "category": "cifs",
+    "capturedAt": "2025-10-17T19:41:12.341Z",
+    "cluster": "C1_sti245-vsim-ocvs026a_1758285854",
+    "params": {
+      "cluster_ip": "10.196.19.12",
+      "username": "admin",
+      "password": "netapp1!",
+      "name": "simple-test-share",
+      "svm_name": "vs0"
+    },
+    "mcpProtocol": "2024-11-05",
+    "implementation": "typescript"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": {
+          "summary": "📁 **CIFS Share: simple-test-share**\n\n**Basic Information:**\n- Path: /\n- SVM: vs0\n- Comment: Simple test without ACLs\n- Volume: root_vs0 (8d5ab2db-9558-11f0-b44d-005056bd2906)\n",
+          "data": {
+            "name": "simple-test-share",
+            "path": "/",
+            "svm_name": "vs0",
+            "svm_uuid": "8da5dbc6-9558-11f0-b21b-005056bd74cc",
+            "comment": "Simple test without ACLs",
+            "volume_name": "root_vs0",
+            "volume_uuid": "8d5ab2db-9558-11f0-b44d-005056bd2906"
+          }
+        }
+      }
+    ]
+  }
+}

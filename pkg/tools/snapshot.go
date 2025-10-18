@@ -11,26 +11,47 @@ import (
 // Note: Parameter helpers now in params.go for shared use across all tools
 
 func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.ClusterManager) {
-	// 1. list_snapshot_policies - List snapshot policies
+	// 1. list_snapshot_policies - Dual-mode tool: Supports both registry mode (cluster_name) and direct mode (cluster_ip/username/password)
 	registry.Register(
 		"list_snapshot_policies",
 		"List all snapshot policies on an ONTAP cluster, optionally filtered by SVM or name pattern",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name"},
+			"required": []string{},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
-					"description": "Name of the registered cluster",
+					"description": "Name of the registered cluster (registry mode)",
+				},
+				"cluster_ip": map[string]interface{}{
+					"type":        "string",
+					"description": "IP address or FQDN of the ONTAP cluster (direct mode)",
+				},
+				"username": map[string]interface{}{
+					"type":        "string",
+					"description": "Username for authentication (direct mode)",
+				},
+				"password": map[string]interface{}{
+					"type":        "string",
+					"description": "Password for authentication (direct mode)",
 				},
 				"svm_name": map[string]interface{}{
 					"type":        "string",
 					"description": "Filter by SVM name",
 				},
+				"policy_name_pattern": map[string]interface{}{
+					"type":        "string",
+					"description": "Filter by policy name pattern",
+				},
+				"enabled": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Filter by enabled status",
+				},
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName, err := getStringParam(args, "cluster_name", true)
+			// Use dual-mode client resolution
+			client, err := getApiClient(clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(err.Error())},
@@ -43,12 +64,10 @@ func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.Clust
 				svmName = svm
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
+			// Get cluster name for display (try registry mode first, fallback to "cluster")
+			clusterName := "cluster"
+			if cn, ok := args["cluster_name"].(string); ok && cn != "" {
+				clusterName = cn
 			}
 
 			policies, err := client.ListSnapshotPolicies(ctx, svmName)
@@ -135,11 +154,23 @@ func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.Clust
 		"Create a new snapshot policy with specified copies configuration",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "policy_name", "svm_name"},
+			"required": []string{"policy_name"},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
 					"description": "Name of the registered cluster",
+				},
+				"cluster_ip": map[string]interface{}{
+					"type":        "string",
+					"description": "IP address or FQDN of the ONTAP cluster",
+				},
+				"username": map[string]interface{}{
+					"type":        "string",
+					"description": "Username for authentication",
+				},
+				"password": map[string]interface{}{
+					"type":        "string",
+					"description": "Password for authentication",
 				},
 				"policy_name": map[string]interface{}{
 					"type":        "string",
@@ -149,9 +180,46 @@ func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.Clust
 					"type":        "string",
 					"description": "SVM name where policy will be created",
 				},
+				"comment": map[string]interface{}{
+					"type":        "string",
+					"description": "Optional description for the policy",
+				},
 				"enabled": map[string]interface{}{
 					"type":        "boolean",
 					"description": "Whether the policy should be enabled",
+				},
+				"copies": map[string]interface{}{
+					"type":        "array",
+					"description": "Array of snapshot copies with schedule references",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"count": map[string]interface{}{
+								"type":        "number",
+								"description": "Number of snapshots to keep",
+							},
+							"schedule": map[string]interface{}{
+								"type":        "object",
+								"description": "Schedule configuration",
+								"properties": map[string]interface{}{
+									"name": map[string]interface{}{
+										"type":        "string",
+										"description": "Schedule name reference",
+									},
+								},
+								"required": []string{"name"},
+							},
+							"prefix": map[string]interface{}{
+								"type":        "string",
+								"description": "Optional snapshot name prefix",
+							},
+							"retention": map[string]interface{}{
+								"type":        "string",
+								"description": "Retention period",
+							},
+						},
+						"required": []string{"count", "schedule"},
+					},
 				},
 			},
 		},
@@ -219,15 +287,31 @@ func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.Clust
 		"Get detailed information about a specific snapshot policy by name or UUID",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "policy_uuid"},
+			"required": []string{},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
 					"description": "Name of the registered cluster",
 				},
-				"policy_uuid": map[string]interface{}{
+				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "UUID of the snapshot policy",
+					"description": "IP address or FQDN of the ONTAP cluster",
+				},
+				"username": map[string]interface{}{
+					"type":        "string",
+					"description": "Username for authentication",
+				},
+				"password": map[string]interface{}{
+					"type":        "string",
+					"description": "Password for authentication",
+				},
+				"policy_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name or UUID of the snapshot policy",
+				},
+				"svm_name": map[string]interface{}{
+					"type":        "string",
+					"description": "SVM name to search within",
 				},
 			},
 		},
@@ -370,15 +454,31 @@ func RegisterSnapshotPolicyTools(registry *Registry, clusterManager *ontap.Clust
 		"Delete a snapshot policy. WARNING: Policy must not be in use by any volumes.",
 		map[string]interface{}{
 			"type":     "object",
-			"required": []string{"cluster_name", "policy_uuid"},
+			"required": []string{},
 			"properties": map[string]interface{}{
 				"cluster_name": map[string]interface{}{
 					"type":        "string",
 					"description": "Name of the registered cluster",
 				},
-				"policy_uuid": map[string]interface{}{
+				"cluster_ip": map[string]interface{}{
 					"type":        "string",
-					"description": "UUID of the snapshot policy to delete",
+					"description": "IP address or FQDN of the ONTAP cluster",
+				},
+				"username": map[string]interface{}{
+					"type":        "string",
+					"description": "Username for authentication",
+				},
+				"password": map[string]interface{}{
+					"type":        "string",
+					"description": "Password for authentication",
+				},
+				"policy_name": map[string]interface{}{
+					"type":        "string",
+					"description": "Name or UUID of the snapshot policy to delete",
+				},
+				"svm_name": map[string]interface{}{
+					"type":        "string",
+					"description": "SVM name where policy exists",
 				},
 			},
 		},

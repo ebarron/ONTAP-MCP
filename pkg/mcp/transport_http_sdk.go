@@ -110,12 +110,13 @@ func (s *Server) registerToolsWithSDKForSession(mcpServer *sdk.Server, clusterMa
 		// Capture loop variables for closure (critical for Go closures in loops)
 		currentToolName := toolDef.Name
 		currentToolDesc := toolDef.Description
+		currentToolSchema := toolDef.InputSchema // Capture InputSchema too!
 
 		// Create SDK-compatible tool definition
 		sdkTool := &sdk.Tool{
 			Name:        currentToolName,
 			Description: currentToolDesc,
-			// InputSchema will be handled by the SDK
+			InputSchema: currentToolSchema, // Pass the actual schema!
 		}
 
 		// Create handler that wraps our internal tool execution
