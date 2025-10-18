@@ -136,11 +136,11 @@ func (sm *SessionManager) GetSessionDistribution() map[string]int {
 	defer sm.mu.RUnlock()
 
 	distribution := map[string]int{
-		"< 5min":    0,
-		"5-30min":   0,
-		"30-60min":  0,
-		"1-24hr":    0,
-		"> 24hr":    0,
+		"< 5min":   0,
+		"5-30min":  0,
+		"30-60min": 0,
+		"1-24hr":   0,
+		"> 24hr":   0,
 	}
 
 	now := time.Now()

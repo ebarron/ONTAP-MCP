@@ -66,7 +66,7 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		
+
 		// Get session statistics from global session manager
 		sessionMgr := session.GetGlobalSessionManager()
 		sessionCount := 0
@@ -75,11 +75,11 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 			sessionCount = sessionMgr.SessionCount()
 			distribution = sessionMgr.GetSessionDistribution()
 		}
-		
+
 		// Get timeout configurations
 		inactivityTimeout := s.getInactivityTimeout()
 		maxLifetime := s.getMaxLifetime()
-		
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":  "healthy",
 			"server":  "NetApp ONTAP MCP Server",
@@ -308,7 +308,7 @@ func (s *Server) startSessionCleanup(ctx context.Context) {
 	// Read timeout configurations from environment variables
 	inactivityTimeout := s.getInactivityTimeout()
 	maxLifetime := s.getMaxLifetime()
-	
+
 	// Set cleanup interval based on the shorter of the two timeouts
 	// Run cleanup at 1/3 of the shortest timeout to ensure timely cleanup
 	minTimeout := inactivityTimeout
@@ -316,7 +316,7 @@ func (s *Server) startSessionCleanup(ctx context.Context) {
 		minTimeout = maxLifetime
 	}
 	cleanupInterval := minTimeout / 3
-	
+
 	// Minimum cleanup interval of 1 second, maximum of 60 seconds
 	if cleanupInterval < time.Second {
 		cleanupInterval = time.Second

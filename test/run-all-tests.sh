@@ -254,13 +254,13 @@ echo ""
 log "=== Phase 4: Session Management Test (stops shared server) ==="
 
 # Test 27: Session Management (HTTP Mode Only)
-# Note: This test starts its own server with custom timeouts, so we stop the shared server first
-log "Stopping Shared HTTP Server for Session Management Test"
+# This test requires a fresh server with custom session timeout environment variables
+log "Stopping shared test server for session management test..."
 kill $SERVER_PID 2>/dev/null || true
 wait $SERVER_PID 2>/dev/null || true
-log "Shared server stopped"
+sleep 2
 
-run_test "Session Management (HTTP Mode)" "node test/core/test-session-management.js"
+run_test "Session Management (HTTP Mode Only)" "node test/core/test-session-management.js"
 
 # No need to restart server - this is the last test
 
