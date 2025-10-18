@@ -5,7 +5,7 @@
 # This script starts the Go implementation of the MCP server and demo web interface
 #
 # Requirements:
-# - Go binary compiled at ./ontap-mcp-server
+# - Go binary compiled at ./ontap-mcp-server or ./bin/ontap-mcp-server
 # - test/clusters.json with cluster configurations
 # - demo/ directory with web interface
 #
@@ -13,7 +13,7 @@
 # 1. MCP HTTP Server (Go): Port 3000 (Streamable HTTP - MCP 2025-06-18)
 # 2. Demo Web Server (Python): Port 8080
 #
-# Usage: ./start-demo.sh
+# Usage: scripts/start-demo.sh (from project root)
 # Access demo at: http://localhost:8080
 
 set -e  # Exit on error
@@ -26,23 +26,25 @@ if [[ -z "$START_DEMO_GO_BACKGROUNDED" ]]; then
     BG_PID=$!
     echo "✅ Go demo started in background (PID: $BG_PID)"
     echo "📋 Logs: start-demo.log"
-    echo "🛑 To stop: ./stop-demo.sh"
+    echo "🛑 To stop: scripts/stop-demo.sh"
     echo ""
     echo "Demo will be available at:"
     echo "  http://localhost:8080"
     echo ""
     echo "Waiting for servers to start..."
-    sleep 8
+    sleep 10
     
     # Show initial status
     echo "Checking server status..."
-    if pgrep -f "ontap-mcp-server" >/dev/null; then
+    if pgrep -f "ontap-mcp-server.*--http" >/dev/null; then
         echo "✅ Go MCP server is running"
     else
         echo "❌ Go MCP server not detected - check start-demo.log"
     fi
     
-    if lsof -ti :8080 >/dev/null 2>&1; then
+    # Give web server extra time and check with LISTEN state
+    sleep 2
+    if lsof -i :8080 -sTCP:LISTEN >/dev/null 2>&1; then
         echo "✅ Demo web server is running on port 8080"
     else
         echo "❌ Demo web server not detected - check start-demo.log"
@@ -106,19 +108,29 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Step 1: Verify we're in the correct directory
-if [[ ! -f "start-demo.sh" ]]; then
+if [[ ! -f "go.mod" ]] || [[ ! -d "cmd/ontap-mcp" ]]; then
     print_error "Must run from ONTAP-MCP root directory"
+    print_error "Current directory: $(pwd)"
     exit 1
 fi
 
 print_status "Starting NetApp ONTAP MCP Demo (Go Version)..."
 
 # Step 2: Check for Go binary
-if [[ ! -f "ontap-mcp-server" ]]; then
-    print_error "Go binary not found: ./ontap-mcp-server"
-    print_error "Please build first with: go build -o ontap-mcp-server ./cmd/mcp-server"
+if [[ ! -f "ontap-mcp-server" ]] && [[ ! -f "bin/ontap-mcp-server" ]]; then
+    print_error "Go binary not found"
+    print_error "Please build first with: go build -o ontap-mcp-server ./cmd/ontap-mcp"
+    print_error "Or use: make build-go (builds to bin/ontap-mcp-server)"
     exit 1
 fi
+
+# Determine binary location
+if [[ -f "bin/ontap-mcp-server" ]]; then
+    BINARY_PATH="./bin/ontap-mcp-server"
+else
+    BINARY_PATH="./ontap-mcp-server"
+fi
+print_status "Using binary: $BINARY_PATH"
 
 # Step 3: Load cluster configurations
 print_status "Loading cluster configurations..."
@@ -197,8 +209,8 @@ fi
 print_status "Starting Go MCP HTTP server on port 3000 (Streamable HTTP - MCP 2025-06-18)..."
 export ONTAP_CLUSTERS="$CLUSTERS_JSON"
 
-# Launch Go server in background
-nohup ./ontap-mcp-server --http=3000 > mcp-server.log 2>&1 &
+# Launch Go server in background using the detected binary path
+nohup $BINARY_PATH --http=3000 > mcp-server.log 2>&1 &
 MCP_PID=$!
 
 # Wait for MCP server to start
@@ -285,7 +297,7 @@ echo -e "  Demo Access Information"
 echo -e "==================================${NC}"
 echo -e "${BLUE}Demo URL:${NC}        http://localhost:8080"
 echo -e "${BLUE}MCP API:${NC}         http://localhost:3000"
-echo -e "${BLUE}Implementation:${NC}  Go (./ontap-mcp-server)"
+echo -e "${BLUE}Implementation:${NC}  Go ($BINARY_PATH)"
 echo -e "${BLUE}Clusters:${NC}        $CLUSTER_COUNT loaded from test/clusters.json"
 echo -e "${BLUE}Logs:${NC}            mcp-server.log, demo-server.log"
 echo
@@ -298,14 +310,14 @@ echo -e "  2. Click 'Provision Storage' to start testing"
 echo -e "  3. Select cluster, SVM, and configure volume"
 echo -e "  4. Submit to test complete MCP API workflow"
 echo
-echo -e "${BLUE}To stop servers:${NC} ./stop-demo-go.sh"
+echo -e "${BLUE}To stop servers:${NC} scripts/stop-demo.sh"
 echo -e "${BLUE}View logs:${NC} tail -f mcp-server.log (or demo-server.log)"
 echo
 
 # Keep servers running until cleanup signal
 # This runs in background via nohup, so it will continue even after script exits
 print_success "Servers are running in background"
-print_status "Use ./stop-demo-go.sh to stop the demo"
+print_status "Use scripts/stop-demo.sh to stop the demo"
 
 # Exit cleanly - servers continue in background
 exit 0

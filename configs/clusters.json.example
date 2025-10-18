@@ -1,0 +1,20 @@
+{
+  "example-cluster-1": {
+    "cluster_ip": "10.x.x.x",
+    "username": "admin",
+    "password": "your-password-here",
+    "description": "Description of your first ONTAP cluster"
+  },
+  "example-cluster-2": {
+    "cluster_ip": "192.168.x.x",
+    "username": "admin", 
+    "password": "your-password-here",
+    "description": "Description of your second ONTAP cluster"
+  },
+  "production-cluster": {
+    "cluster_ip": "cluster.example.com",
+    "username": "admin",
+    "password": "your-password-here",
+    "description": "Production ONTAP cluster"
+  }
+}

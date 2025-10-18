@@ -8,6 +8,11 @@
 # Build output (Go binaries)
 bin/
 
+# Build artifacts (TypeScript compilation output, temp files)
+build/
+!build/ci/
+!build/package/
+
 # Compiled binaries
 ontap-mcp-server
 ontap-mcp-server.exe
@@ -78,3 +83,6 @@ demo/mcp.json
 
 # Reference files - not part of codebase
 
+
+# Node modules
+node_modules/

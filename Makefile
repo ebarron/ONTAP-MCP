@@ -7,6 +7,7 @@ IMAGE_NAME ?= ontap-mcp
 DEMO_IMAGE_NAME ?= ontap-mcp-demo
 VERSION ?= 1.0.0
 NODE_VERSION ?= 20-alpine
+BINARY_NAME ?= ontap-mcp-server
 
 # Computed values
 IMAGE_TAG := $(DOCKER_REGISTRY)/$(IMAGE_NAME):$(VERSION)
@@ -20,7 +21,19 @@ help: ## Show this help message
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: build
+.PHONY: build-go
+build-go: ## Build Go binary to bin/ directory
+	@echo "Building Go binary: bin/$(BINARY_NAME)"
+	@mkdir -p bin
+	go build -o bin/$(BINARY_NAME) ./cmd/ontap-mcp
+	@echo "✅ Built: bin/$(BINARY_NAME) ($$(du -h bin/$(BINARY_NAME) | cut -f1))"
+
+.PHONY: clean-go
+clean-go: ## Remove Go build artifacts
+	@echo "Cleaning Go build artifacts..."
+	rm -f bin/$(BINARY_NAME)
+	rm -f $(BINARY_NAME)
+	@echo "✅ Cleaned"
 build: ## Build the MCP server Docker image
 	@echo "Building MCP server image: $(IMAGE_TAG)"
 	docker build \
