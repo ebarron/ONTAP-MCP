@@ -21,8 +21,8 @@ func getApiClient(
 	// Try registry mode first
 	if clusterName, ok := args["cluster_name"].(string); ok && clusterName != "" {
 		// Get session-specific cluster manager from context
-	activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-	return activeClusterManager.GetClient(clusterName)
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		return activeClusterManager.GetClient(clusterName)
 	}
 
 	// Try direct credentials mode
@@ -46,8 +46,8 @@ func getApiClient(
 		clusters := clusterManager.ListClusters()
 		if len(clusters) == 1 {
 			// Get session-specific cluster manager from context
-		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-		return activeClusterManager.GetClient(clusters[0])
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			return activeClusterManager.GetClient(clusters[0])
 		}
 	}
 

@@ -50,8 +50,8 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 			volumeUUID := args["volume_uuid"].(string)
 
 			// Get session-specific cluster manager from context
-		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-		client, err := activeClusterManager.GetClient(clusterName)
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},

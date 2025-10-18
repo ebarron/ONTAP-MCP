@@ -15,8 +15,8 @@ import (
 // Server is the main MCP server implementation
 type Server struct {
 	registry       *tools.Registry
-	clusterManager *ontap.ClusterManager     // Global cluster manager (for STDIO mode)
-	sessionManager *session.SessionManager   // Per-session isolation (for HTTP mode)
+	clusterManager *ontap.ClusterManager   // Global cluster manager (for STDIO mode)
+	sessionManager *session.SessionManager // Per-session isolation (for HTTP mode)
 	logger         *util.Logger
 	version        string
 }
@@ -25,10 +25,10 @@ type Server struct {
 func NewServer(registry *tools.Registry, clusterManager *ontap.ClusterManager, logger *util.Logger) *Server {
 	// Initialize global session manager singleton for HTTP mode
 	session.InitializeGlobalSessionManager(logger)
-	
+
 	// Also keep a local reference for backwards compatibility
 	sessionManager := session.NewSessionManager(logger)
-	
+
 	return &Server{
 		registry:       registry,
 		clusterManager: clusterManager,

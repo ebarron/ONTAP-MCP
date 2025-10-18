@@ -51,21 +51,21 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			if svm, ok := args["svm_name"].(string); ok {
 				svmName = svm
 			}
-		if share, ok := args["share_name_pattern"].(string); ok {
-			shareName = share
-		}
+			if share, ok := args["share_name_pattern"].(string); ok {
+				shareName = share
+			}
 
-		// Get session-specific cluster manager from context
-		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-		client, err := activeClusterManager.GetClient(clusterName)
-		if err != nil {
-			return &CallToolResult{
-				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-				IsError: true,
-			}, nil
-		}
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
+			if err != nil {
+				return &CallToolResult{
+					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+					IsError: true,
+				}, nil
+			}
 
-		shares, err := client.ListCIFSShares(ctx, svmName, shareName)
+			shares, err := client.ListCIFSShares(ctx, svmName, shareName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to list CIFS shares: %v", err))},

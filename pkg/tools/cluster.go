@@ -24,7 +24,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 			// Get session-specific cluster manager from context
 			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-			
+
 			configs := activeClusterManager.ListClusterConfigs()
 
 			if len(configs) == 0 {
@@ -59,7 +59,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 			// Get session-specific cluster manager from context
 			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-			
+
 			clusters := activeClusterManager.ListClusters()
 			if len(clusters) == 0 {
 				summary := "No clusters registered."
@@ -160,7 +160,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 			// Get session-specific cluster manager from context
 			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-			
+
 			name, err := getStringParam(args, "name", true)
 			if err != nil {
 				return &CallToolResult{
@@ -247,7 +247,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
 			// Get session-specific cluster manager from context
 			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
-			
+
 			clusterName, err := getStringParam(args, "cluster_name", true)
 			if err != nil {
 				return &CallToolResult{

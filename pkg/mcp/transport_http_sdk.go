@@ -130,7 +130,7 @@ func (s *Server) registerSessionAwareTools(mcpServer *sdk.Server) error {
 		handler := func(ctx context.Context, req *sdk.CallToolRequest, args map[string]interface{}) (*sdk.CallToolResult, any, error) {
 			// Extract session ID from SDK's ServerSession (the proper way!)
 			sessionID := req.Session.ID()
-			
+
 			// Get global session manager
 			sessionMgr := session.GetGlobalSessionManager()
 			if sessionMgr == nil {
@@ -142,20 +142,20 @@ func (s *Server) registerSessionAwareTools(mcpServer *sdk.Server) error {
 					IsError: true,
 				}, nil, nil
 			}
-			
+
 			// Get or create session data for this session ID
 			sessionData := sessionMgr.GetOrCreateSession(sessionID)
-			
+
 			s.logger.Info().
 				Str("tool", currentToolName).
 				Str("session_id", sessionID).
 				Str("cluster_manager_ptr", fmt.Sprintf("%p", sessionData.ClusterManager)).
 				Int("clusters", len(sessionData.ClusterManager.ListClusters())).
 				Msg("Tool execution: Using SDK ServerSession.ID() for session isolation")
-			
+
 			// Inject session's cluster manager into context so tools can access it
 			ctxWithClusterManager := context.WithValue(ctx, clusterManagerContextKey, sessionData.ClusterManager)
-			
+
 			// Execute tool using the temp registry
 			result, err := tempRegistry.ExecuteTool(ctxWithClusterManager, currentToolName, args)
 			if err != nil {
