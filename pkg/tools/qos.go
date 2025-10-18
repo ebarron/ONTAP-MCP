@@ -52,7 +52,9 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				svmName = svm
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -234,7 +236,9 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -256,7 +260,7 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			if policy.Adaptive != nil {
 				policyType = "adaptive"
 			}
-			
+
 			data := map[string]interface{}{
 				"uuid":      policy.UUID,
 				"name":      policy.Name,
@@ -397,7 +401,9 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -515,23 +521,25 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 				}, nil
 			}
 
-			policyType, err := getStringParam(args, "policy_type", true)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(err.Error())},
-					IsError: true,
-				}, nil
-			}
+		policyType, err := getStringParam(args, "policy_type", true)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(err.Error())},
+				IsError: true,
+			}, nil
+		}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+				IsError: true,
+			}, nil
+		}
 
-			req := map[string]interface{}{
+		req := map[string]interface{}{
 				"name": policyName,
 				"svm":  map[string]string{"name": svmName},
 			}
@@ -682,29 +690,29 @@ func RegisterQoSPolicyTools(registry *Registry, clusterManager *ontap.ClusterMan
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(err.Error())},
-					IsError: true,
-				}, nil
-			}
+				IsError: true,
+			}, nil
+		}
 
-			policyUUID, err := getStringParam(args, "policy_uuid", true)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(err.Error())},
-					IsError: true,
-				}, nil
-			}
+		policyUUID, err := getStringParam(args, "policy_uuid", true)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(err.Error())},
+				IsError: true,
+			}, nil
+		}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+		return &CallToolResult{
+			Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+			IsError: true,
+		}, nil
+	}
 
-			updates := make(map[string]interface{})
-
-			// Handle name update
+	updates := make(map[string]interface{})			// Handle name update
 			if newName, ok := args["new_name"].(string); ok {
 				updates["name"] = newName
 			}

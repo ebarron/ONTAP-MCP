@@ -57,15 +57,20 @@ export class McpStreamableClient {
    * Send HTTP request and collect SSE response (internal method)
    */
   async sendHttpRequest(url, body, headers = {}) {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream',
-        ...headers
-      },
-      body: JSON.stringify(body)
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
+          ...headers
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (fetchError) {
+      throw new Error(`fetch failed: ${fetchError.message} (${fetchError.code || 'unknown'})`);
+    }
 
     // Extract session ID from header (for initialization)
     const sessionId = response.headers.get('mcp-session-id');

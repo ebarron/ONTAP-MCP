@@ -22,7 +22,10 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			"properties": map[string]interface{}{},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			configs := clusterManager.ListClusterConfigs()
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			
+			configs := activeClusterManager.ListClusterConfigs()
 
 			if len(configs) == 0 {
 				return &CallToolResult{
@@ -54,7 +57,10 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			"properties": map[string]interface{}{},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusters := clusterManager.ListClusters()
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			
+			clusters := activeClusterManager.ListClusters()
 			if len(clusters) == 0 {
 				summary := "No clusters registered."
 				hybridResult := map[string]interface{}{
@@ -72,7 +78,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			summary := "Cluster Information:\n\n"
 
 			for _, name := range clusters {
-				client, err := clusterManager.GetClient(name)
+				client, err := activeClusterManager.GetClient(name)
 				if err != nil {
 					summary += fmt.Sprintf("- %s: ERROR - %v\n", name, err)
 					dataArray = append(dataArray, map[string]interface{}{
@@ -152,6 +158,9 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			
 			name, err := getStringParam(args, "name", true)
 			if err != nil {
 				return &CallToolResult{
@@ -197,7 +206,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 				Description: description,
 			}
 
-			err = clusterManager.AddCluster(cfg)
+			err = activeClusterManager.AddCluster(cfg)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to add cluster: %v", err))},
@@ -236,6 +245,9 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			
 			clusterName, err := getStringParam(args, "cluster_name", true)
 			if err != nil {
 				return &CallToolResult{
@@ -244,7 +256,7 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},

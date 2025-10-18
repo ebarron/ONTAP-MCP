@@ -868,6 +868,9 @@ class VolumeAutosizeTest {
       const text = this.extractText(result);
       await this.log(`   📝 Response: ${text.substring(0, 150)}`);
       
+      // Wait a moment for ONTAP to apply the change
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Verify status
       const statusResult = await this.callTool('cluster_get_volume_autosize_status', {
         ...this.getClusterAuth(),
@@ -875,7 +878,7 @@ class VolumeAutosizeTest {
       });
       
       const statusText = this.extractText(statusResult);
-      if (statusText.includes('Mode: off') || statusText.includes('disabled')) {
+      if (statusText.includes('Mode: off') || statusText.includes('disabled') || statusText.includes('"mode":"off"')) {
         await this.log(`   ✅ PASS: Autosize disabled`);
         this.testResults.push({ name: 'Disable autosize', status: 'PASS' });
       } else {

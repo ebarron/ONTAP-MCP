@@ -49,7 +49,9 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 			clusterName := args["cluster_name"].(string)
 			volumeUUID := args["volume_uuid"].(string)
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -88,8 +90,8 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 					"state":       snap.State,
 					"size":        sizeBytes,
 					"size_gb":     fmt.Sprintf("%.2f", sizeGB),
-					"volume_uuid": volumeUUID,   // Add volume_uuid for TypeScript compatibility
-					"volume_name": volumeName,    // Add volume_name for TypeScript compatibility
+					"volume_uuid": volumeUUID, // Add volume_uuid for TypeScript compatibility
+					"volume_name": volumeName, // Add volume_name for TypeScript compatibility
 				}
 
 				if snap.Comment != "" {
@@ -172,7 +174,9 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 			volumeUUID := args["volume_uuid"].(string)
 			snapshotUUID := args["snapshot_uuid"].(string)
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -227,7 +231,9 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 			volumeUUID := args["volume_uuid"].(string)
 			snapshotUUID := args["snapshot_uuid"].(string)
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -263,8 +269,8 @@ func RegisterVolumeSnapshotTools(registry *Registry, clusterManager *ontap.Clust
 				"state":       snapshot.State,
 				"size":        sizeBytes,
 				"size_gb":     fmt.Sprintf("%.2f", sizeGB),
-				"volume_uuid": volumeUUID,      // Add volume_uuid for TypeScript compatibility
-				"volume_name": volume.Name,     // Add volume_name for TypeScript compatibility
+				"volume_uuid": volumeUUID,  // Add volume_uuid for TypeScript compatibility
+				"volume_name": volume.Name, // Add volume_name for TypeScript compatibility
 			}
 
 			if snapshot.Comment != "" {

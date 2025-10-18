@@ -9,14 +9,18 @@ import (
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
+	"github.com/ebarron/ONTAP-MCP/pkg/session"
 	"github.com/ebarron/ONTAP-MCP/pkg/tools"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// Context key for cluster manager (use plain string for cross-package compatibility)
+const clusterManagerContextKey = "mcp-cluster-manager"
+
 // ServeHTTPWithSDK runs the MCP server using the official MCP Go SDK
 func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
-	// Create ONE MCP server instance that will be shared by all sessions
-	// This matches the Harvest implementation pattern
+	// Create ONE MCP server for all sessions
+	// Tools will dynamically look up session-specific data from SDK's ServerSession
 	mcpServer := sdk.NewServer(
 		&sdk.Implementation{
 			Name:    "ontap-mcp-server",
@@ -27,18 +31,16 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 		},
 	)
 
-	// Register ALL tools once with the global cluster manager
-	// Note: This means clusters are shared across sessions (no per-session isolation)
-	if err := s.registerToolsWithSDKForSession(mcpServer, s.clusterManager); err != nil {
+	// Register tools with session-aware handlers
+	if err := s.registerSessionAwareTools(mcpServer); err != nil {
 		return fmt.Errorf("failed to register tools: %w", err)
 	}
 
-	s.logger.Info().Msg("MCP server created with all tools registered")
+	s.logger.Info().Msg("MCP server created with session-aware tools")
 
-	// Create HTTP handler - return SAME server for all requests (like Harvest)
-	// The SDK will automatically generate unique session IDs for each connection
+	// Create SDK handler - same server for all sessions
 	handler := sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
-		return mcpServer // Always return the same server instance
+		return mcpServer
 	}, nil)
 
 	// Wrap with CORS middleware
@@ -46,7 +48,6 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Mcp-Protocol-Version, Mcp-Session-Id")
-		// CRITICAL: Expose session ID header so JavaScript can read it
 		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
 
 		if r.Method == http.MethodOptions {
@@ -98,31 +99,65 @@ func (s *Server) ServeHTTPWithSDK(ctx context.Context, port int) error {
 	return nil
 }
 
-// registerToolsWithSDKForSession registers all tools with a session-specific cluster manager
-func (s *Server) registerToolsWithSDKForSession(mcpServer *sdk.Server, clusterManager *ontap.ClusterManager) error {
-	// Create a temporary registry with the session's cluster manager
-	sessionRegistry := tools.NewRegistry(s.logger)
-	tools.RegisterAllTools(sessionRegistry, clusterManager)
+// registerSessionAwareTools registers all tools with handlers that extract session ID from SDK's ServerSession
+func (s *Server) registerSessionAwareTools(mcpServer *sdk.Server) error {
+	// Create a temporary registry to get tool definitions
+	// This registry is ONLY used for getting tool schemas, not for execution
+	tempRegistry := tools.NewRegistry(s.logger)
+	tempClusterManager := ontap.NewClusterManager(s.logger)
+	tools.RegisterAllTools(tempRegistry, tempClusterManager)
 
-	toolDefs := sessionRegistry.ListTools()
+	s.logger.Debug().
+		Int("tool_count", len(tempRegistry.ListTools())).
+		Msg("Registering session-aware tools")
+
+	toolDefs := tempRegistry.ListTools()
 
 	for _, toolDef := range toolDefs {
-		// Capture loop variables for closure (critical for Go closures in loops)
+		// Capture loop variables for closure
 		currentToolName := toolDef.Name
 		currentToolDesc := toolDef.Description
-		currentToolSchema := toolDef.InputSchema // Capture InputSchema too!
+		currentToolSchema := toolDef.InputSchema
 
 		// Create SDK-compatible tool definition
 		sdkTool := &sdk.Tool{
 			Name:        currentToolName,
 			Description: currentToolDesc,
-			InputSchema: currentToolSchema, // Pass the actual schema!
+			InputSchema: currentToolSchema,
 		}
 
-		// Create handler that wraps our internal tool execution
+		// Create session-aware handler
 		handler := func(ctx context.Context, req *sdk.CallToolRequest, args map[string]interface{}) (*sdk.CallToolResult, any, error) {
-			// Execute tool using the SESSION'S registry (with session's cluster manager)
-			result, err := sessionRegistry.ExecuteTool(ctx, currentToolName, args)
+			// Extract session ID from SDK's ServerSession (the proper way!)
+			sessionID := req.Session.ID()
+			
+			// Get global session manager
+			sessionMgr := session.GetGlobalSessionManager()
+			if sessionMgr == nil {
+				s.logger.Error().Msg("Global SessionManager not initialized!")
+				return &sdk.CallToolResult{
+					Content: []sdk.Content{
+						&sdk.TextContent{Text: "Internal error: SessionManager not initialized"},
+					},
+					IsError: true,
+				}, nil, nil
+			}
+			
+			// Get or create session data for this session ID
+			sessionData := sessionMgr.GetOrCreateSession(sessionID)
+			
+			s.logger.Info().
+				Str("tool", currentToolName).
+				Str("session_id", sessionID).
+				Str("cluster_manager_ptr", fmt.Sprintf("%p", sessionData.ClusterManager)).
+				Int("clusters", len(sessionData.ClusterManager.ListClusters())).
+				Msg("Tool execution: Using SDK ServerSession.ID() for session isolation")
+			
+			// Inject session's cluster manager into context so tools can access it
+			ctxWithClusterManager := context.WithValue(ctx, clusterManagerContextKey, sessionData.ClusterManager)
+			
+			// Execute tool using the temp registry
+			result, err := tempRegistry.ExecuteTool(ctxWithClusterManager, currentToolName, args)
 			if err != nil {
 				return &sdk.CallToolResult{
 					Content: []sdk.Content{
@@ -147,9 +182,13 @@ func (s *Server) registerToolsWithSDKForSession(mcpServer *sdk.Server, clusterMa
 			return sdkResult, nil, nil
 		}
 
-		// Add tool to SDK server using the SDK's AddTool function
+		// Add tool to SDK server
 		sdk.AddTool(mcpServer, sdkTool, handler)
 	}
+
+	s.logger.Info().
+		Int("tool_count", len(toolDefs)).
+		Msg("Registered session-aware tools")
 
 	return nil
 }

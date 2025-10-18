@@ -45,7 +45,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -200,7 +200,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -381,7 +381,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -462,7 +462,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -621,7 +621,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -894,7 +894,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -1105,7 +1105,7 @@ func RegisterExportPolicyTools(registry *Registry, clusterManager *ontap.Cluster
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},

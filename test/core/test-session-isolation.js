@@ -22,6 +22,8 @@ async function testSessionIsolation() {
     
     console.log('📡 Creating Session B...');
     const sessionB = new McpTestClient('http://localhost:3000');
+    // Small delay to avoid connection pool issues
+    await new Promise(resolve => setTimeout(resolve, 200));
     await sessionB.initialize();
     console.log(`✅ Session B ID: ${sessionB.sessionId}\n`);
     

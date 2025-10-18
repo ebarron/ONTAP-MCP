@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
@@ -13,12 +14,15 @@ import (
 // 3. Auto-select if only one cluster is registered (convenience fallback)
 // This enables all tools to support both modes of operation.
 func getApiClient(
+	ctx context.Context,
 	clusterManager *ontap.ClusterManager,
 	args map[string]interface{},
 ) (*ontap.Client, error) {
 	// Try registry mode first
 	if clusterName, ok := args["cluster_name"].(string); ok && clusterName != "" {
-		return clusterManager.GetClient(clusterName)
+		// Get session-specific cluster manager from context
+	activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+	return activeClusterManager.GetClient(clusterName)
 	}
 
 	// Try direct credentials mode
@@ -41,7 +45,9 @@ func getApiClient(
 	if clusterManager != nil {
 		clusters := clusterManager.ListClusters()
 		if len(clusters) == 1 {
-			return clusterManager.GetClient(clusters[0])
+			// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		return activeClusterManager.GetClient(clusters[0])
 		}
 	}
 
@@ -66,6 +72,8 @@ func errorResult(message string) *CallToolResult {
 type ToolRegisterFunc func(*Registry, *ontap.ClusterManager)
 
 // RegisterAllTools registers all available MCP tools with the registry
+// For HTTP mode with sessions: pass sessionManager to enable session-aware tools
+// For STDIO mode: pass nil for sessionManager, and a regular ClusterManager
 func RegisterAllTools(registry *Registry, clusterManager *ontap.ClusterManager) {
 	// Cluster Management Tools (4 tools)
 	RegisterClusterTools(registry, clusterManager)

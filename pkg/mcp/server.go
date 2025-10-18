@@ -7,23 +7,32 @@ import (
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
+	"github.com/ebarron/ONTAP-MCP/pkg/session"
 	"github.com/ebarron/ONTAP-MCP/pkg/tools"
 	"github.com/ebarron/ONTAP-MCP/pkg/util"
 )
 
-// Server implements the MCP protocol server
+// Server is the main MCP server implementation
 type Server struct {
 	registry       *tools.Registry
-	clusterManager *ontap.ClusterManager
+	clusterManager *ontap.ClusterManager     // Global cluster manager (for STDIO mode)
+	sessionManager *session.SessionManager   // Per-session isolation (for HTTP mode)
 	logger         *util.Logger
 	version        string
 }
 
 // NewServer creates a new MCP server
 func NewServer(registry *tools.Registry, clusterManager *ontap.ClusterManager, logger *util.Logger) *Server {
+	// Initialize global session manager singleton for HTTP mode
+	session.InitializeGlobalSessionManager(logger)
+	
+	// Also keep a local reference for backwards compatibility
+	sessionManager := session.NewSessionManager(logger)
+	
 	return &Server{
 		registry:       registry,
 		clusterManager: clusterManager,
+		sessionManager: sessionManager,
 		logger:         logger,
 		version:        "2025-06-18", // MCP protocol version
 	}

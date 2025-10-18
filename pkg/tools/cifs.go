@@ -51,19 +51,21 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			if svm, ok := args["svm_name"].(string); ok {
 				svmName = svm
 			}
-			if share, ok := args["share_name_pattern"].(string); ok {
-				shareName = share
-			}
+		if share, ok := args["share_name_pattern"].(string); ok {
+			shareName = share
+		}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+				IsError: true,
+			}, nil
+		}
 
-			shares, err := client.ListCIFSShares(ctx, svmName, shareName)
+		shares, err := client.ListCIFSShares(ctx, svmName, shareName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to list CIFS shares: %v", err))},
@@ -252,7 +254,9 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -333,7 +337,9 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -434,7 +440,7 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -473,7 +479,7 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -506,7 +512,7 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			"svm_name":     map[string]interface{}{"type": "string", "description": "SVM name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -621,16 +627,16 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 	registry.Register("list_cifs_shares", "List all CIFS shares in the cluster or filtered by SVM", map[string]interface{}{
 		"type": "object", "required": []string{},
 		"properties": map[string]interface{}{
-			"cluster_name":        map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
-			"cluster_ip":          map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
-			"username":            map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
-			"password":            map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
-			"svm_name":            map[string]interface{}{"type": "string", "description": "Filter by SVM name"},
-			"share_name_pattern":  map[string]interface{}{"type": "string", "description": "Filter by share name pattern"},
-			"volume_name":         map[string]interface{}{"type": "string", "description": "Filter by volume name"},
+			"cluster_name":       map[string]interface{}{"type": "string", "description": "Name of the registered cluster (registry mode)"},
+			"cluster_ip":         map[string]interface{}{"type": "string", "description": "IP address or FQDN of the ONTAP cluster (direct mode)"},
+			"username":           map[string]interface{}{"type": "string", "description": "Username for authentication (direct mode)"},
+			"password":           map[string]interface{}{"type": "string", "description": "Password for authentication (direct mode)"},
+			"svm_name":           map[string]interface{}{"type": "string", "description": "Filter by SVM name"},
+			"share_name_pattern": map[string]interface{}{"type": "string", "description": "Filter by share name pattern"},
+			"volume_name":        map[string]interface{}{"type": "string", "description": "Filter by volume name"},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -709,7 +715,7 @@ func RegisterCIFSTools(registry *Registry, clusterManager *ontap.ClusterManager)
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}

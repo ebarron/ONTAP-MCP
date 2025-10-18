@@ -42,7 +42,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -84,7 +84,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -102,7 +102,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			if s.Name == scheduleName {
 				// Build human-readable summary
 				summary := fmt.Sprintf("⏰ **Snapshot Schedule: %s**\n\n🆔 UUID: %s\n🔧 Type: %s\n", s.Name, s.UUID, s.Type)
-				
+
 				if s.Type == "cron" && s.Cron != nil {
 					summary += "📅 **Cron Configuration:**\n"
 					if len(s.Cron.Minutes) > 0 {
@@ -122,7 +122,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 					}
 					summary += "\n"
 				}
-				
+
 				summary += "💡 **Usage:**\n"
 				summary += "   • Use this schedule in snapshot policies\n"
 				summary += fmt.Sprintf("   • Reference by name: \"%s\"\n", s.Name)
@@ -133,12 +133,12 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 					"name": s.Name,
 					"type": s.Type,
 				}
-				
+
 				// Add cron details if present
 				if s.Type == "cron" && s.Cron != nil {
 					data["cron"] = map[string]interface{}{
-						"minutes":  s.Cron.Minutes,
-						"hours":    s.Cron.Hours,
+						"minutes": s.Cron.Minutes,
+						"hours":   s.Cron.Hours,
 					}
 					if len(s.Cron.Days) > 0 {
 						data["cron"].(map[string]interface{})["days"] = s.Cron.Days
@@ -252,7 +252,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -304,7 +304,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}
@@ -414,7 +414,7 @@ func RegisterSnapshotScheduleTools(registry *Registry, clusterManager *ontap.Clu
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-		client, err := getApiClient(clusterManager, args)
+		client, err := getApiClient(ctx, clusterManager, args)
 		if err != nil {
 			return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 		}

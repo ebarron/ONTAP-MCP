@@ -38,18 +38,18 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 				},
 			},
 		},
-		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			clusterName := args["cluster_name"].(string)
+	func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
+		clusterName := args["cluster_name"].(string)
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			// Resolve volume UUID if name provided
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+				IsError: true,
+			}, nil
+		}			// Resolve volume UUID if name provided
 			volumeUUID := ""
 			if uuid, ok := args["volume_uuid"].(string); ok {
 				volumeUUID = uuid
@@ -225,15 +225,18 @@ func RegisterVolumeAutosizeTools(registry *Registry, clusterManager *ontap.Clust
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
 
-			// Validate mode-specific requirements
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+				IsError: true,
+			}, nil
+		}
+
+		// Validate mode-specific requirements
 			var maximumSize string
 			if mode != "off" {
 				maximumSize, err = getStringParam(args, "maximum_size", true)

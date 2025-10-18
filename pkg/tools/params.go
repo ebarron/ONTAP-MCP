@@ -1,9 +1,27 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
 )
+
+// Context key for cluster manager (use plain string for cross-package compatibility)
+const clusterManagerContextKey = "mcp-cluster-manager"
+
+// getActiveClusterManager extracts the session-specific ClusterManager from context.
+// This is injected by the HTTP transport layer before tool execution.
+// Falls back to the provided clusterManager for STDIO mode or when context doesn't have one.
+func getActiveClusterManager(ctx context.Context, fallbackClusterManager *ontap.ClusterManager) *ontap.ClusterManager {
+	// Try to get cluster manager from context (HTTP mode with sessions)
+	if cm, ok := ctx.Value(clusterManagerContextKey).(*ontap.ClusterManager); ok && cm != nil {
+		return cm
+	}
+	// Fallback to the one passed during registration (STDIO mode)
+	return fallbackClusterManager
+}
 
 // Parameter extraction utilities to prevent unsafe type assertions
 // All tools should use these helpers instead of direct type assertions

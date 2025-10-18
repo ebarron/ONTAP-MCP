@@ -69,7 +69,10 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				svmName = svm
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -173,7 +176,10 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				svmName = svm
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -383,23 +389,23 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			sizeStr, err := getStringParam(args, "size", true)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(err.Error())},
-					IsError: true,
-				}, nil
-			}
+		sizeStr, err := getStringParam(args, "size", true)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(err.Error())},
+				IsError: true,
+			}, nil
+		}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			// Parse size using shared utility
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+				IsError: true,
+			}, nil
+		}			// Parse size using shared utility
 			sizeBytes, err := parseSizeString(sizeStr)
 			if err != nil {
 				return &CallToolResult{
@@ -554,27 +560,27 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 					Content: []Content{ErrorContent(err.Error())},
 					IsError: true,
 				}, nil
-			}
+		}
 
-			volumeUUID, err := getStringParam(args, "volume_uuid", true)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(err.Error())},
-					IsError: true,
-				}, nil
-			}
+		volumeUUID, err := getStringParam(args, "volume_uuid", true)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(err.Error())},
+				IsError: true,
+			}, nil
+		}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
+		// Get session-specific cluster manager from context
+		activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+		client, err := activeClusterManager.GetClient(clusterName)
+		if err != nil {
+			return &CallToolResult{
+				Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+				IsError: true,
+			}, nil
+		}
 
-			updates := make(map[string]interface{})
-
-			// Parse size if provided
+		updates := make(map[string]interface{})			// Parse size if provided
 			if sizeStr, ok := args["size"].(string); ok {
 				var sizeBytes int64
 				if len(sizeStr) > 2 {
@@ -684,7 +690,9 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 				}, nil
 			}
 
-			client, err := clusterManager.GetClient(clusterName)
+			// Get session-specific cluster manager from context
+			activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
@@ -744,19 +752,19 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(err.Error())},
-					IsError: true,
-				}, nil
-			}
+			IsError: true,
+		}, nil
+	}
 
-			client, err := clusterManager.GetClient(clusterName)
-			if err != nil {
-				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
-					IsError: true,
-				}, nil
-			}
-
-			// Support both volume_uuid and volume_name + svm_name
+	// Get session-specific cluster manager from context
+	activeClusterManager := getActiveClusterManager(ctx, clusterManager)
+	client, err := activeClusterManager.GetClient(clusterName)
+	if err != nil {
+		return &CallToolResult{
+			Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+			IsError: true,
+		}, nil
+	}			// Support both volume_uuid and volume_name + svm_name
 			volumeUUID, _ := getStringParam(args, "volume_uuid", false)
 
 			// If no UUID provided, try to resolve from volume_name + svm_name
@@ -882,7 +890,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get client: %v", err))},
@@ -1072,7 +1080,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{
 					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get client: %v", err))},
@@ -1146,7 +1154,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
@@ -1188,7 +1196,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
@@ -1234,7 +1242,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
@@ -1432,7 +1440,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}
@@ -1477,7 +1485,7 @@ func RegisterVolumeTools(registry *Registry, clusterManager *ontap.ClusterManage
 			},
 		},
 		func(ctx context.Context, args map[string]interface{}) (*CallToolResult, error) {
-			client, err := getApiClient(clusterManager, args)
+			client, err := getApiClient(ctx, clusterManager, args)
 			if err != nil {
 				return &CallToolResult{Content: []Content{ErrorContent(err.Error())}, IsError: true}, nil
 			}

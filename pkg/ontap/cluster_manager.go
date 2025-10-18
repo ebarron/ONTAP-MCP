@@ -35,9 +35,11 @@ func (cm *ClusterManager) AddCluster(cfg *config.ClusterConfig) error {
 	cm.clusters[cfg.Name] = client
 	cm.configs[cfg.Name] = cfg
 
-	cm.logger.Debug().
+	cm.logger.Info().
 		Str("cluster", cfg.Name).
 		Str("ip", cfg.ClusterIP).
+		Str("cluster_manager_ptr", fmt.Sprintf("%p", cm)).
+		Int("total_clusters", len(cm.clusters)).
 		Msg("Cluster added to manager")
 
 	return nil
@@ -86,6 +88,11 @@ func (cm *ClusterManager) GetClusterConfig(name string) (*config.ClusterConfig, 
 func (cm *ClusterManager) ListClusterConfigs() []*config.ClusterConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
+
+	cm.logger.Debug().
+		Str("cluster_manager_ptr", fmt.Sprintf("%p", cm)).
+		Int("cluster_count", len(cm.configs)).
+		Msg("ListClusterConfigs called")
 
 	configs := make([]*config.ClusterConfig, 0, len(cm.configs))
 	for _, cfg := range cm.configs {

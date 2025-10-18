@@ -186,8 +186,14 @@ run_test "Volume Snapshot Lifecycle (STDIO Mode)" "node test/tools/test-volume-s
 # Test 25: Volume Snapshot Lifecycle Test (HTTP Mode)
 run_test "Volume Snapshot Lifecycle (HTTP Mode)" "node test/tools/test-volume-snapshot-lifecycle-v2.js http --server-running"
 
-# Test 26: Session Management (HTTP Mode Only)
+# Test 26: Session Isolation (HTTP Mode Only)
+# This test validates that sessions cannot access each other's clusters
+# Uses the shared server that's already running - no restart needed!
+run_test "Session Isolation (HTTP Mode)" "node test/core/test-session-isolation.js"
+
+# Test 27: Session Management (HTTP Mode Only)
 # Note: This test starts its own server with custom timeouts, so we stop the shared server first
+# Moved to end so it doesn't disrupt other tests with server restarts
 echo ""
 log "=== Stopping Shared HTTP Server for Session Management Test ==="
 kill $SERVER_PID 2>/dev/null || true
@@ -196,50 +202,7 @@ log "Shared server stopped"
 
 run_test "Session Management (HTTP Mode)" "node test/core/test-session-management.js"
 
-# Test 27: Session Isolation (HTTP Mode Only)
-# This test validates that sessions cannot access each other's clusters
-echo ""
-log "=== Starting Fresh HTTP Server for Session Isolation Test ==="
-
-# Make sure port 3000 is free
-pkill -f "./ontap-mcp-server --http=3000" 2>/dev/null || true
-sleep 2
-
-./ontap-mcp-server --http=3000 > /tmp/mcp-isolation-test-server-go.log 2>&1 &
-SERVER_PID=$!
-log "Go server started with PID: $SERVER_PID"
-
-# Wait for server to be ready with health check  
-for i in {1..20}; do
-    if curl -s -f http://localhost:3000/health > /dev/null 2>&1; then
-        success "HTTP server is ready for isolation test"
-        sleep 2  # Give SSE endpoint time to fully initialize
-        break
-    fi
-    sleep 0.5
-done
-
-run_test "Session Isolation (HTTP Mode)" "node test/core/test-session-isolation.js"
-
-# Stop the isolation test server
-kill $SERVER_PID 2>/dev/null || true
-wait $SERVER_PID 2>/dev/null || true
-log "Isolation test server stopped"
-
-# Restart shared server for any remaining tests
-log "=== Restarting Shared HTTP Server ==="
-./ontap-mcp-server --http=3000 > /tmp/mcp-test-suite-server-go.log 2>&1 &
-SERVER_PID=$!
-log "Go server restarted with PID: $SERVER_PID"
-sleep 2
-
-echo ""
-log "=== Stopping Shared HTTP Server ==="
-
-if [ ! -z "$SERVER_PID" ]; then
-    kill $SERVER_PID 2>/dev/null || true
-    log "Server stopped (PID: $SERVER_PID)"
-fi
+# No need to restart server - this is the last test
 
 # Clean up temp files
 rm -f /tmp/test-session.log
