@@ -34,13 +34,12 @@ clean-go: ## Remove Go build artifacts
 	rm -f bin/$(BINARY_NAME)
 	rm -f $(BINARY_NAME)
 	@echo "✅ Cleaned"
-build: ## Build the MCP server Docker image
-	@echo "Building MCP server image: $(IMAGE_TAG)"
+build: ## Build the MCP server Docker image (Go implementation)
+	@echo "Building Go MCP server image: $(IMAGE_TAG)"
 	docker build \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		-t $(IMAGE_NAME):$(VERSION) \
 		-t $(IMAGE_NAME):latest \
-		-f Dockerfile \
+		-f deployments/docker/Dockerfile \
 		.
 	@echo "✅ Built: $(IMAGE_NAME):$(VERSION)"
 

@@ -1,3 +1,4 @@
+package docker
 # NetApp ONTAP MCP Server - Go Implementation
 # Multi-stage build for minimal production image size
 # Optimized for both STDIO and HTTP transport modes
@@ -5,7 +6,7 @@
 # ============================================================================
 # Stage 1: Builder - Compile Go binary
 # ============================================================================
-FROM golang:1.25-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
@@ -29,22 +30,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
     -o ontap-mcp-server ./cmd/ontap-mcp
 
 # ============================================================================
-# Stage 2: Runtime - Minimal alpine image with health check support
+# Stage 2: Runtime - Minimal scratch image
 # ============================================================================
-FROM alpine:latest
+FROM scratch
 
 # Metadata labels
 LABEL maintainer="NetApp ONTAP MCP"
 LABEL description="NetApp ONTAP MCP Server (Go) - Model Context Protocol for ONTAP REST API"
 LABEL version="1.0.0-go"
 
-# Install wget for health checks and CA certificates for HTTPS
-RUN apk add --no-cache ca-certificates wget
-
-WORKDIR /opt/ontap-mcp
+# Copy CA certificates for HTTPS connections to ONTAP clusters
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy compiled binary
-COPY --from=builder /build/ontap-mcp-server ./ontap-mcp-server
+COPY --from=builder /build/ontap-mcp-server /ontap-mcp-server
 
 # Environment configuration
 ENV PORT=3000
@@ -52,17 +51,20 @@ ENV PORT=3000
 # Expose HTTP port (configurable via PORT env var)
 EXPOSE ${PORT}
 
-# Health check for container orchestration (Docker, Kubernetes, etc.)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/health || exit 1
-
-# Create non-root user for security
-RUN addgroup -g 1000 mcp && \
-    adduser -D -u 1000 -G mcp mcp && \
-    chown -R mcp:mcp /opt/ontap-mcp
-
-USER mcp
+# Health check not available in scratch image
+# Use docker-compose or Kubernetes liveness probes instead
 
 # Start MCP server in HTTP mode
-# Uses PORT env var for flexibility (default: 3000)
-ENTRYPOINT ["sh", "-c", "./ontap-mcp-server --http=${PORT}"]
+# To use STDIO mode, override ENTRYPOINT with: ["/ontap-mcp-server"]
+ENTRYPOINT ["/ontap-mcp-server"]
+CMD ["--http=3000"]
+
+# Usage:
+#   # HTTP mode (default):
+#   docker run -p 3000:3000 -e ONTAP_CLUSTERS='[...]' ontap-mcp:go
+#
+#   # STDIO mode:
+#   docker run -i ontap-mcp:go
+#
+#   # Custom port:
+#   docker run -p 8080:8080 ontap-mcp:go --http=8080
