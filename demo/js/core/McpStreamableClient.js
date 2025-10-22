@@ -143,16 +143,17 @@ class McpStreamableClient {
     }
 
     /**
-     * Send JSON-RPC request with session
+     * Send JSON-RPC request with optional session (stateless servers don't use session IDs)
      */
     async sendJsonRpcRequest(method, params = {}) {
         if (!this.initialized) {
             throw new Error('Client not initialized. Call initialize() first.');
         }
 
-        if (!this.sessionId) {
-            throw new Error('No session ID available');
-        }
+        // Session ID is optional for stateless servers (like Grafana MCP)
+        // if (!this.sessionId) {
+        //     throw new Error('No session ID available');
+        // }
 
         const request = {
             jsonrpc: '2.0',
@@ -161,11 +162,16 @@ class McpStreamableClient {
             params
         };
 
+        // Only add session headers if we have a session ID (stateful mode)
+        const headers = {
+            'Mcp-Protocol-Version': MCP_PROTOCOL_VERSION
+        };
+        if (this.sessionId) {
+            headers['Mcp-Session-Id'] = this.sessionId;
+        }
+
         try {
-            const result = await this.sendHttpRequest(this.mcpEndpoint, request, {
-                'Mcp-Session-Id': this.sessionId,
-                'Mcp-Protocol-Version': MCP_PROTOCOL_VERSION
-            });
+            const result = await this.sendHttpRequest(this.mcpEndpoint, request, headers);
 
             if (result.error) {
                 throw new Error(`${method} failed: ${result.error.message}`);

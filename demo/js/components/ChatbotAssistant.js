@@ -663,9 +663,10 @@ Available tools: {{TOOLS_COUNT}}`;
             }
             
             // Use the client manager for automatic routing to correct server
-            const result = await this.demo.clientManager.callTool(name, parsedArgs);
+            // Request RAW data (structured) for ChatGPT, not summary text
+            const result = await this.demo.clientManager.callTool(name, parsedArgs, null, true);
 
-            // Response is now text from Streamable HTTP client (via McpApiClient)
+            // Response should now be structured JSON data (or text if not hybrid format)
             if (!result || typeof result !== 'string') {
                 // 🔍 DIAGNOSTIC: Capture error details for problematic tools
                 if (problematicTools.includes(name)) {
@@ -678,7 +679,8 @@ Available tools: {{TOOLS_COUNT}}`;
                 throw new Error('MCP call failed - invalid response');
             }
 
-            // Result is already text content from McpApiClient.parseContent()
+            // Result is now structured data (JSON) for ChatGPT to analyze
+            console.log(`📊 Raw data returned for ChatGPT (${result.length} chars)`);
             return result;
         } catch (error) {
             console.error(`Error executing MCP tool ${name}:`, error);

@@ -232,7 +232,7 @@ func (c *Client) ListQoSPolicies(ctx context.Context, svmName string) ([]QoSPoli
 	}
 
 	path := "/storage/qos/policies?fields=*"
-	
+
 	// When filtering by SVM, we need BOTH SVM-scoped policies AND cluster-scoped policies
 	// Cluster-scoped policies (like "extreme-fixed", "extreme", "performance", "value")
 	// have no SVM association and can be used by any SVM

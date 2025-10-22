@@ -133,7 +133,7 @@ class McpClientManager {
      * @param {string} preferredServer - Optional: specific server to use
      * @returns {Promise} Tool execution result
      */
-    async callTool(toolName, params, preferredServer = null) {
+    async callTool(toolName, params, preferredServer = null, raw = false) {
         if (!this.initialized) {
             throw new Error('McpClientManager not initialized');
         }
@@ -142,6 +142,10 @@ class McpClientManager {
         if (preferredServer && this.clients.has(preferredServer)) {
             console.log(`🎯 Routing ${toolName} to preferred server: ${preferredServer}`);
             const client = this.clients.get(preferredServer);
+            if (raw) {
+                const result = await client.callMcpRaw(toolName, params);
+                return this._extractDataFromHybridFormat(result);
+            }
             return await client.callMcp(toolName, params);
         }
 
@@ -163,6 +167,10 @@ class McpClientManager {
                 }
                 
                 console.log(`🔧 Routing ${toolName} → ${serverName}`);
+                if (raw) {
+                    const result = await client.callMcpRaw(toolName, params);
+                    return this._extractDataFromHybridFormat(result);
+                }
                 const result = await client.callMcp(toolName, params);
                 return result;
                 
@@ -180,6 +188,48 @@ class McpClientManager {
 
         // All servers failed
         throw new Error(`All servers failed for tool '${toolName}': ${lastError?.message || 'Unknown error'}`);
+    }
+
+    /**
+     * Extract structured data from hybrid format responses
+     * If the response has { summary, data }, return JSON.stringify(data)
+     * Otherwise return the text content as-is
+     */
+    _extractDataFromHybridFormat(result) {
+        try {
+            // Extract text from MCP content format
+            if (result?.content?.[0]?.text) {
+                let textValue = result.content[0].text;
+                
+                // If it's a string, try parsing as JSON
+                if (typeof textValue === 'string') {
+                    try {
+                        const parsed = JSON.parse(textValue);
+                        if (parsed && typeof parsed === 'object' && 'data' in parsed) {
+                            console.log('🔍 Extracting structured data from hybrid format');
+                            return JSON.stringify(parsed.data, null, 2);
+                        }
+                    } catch (e) {
+                        // Not JSON or no data field, return as-is
+                    }
+                    return textValue;
+                }
+                
+                // If it's already an object with data field
+                if (typeof textValue === 'object' && textValue !== null && 'data' in textValue) {
+                    console.log('🔍 Extracting structured data from hybrid format object');
+                    return JSON.stringify(textValue.data, null, 2);
+                }
+                
+                return typeof textValue === 'string' ? textValue : JSON.stringify(textValue, null, 2);
+            }
+            
+            // Fallback
+            return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+        } catch (error) {
+            console.error('Error extracting data from hybrid format:', error);
+            return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+        }
     }
 
     /**
