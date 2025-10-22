@@ -10,6 +10,9 @@ class VolumesView {
         this.refreshInterval = null;
         this.sortColumn = null;
         this.sortDirection = 'asc';
+        
+        // Initialize Grafana dashboard modal
+        this.dashboardModal = new GrafanaDashboardModal();
     }
 
     // Render the complete VolumesView HTML
@@ -385,7 +388,7 @@ class VolumesView {
         return `
             <div class="Table-module_row__Mi4wLjYtaW50ZXJuYWw" data-testid="table-row-${volumeName}" style="width: 100%;">
                 <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Dashboard" style="flex: 0 0 50px; text-align: center;">
-                    <span id="grafana-icon-${dashboardUid}" class="grafana-dashboard-icon" data-dashboard-uid="${dashboardUid}" style="cursor: pointer; opacity: 0.3;">
+                    <span id="grafana-icon-${dashboardUid}" class="grafana-dashboard-icon" data-dashboard-uid="${dashboardUid}" data-volume-name="${volumeName}" style="cursor: pointer; opacity: 0.3;">
                         <img src="grafana-icon.png" alt="Grafana Dashboard" width="20" height="20" style="vertical-align: middle;" />
                     </span>
                 </div>
@@ -715,6 +718,7 @@ class VolumesView {
             
             for (const iconElement of iconElements) {
                 const dashboardUid = iconElement.dataset.dashboardUid;
+                const volumeName = iconElement.dataset.volumeName || 'Volume';
                 
                 if (existingDashboardUids.has(dashboardUid)) {
                     // Dashboard exists - make icon fully visible and clickable
@@ -722,10 +726,11 @@ class VolumesView {
                     iconElement.style.cursor = 'pointer';
                     iconElement.title = 'View Grafana Dashboard';
                     
-                    // Add click handler to open dashboard
+                    // Add click handler to open dashboard in modal
                     iconElement.onclick = () => {
-                        const dashboardUrl = `${grafanaUrl}/d/${dashboardUid}`;
-                        window.open(dashboardUrl, '_blank');
+                        const dashboardUrl = `${grafanaUrl}/d/${dashboardUid}?kiosk`;
+                        const modalTitle = `Dashboard: ${volumeName}`;
+                        this.dashboardModal.open(dashboardUrl, modalTitle);
                     };
                     activatedCount++;
                 } else {

@@ -83,6 +83,10 @@ cleanup() {
     echo
     print_status "Shutting down demo servers..."
     
+    # Kill Grafana proxies
+    pkill -f "grafana-cors-proxy.sh" 2>/dev/null || true
+    pkill -f "grafana-viewer-proxy.sh" 2>/dev/null || true
+    
     # Kill MCP server
     if [[ -n "${MCP_PID:-}" ]]; then
         kill $MCP_PID 2>/dev/null || true
@@ -169,6 +173,13 @@ if pgrep -f "start-demo.sh" >/dev/null 2>&1; then
     sleep 2
 fi
 
+# Stop CORS proxy
+if pgrep -f "grafana-cors-proxy.sh" >/dev/null 2>&1; then
+    print_status "Stopping existing CORS proxy..."
+    pkill -f "grafana-cors-proxy.sh"
+    sleep 2
+fi
+
 # Stop Go MCP server
 if pgrep -f "ontap-mcp-server" >/dev/null 2>&1; then
     print_status "Stopping existing Go MCP server..."
@@ -232,6 +243,51 @@ else
     print_error "Check mcp-server.log for details:"
     tail -n 20 mcp-server.log
     exit 1
+fi
+
+# Step 4.5: Start Grafana proxies
+# Proxy 1: MCP API proxy (port 8001 -> 8000)
+print_status "Starting Grafana MCP CORS proxy on port 8001..."
+if [[ -f "scripts/grafana-cors-proxy.sh" ]]; then
+    nohup python3 scripts/grafana-cors-proxy.sh > grafana-cors-proxy.log 2>&1 &
+    CORS_PID=$!
+    
+    # Wait for proxy to start
+    sleep 2
+    
+    # Check if proxy is running
+    if ! kill -0 $CORS_PID 2>/dev/null; then
+        print_warning "Grafana MCP CORS proxy failed to start (optional)"
+        print_warning "Grafana dashboard features will not be available"
+    else
+        print_success "Grafana MCP CORS proxy started successfully on port 8001"
+        print_status "Proxying localhost:8001 -> localhost:8000 with CORS headers"
+    fi
+else
+    print_warning "Grafana MCP CORS proxy script not found (optional)"
+    print_warning "Grafana dashboard features will not be available"
+fi
+
+# Proxy 2: Viewer proxy with X-Frame-Options stripping (port 3001 -> 10.193.49.74:3000)
+print_status "Starting Grafana Viewer proxy on port 3001..."
+if [[ -f "scripts/grafana-viewer-proxy.sh" ]]; then
+    nohup python3 scripts/grafana-viewer-proxy.sh > grafana-viewer-proxy.log 2>&1 &
+    VIEWER_PID=$!
+    
+    # Wait for proxy to start
+    sleep 2
+    
+    # Check if proxy is running
+    if ! kill -0 $VIEWER_PID 2>/dev/null; then
+        print_warning "Grafana Viewer proxy failed to start (optional)"
+        print_warning "Dashboard iframe embedding will not work"
+    else
+        print_success "Grafana Viewer proxy started successfully on port 3001"
+        print_status "Proxying localhost:3001 -> 10.193.49.74:3000 (iframe embedding enabled)"
+    fi
+else
+    print_warning "Grafana Viewer proxy script not found (optional)"
+    print_warning "Dashboard iframe embedding will not work"
 fi
 
 # Step 5: Start demo web server from demo directory

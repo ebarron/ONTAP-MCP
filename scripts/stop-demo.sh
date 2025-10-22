@@ -22,6 +22,27 @@ print_success() {
 
 print_status "Stopping NetApp ONTAP MCP Demo servers (Go Version)..."
 
+# Stop Grafana proxies
+CORS_PIDS=$(pgrep -f "grafana-cors-proxy.sh" 2>/dev/null || true)
+if [[ -n "$CORS_PIDS" ]]; then
+    print_status "Stopping Grafana MCP CORS proxy..."
+    pkill -f "grafana-cors-proxy.sh"
+    sleep 1
+    print_success "Grafana MCP CORS proxy stopped"
+else
+    print_status "Grafana MCP CORS proxy not running"
+fi
+
+VIEWER_PIDS=$(pgrep -f "grafana-viewer-proxy.sh" 2>/dev/null || true)
+if [[ -n "$VIEWER_PIDS" ]]; then
+    print_status "Stopping Grafana Viewer proxy..."
+    pkill -f "grafana-viewer-proxy.sh"
+    sleep 1
+    print_success "Grafana Viewer proxy stopped"
+else
+    print_status "Grafana Viewer proxy not running"
+fi
+
 # Stop any lingering start-demo.sh processes first
 START_DEMO_PIDS=$(pgrep -f "start-demo.sh" 2>/dev/null || true)
 if [[ -n "$START_DEMO_PIDS" ]]; then
@@ -72,6 +93,16 @@ fi
 if [[ -f "demo-server.log" ]]; then
     print_status "Cleaning up demo server log..."
     rm -f demo-server.log
+fi
+
+if [[ -f "grafana-cors-proxy.log" ]]; then
+    print_status "Cleaning up MCP CORS proxy log..."
+    rm -f grafana-cors-proxy.log
+fi
+
+if [[ -f "grafana-viewer-proxy.log" ]]; then
+    print_status "Cleaning up Viewer proxy log..."
+    rm -f grafana-viewer-proxy.log
 fi
 
 print_success "✅ Go demo servers stopped and cleaned up"
