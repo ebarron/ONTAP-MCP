@@ -104,6 +104,17 @@ class McpConfig {
         const server = this.servers[serverName];
         return server && server.enabled;
     }
+
+    /**
+     * Get Grafana viewer URL for creating dashboard links
+     */
+    getGrafanaViewerUrl() {
+        const grafanaConfig = this.servers?.['grafana-remote'];
+        console.log('🔍 [McpConfig] grafanaConfig:', grafanaConfig);
+        const viewerUrl = grafanaConfig?.viewer_url || 'http://localhost:3000';
+        console.log('🔍 [McpConfig] Returning viewer URL:', viewerUrl);
+        return viewerUrl;
+    }
 }
 
 // Make globally available

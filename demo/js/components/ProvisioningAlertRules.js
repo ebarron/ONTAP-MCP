@@ -339,17 +339,21 @@ class ProvisioningAlertRules {
             errors: []
         };
 
-        // Create each alert rule via Harvest MCP
+        // Create each alert rule via Harvest MCP (explicitly prefer harvest-remote)
         for (const alert of alerts) {
             try {
-                const response = await this.demo.clientManager.callTool('create_alert_rule', {
-                    rule_name: alert.alert,
-                    expression: alert.expr,
-                    duration: alert.for,
-                    severity: alert.labels.severity,
-                    summary: alert.annotations.summary,
-                    description: alert.annotations.description
-                });
+                const response = await this.demo.clientManager.callTool(
+                    'create_alert_rule', 
+                    {
+                        rule_name: alert.alert,
+                        expression: alert.expr,
+                        duration: alert.for,
+                        severity: alert.labels.severity,
+                        summary: alert.annotations.summary,
+                        description: alert.annotations.description
+                    },
+                    'harvest-remote'  // Explicitly use harvest-remote for alert creation
+                );
                 
                 console.log(`✅ Created alert rule: ${alert.alert}`);
                 results.count++;

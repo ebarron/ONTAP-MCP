@@ -112,6 +112,12 @@ class StorageClassProvisioningPanel {
                                 </span>
                             </label>
                         </div>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="scCreateGrafanaDashboard" name="scCreateGrafanaDashboard" checked>
+                                Create a Grafana Dashboard for this volume?
+                            </label>
+                        </div>
                     </div>
                     
                     <!-- Protocol Section -->
@@ -488,6 +494,9 @@ class StorageClassProvisioningPanel {
             // Create monitoring alerts if checkbox is enabled
             await this.createStorageClassMonitoringAlerts(volumeName, svmName, clusterName, volumeParams.qos_policy, volumeParams.snapshot_policy);
             
+            // Create Grafana dashboard if checkbox is enabled
+            await this.createVolumeGrafanaDashboard(volumeName, svmName, clusterName);
+            
             const successMsg = `NFS volume "${volumeName}" created successfully with ${this.selectedStorageClass.name} storage class` +
                 (volumeParams.qos_policy ? ` and QoS policy "${volumeParams.qos_policy}"` : '') +
                 (volumeParams.snapshot_policy ? ` and snapshot policy "${volumeParams.snapshot_policy}"` : '');
@@ -543,6 +552,9 @@ class StorageClassProvisioningPanel {
             // Create monitoring alerts if checkbox is enabled
             await this.createStorageClassMonitoringAlerts(volumeName, svmName, clusterName, volumeParams.qos_policy, volumeParams.snapshot_policy);
             
+            // Create Grafana dashboard if checkbox is enabled
+            await this.createVolumeGrafanaDashboard(volumeName, svmName, clusterName);
+            
             const successMsg = `CIFS volume "${volumeName}" with share "${shareName}" created successfully with ${this.selectedStorageClass.name} storage class` +
                 (volumeParams.qos_policy ? ` and QoS policy "${volumeParams.qos_policy}"` : '') +
                 (volumeParams.snapshot_policy ? ` and snapshot policy "${volumeParams.snapshot_policy}"` : '');
@@ -597,6 +609,256 @@ class StorageClassProvisioningPanel {
         } catch (error) {
             console.error('Failed to create storage class monitoring alerts:', error);
             // Don't block volume creation on alert failure
+        }
+    }
+
+    // Create Grafana dashboard for volume monitoring
+    async createVolumeGrafanaDashboard(volumeName, svmName, clusterName) {
+        const createDashboard = document.getElementById('scCreateGrafanaDashboard').checked;
+        
+        if (!createDashboard) {
+            return; // Dashboard creation not requested
+        }
+
+        try {
+            // Generate deterministic dashboard UID using hash function (max 40 chars for Grafana)
+            const dashboardUid = DemoUtils.generateDashboardUid(clusterName, svmName, volumeName);
+            const dashboardTitle = `Volume Compliance: ${volumeName}`;
+            
+            console.log(`📊 Generated dashboard UID: ${dashboardUid} (${dashboardUid.length} chars)`);
+            this.notifications.showInfo('Creating Grafana dashboard for volume...');
+            
+            // Dashboard definition based on the medical_images template
+            const dashboard = {
+                dashboard: {
+                    uid: dashboardUid,
+                    title: dashboardTitle,
+                    tags: ['ontap', 'volume', 'compliance', 'fleet-demo'],
+                    timezone: 'browser',
+                    schemaVersion: 38,
+                    refresh: '30s',
+                    panels: [
+                        // Row 1: Overview Stats
+                        {
+                            id: 1,
+                            type: 'stat',
+                            title: 'Volume State',
+                            gridPos: { x: 0, y: 0, w: 6, h: 4 },
+                            targets: [{
+                                expr: `volume_new_status{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"}`,
+                                refId: 'A',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            options: {
+                                reduceOptions: { values: false, calcs: ['lastNotNull'] },
+                                text: { titleSize: 16, valueSize: 24 }
+                            },
+                            fieldConfig: {
+                                defaults: {
+                                    mappings: [
+                                        { type: 'value', value: '1', text: 'Online', color: 'green' },
+                                        { type: 'value', value: '0', text: 'Offline', color: 'red' }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            id: 2,
+                            type: 'stat',
+                            title: 'Total Capacity',
+                            gridPos: { x: 6, y: 0, w: 6, h: 4 },
+                            targets: [{
+                                expr: `volume_size{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"} / 1024 / 1024 / 1024`,
+                                refId: 'A',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            options: {
+                                reduceOptions: { values: false, calcs: ['lastNotNull'] },
+                                text: { titleSize: 16, valueSize: 24 }
+                            },
+                            fieldConfig: {
+                                defaults: { unit: 'decgbytes', decimals: 2 }
+                            }
+                        },
+                        {
+                            id: 3,
+                            type: 'stat',
+                            title: 'Used Capacity %',
+                            gridPos: { x: 12, y: 0, w: 6, h: 4 },
+                            targets: [{
+                                expr: `volume_size_used_percent{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"}`,
+                                refId: 'A',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            options: {
+                                reduceOptions: { values: false, calcs: ['lastNotNull'] },
+                                text: { titleSize: 16, valueSize: 24 }
+                            },
+                            fieldConfig: {
+                                defaults: {
+                                    unit: 'percent',
+                                    thresholds: {
+                                        mode: 'absolute',
+                                        steps: [
+                                            { value: 0, color: 'green' },
+                                            { value: 75, color: 'yellow' },
+                                            { value: 90, color: 'red' }
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            id: 4,
+                            type: 'stat',
+                            title: 'Available Space',
+                            gridPos: { x: 18, y: 0, w: 6, h: 4 },
+                            targets: [{
+                                expr: `volume_size_available{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"} / 1024 / 1024 / 1024`,
+                                refId: 'A',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            options: {
+                                reduceOptions: { values: false, calcs: ['lastNotNull'] },
+                                text: { titleSize: 16, valueSize: 24 }
+                            },
+                            fieldConfig: {
+                                defaults: { unit: 'decgbytes', decimals: 2 }
+                            }
+                        },
+                        // Row 2: Capacity Trends
+                        {
+                            id: 5,
+                            type: 'timeseries',
+                            title: 'Capacity Usage Trend',
+                            gridPos: { x: 0, y: 4, w: 12, h: 8 },
+                            targets: [
+                                {
+                                    expr: `volume_size_used{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"} / 1024 / 1024 / 1024`,
+                                    refId: 'A',
+                                    legendFormat: 'Used (GB)',
+                                    datasource: { type: 'prometheus', uid: 'prometheus' }
+                                },
+                                {
+                                    expr: `volume_size_available{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"} / 1024 / 1024 / 1024`,
+                                    refId: 'B',
+                                    legendFormat: 'Available (GB)',
+                                    datasource: { type: 'prometheus', uid: 'prometheus' }
+                                }
+                            ],
+                            fieldConfig: {
+                                defaults: { unit: 'decgbytes' }
+                            }
+                        },
+                        {
+                            id: 6,
+                            type: 'timeseries',
+                            title: 'Capacity Utilization %',
+                            gridPos: { x: 12, y: 4, w: 12, h: 8 },
+                            targets: [{
+                                expr: `volume_size_used_percent{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"}`,
+                                refId: 'A',
+                                legendFormat: 'Used %',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            fieldConfig: {
+                                defaults: {
+                                    unit: 'percent',
+                                    thresholds: {
+                                        mode: 'absolute',
+                                        steps: [
+                                            { value: 0, color: 'green' },
+                                            { value: 75, color: 'yellow' },
+                                            { value: 90, color: 'red' }
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        // Row 3: Snapshot Reserve
+                        {
+                            id: 7,
+                            type: 'gauge',
+                            title: 'Snapshot Reserve %',
+                            gridPos: { x: 0, y: 12, w: 8, h: 6 },
+                            targets: [{
+                                expr: `volume_snapshot_reserve_percent{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"}`,
+                                refId: 'A',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            fieldConfig: {
+                                defaults: {
+                                    unit: 'percent',
+                                    thresholds: {
+                                        mode: 'absolute',
+                                        steps: [
+                                            { value: 0, color: 'green' },
+                                            { value: 15, color: 'yellow' },
+                                            { value: 25, color: 'red' }
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            id: 8,
+                            type: 'timeseries',
+                            title: 'Snapshot Reserve Over Time',
+                            gridPos: { x: 8, y: 12, w: 16, h: 6 },
+                            targets: [{
+                                expr: `volume_snapshot_reserve_percent{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"}`,
+                                refId: 'A',
+                                legendFormat: 'Snapshot Reserve %',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            fieldConfig: {
+                                defaults: { unit: 'percent' }
+                            }
+                        },
+                        // Row 4: EMS Events
+                        {
+                            id: 9,
+                            type: 'timeseries',
+                            title: 'EMS Events',
+                            gridPos: { x: 0, y: 18, w: 24, h: 6 },
+                            targets: [{
+                                expr: `sum by (severity, message) (ems_events{cluster="${clusterName}",svm="${svmName}",volume="${volumeName}"})`,
+                                refId: 'A',
+                                legendFormat: '{{severity}}: {{message}}',
+                                datasource: { type: 'prometheus', uid: 'prometheus' }
+                            }],
+                            fieldConfig: {
+                                defaults: { unit: 'short' }
+                            }
+                        }
+                    ]
+                },
+                folderUid: 'cf1tgl2iim2gwd', // Fleet-Demo folder
+                overwrite: false,
+                message: `Created by Storage Class Provisioning for volume ${volumeName}`
+            };
+            
+            // Create dashboard using Grafana MCP
+            const grafanaClient = window.app?.clientManager?.getClient('grafana-remote');
+            if (!grafanaClient) {
+                console.warn('⚠️  Grafana MCP client not available, skipping dashboard creation');
+                return;
+            }
+            
+            const response = await grafanaClient.callMcp('update_dashboard', dashboard);
+            
+            if (response) {
+                // Get Grafana viewer URL from config
+                const grafanaUrl = this.demo.mcpConfig.getGrafanaViewerUrl();
+                const dashboardUrl = `${grafanaUrl}/d/${dashboardUid}`;
+                
+                console.log(`✅ Created Grafana dashboard: ${dashboardUrl}`);
+                this.notifications.showSuccess(`Grafana dashboard created successfully`);
+            }
+        } catch (error) {
+            console.error('Failed to create Grafana dashboard:', error);
+            // Don't block volume creation on dashboard failure
+            this.notifications.showWarning('Volume created, but dashboard creation failed');
         }
     }
 

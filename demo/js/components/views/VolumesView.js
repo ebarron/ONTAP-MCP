@@ -8,6 +8,8 @@ class VolumesView {
         this.volumesData = null;
         this.lastRefreshTime = null;
         this.refreshInterval = null;
+        this.sortColumn = null;
+        this.sortDirection = 'asc';
     }
 
     // Render the complete VolumesView HTML
@@ -51,6 +53,9 @@ class VolumesView {
                 <div class="Table-module_base__Mi4wLjYtaW50ZXJuYWw">
                     <div class="Table-module_headers-group-container__Mi4wLjYtaW50ZXJuYWw" style="top: 0px;">
                         <div class="Table-module_row__Mi4wLjYtaW50ZXJuYWw Table-module_blank__Mi4wLjYtaW50ZXJuYWw">
+                            <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" style="flex: 0 0 50px;">
+                                <span></span>
+                            </div>
                             <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" style="flex: 1 0 220px;">
                                 <span></span>
                             </div>
@@ -77,6 +82,11 @@ class VolumesView {
                             </div>
                         </div>
                         <div class="Table-module_header-row__Mi4wLjYtaW50ZXJuYWw" data-testid="table-header-row">
+                            <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" data-testid="table-column-header-Dashboard" style="flex: 0 0 50px;">
+                                <div id="Dashboard-dashboard" class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw" title="Grafana Dashboard">
+                                    <span>📊</span>
+                                </div>
+                            </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" data-testid="table-column-header-Volume Name" style="flex: 1 0 220px;">
                                 <div id="Volume Name-volumeName" class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
                                     <span>Volume Name</span>
@@ -368,9 +378,18 @@ class VolumesView {
             availablePercent = ((volume.available / volume.size) * 100).toFixed(1);
         }
         
+        // Generate dashboard UID using the same hash function as provisioning
+        // This ensures we can find dashboards created during provisioning
+        const dashboardUid = DemoUtils.generateDashboardUid(cluster, svm, volumeName);
+        
         return `
             <div class="Table-module_row__Mi4wLjYtaW50ZXJuYWw" data-testid="table-row-${volumeName}" style="width: 100%;">
-                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Volume Name" style="flex: 1 0 220px;">
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Dashboard" style="flex: 0 0 50px; text-align: center;">
+                    <span id="grafana-icon-${dashboardUid}" class="grafana-dashboard-icon" data-dashboard-uid="${dashboardUid}" style="cursor: pointer; opacity: 0.3;">
+                        <img src="grafana-icon.png" alt="Grafana Dashboard" width="20" height="20" style="vertical-align: middle;" />
+                    </span>
+                </div>
+                <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-Volume Name" style="flex: 1 0 220px; min-width: 220px; max-width: 220px;">
                     <span class="style_truncate__kDoKg" title="${volumeName}">${volumeName}</span>
                 </div>
                 <div class="Table-module_cell__Mi4wLjYtaW50ZXJuYWw Table-module_cell-base__Mi4wLjYtaW50ZXJuYWw" data-testid="table-cell-column-State" style="flex: 1 0 100px;">
@@ -549,14 +568,59 @@ class VolumesView {
         
         const rows = volumes.map(vol => this.renderVolumeRow(vol)).join('');
         tableBody.innerHTML = rows;
+        
+        // Lazy load Grafana dashboard icons
+        this.loadGrafanaDashboardIcons();
     }
 
     // Sort volumes
     sortVolumes(column) {
         if (!this.volumesData) return;
         
-        // TODO: Implement sorting logic
-        console.log(`Sorting by ${column}`);
+        // Toggle direction if same column, otherwise default to ascending
+        if (this.sortColumn === column) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+        
+        // Map column names to data paths
+        const columnMappings = {
+            'name': vol => vol.metric?.volume || '',
+            'state': vol => vol.metric?.state || '',
+            'size': vol => vol.size || 0,
+            'available': vol => vol.available || 0,
+            'used': vol => vol.used || 0,
+            'protection': vol => this.getProtectionRole(vol),
+            'cluster': vol => vol.metric?.cluster || '',
+            'vserver': vol => vol.metric?.svm || ''
+        };
+        
+        const getValueFn = columnMappings[column];
+        if (!getValueFn) {
+            console.warn(`Unknown sort column: ${column}`);
+            return;
+        }
+        
+        const sorted = [...this.volumesData].sort((a, b) => {
+            const aVal = getValueFn(a);
+            const bVal = getValueFn(b);
+            
+            // Handle numeric sorting for size/available/used
+            if (column === 'size' || column === 'available' || column === 'used') {
+                return this.sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+            }
+            
+            // Handle string sorting
+            if (this.sortDirection === 'asc') {
+                return aVal > bVal ? 1 : -1;
+            } else {
+                return aVal < bVal ? 1 : -1;
+            }
+        });
+        
+        this.populateVolumesTable(sorted);
     }
 
     // Show error message
@@ -571,6 +635,112 @@ class VolumesView {
                     <div>${message}</div>
                 </div>
             `;
+        }
+    }
+
+    // Load Grafana dashboard icons (lazy loading - optimized with single bulk query)
+    async loadGrafanaDashboardIcons() {
+        console.log('🔍 [VolumesView] Attempting to load Grafana dashboard icons...');
+        
+        const grafanaClient = window.app?.clientManager?.getClient('grafana-remote');
+        if (!grafanaClient) {
+            console.warn('⚠️  Grafana MCP client not available, skipping dashboard icon loading');
+            return;
+        }
+        
+        const grafanaUrl = window.app?.mcpConfig?.getGrafanaViewerUrl();
+        if (!grafanaUrl) {
+            console.warn('⚠️  Grafana viewer URL not configured');
+            return;
+        }
+        
+        console.log(`🔗 [VolumesView] Using Grafana viewer URL: ${grafanaUrl}`);
+        console.log('✅ [VolumesView] Grafana client found, loading dashboard icons with bulk query...');
+        
+        try {
+            // OPTIMIZED: Search for all dashboards (empty query returns all)
+            // Grafana's search_dashboards may not support prefix matching, so get all and filter client-side
+            const result = await grafanaClient.callMcp('search_dashboards', { query: '' });
+            
+            // Parse result if it's a string
+            let allDashboards = result;
+            if (typeof result === 'string') {
+                try {
+                    allDashboards = JSON.parse(result);
+                } catch (e) {
+                    // If JSON parse fails, might be empty or text response
+                    if (result === '[]' || result.trim() === '') {
+                        allDashboards = [];
+                    } else {
+                        console.warn('Failed to parse bulk dashboard search result:', e);
+                        return;
+                    }
+                }
+            }
+            
+            console.log(`🔍 [VolumesView] Grafana returned ${Array.isArray(allDashboards) ? allDashboards.length : 0} total dashboard(s)`);
+            
+            // Filter to only volume dashboards (UIDs starting with "dv-")
+            const volumeDashboards = Array.isArray(allDashboards) 
+                ? allDashboards.filter(d => d.uid && d.uid.startsWith('dv-'))
+                : [];
+            
+            console.log(`🔍 [VolumesView] Filtered to ${volumeDashboards.length} volume dashboard(s) with "dv-" prefix`);
+            
+            // Log first few dashboard UIDs for debugging
+            if (volumeDashboards.length > 0) {
+                const sampleUids = volumeDashboards.slice(0, 5).map(d => d.uid);
+                console.log(`🔍 [VolumesView] Sample dashboard UIDs:`, sampleUids);
+            }
+            
+            // Build a Set of existing dashboard UIDs for O(1) lookup
+            const existingDashboardUids = new Set();
+            volumeDashboards.forEach(dashboard => {
+                if (dashboard.uid) {
+                    existingDashboardUids.add(dashboard.uid);
+                }
+            });
+            
+            console.log(`📊 Found ${existingDashboardUids.size} volume dashboard(s) in Grafana`);
+            
+            // Now update all icon elements based on the bulk query result
+            const iconElements = document.querySelectorAll('.grafana-dashboard-icon');
+            let activatedCount = 0;
+            
+            // Log first few expected UIDs for debugging
+            if (iconElements.length > 0) {
+                const sampleExpectedUids = Array.from(iconElements).slice(0, 5).map(el => el.dataset.dashboardUid);
+                console.log(`🔍 [VolumesView] Sample expected UIDs in page:`, sampleExpectedUids);
+            }
+            
+            for (const iconElement of iconElements) {
+                const dashboardUid = iconElement.dataset.dashboardUid;
+                
+                if (existingDashboardUids.has(dashboardUid)) {
+                    // Dashboard exists - make icon fully visible and clickable
+                    iconElement.style.opacity = '1.0';
+                    iconElement.style.cursor = 'pointer';
+                    iconElement.title = 'View Grafana Dashboard';
+                    
+                    // Add click handler to open dashboard
+                    iconElement.onclick = () => {
+                        const dashboardUrl = `${grafanaUrl}/d/${dashboardUid}`;
+                        window.open(dashboardUrl, '_blank');
+                    };
+                    activatedCount++;
+                } else {
+                    // Dashboard doesn't exist - keep icon grayed out
+                    iconElement.style.opacity = '0.3';
+                    iconElement.style.cursor = 'default';
+                    iconElement.title = 'No dashboard available';
+                    iconElement.onclick = null;
+                }
+            }
+            
+            console.log(`✅ Activated ${activatedCount}/${iconElements.length} dashboard icon(s) with 1 bulk query`);
+            
+        } catch (error) {
+            console.error('❌ Error loading dashboard icons:', error);
         }
     }
 

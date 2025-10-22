@@ -221,6 +221,38 @@ class DemoUtils {
     }
 
     /**
+     * Generate a deterministic dashboard UID from volume identifiers
+     * Creates a hash-based UID that stays under Grafana's 40-character limit
+     * The same cluster/svm/volume combination will always produce the same UID
+     * 
+     * @param {string} clusterName - Cluster name
+     * @param {string} svmName - SVM name
+     * @param {string} volumeName - Volume name
+     * @returns {string} Dashboard UID (max 40 chars)
+     */
+    static generateDashboardUid(clusterName, svmName, volumeName) {
+        // Create unique input string
+        const input = `${clusterName}|${svmName}|${volumeName}`;
+        
+        // Simple but effective hash function (djb2)
+        let hash = 5381;
+        for (let i = 0; i < input.length; i++) {
+            hash = ((hash << 5) + hash) + input.charCodeAt(i); // hash * 33 + char
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        
+        // Convert to positive base36 string (0-9, a-z)
+        const hashStr = Math.abs(hash).toString(36);
+        
+        // Format: "dv-" + hash + "-" + short volume name
+        // This makes it both unique AND somewhat human-readable
+        const volumeShort = volumeName.substring(0, 15).replace(/[^a-zA-Z0-9]/g, '');
+        const uid = `dv-${hashStr}-${volumeShort}`.substring(0, 40);
+        
+        return uid;
+    }
+
+    /**
      * Emit a custom event
      * @param {string} eventName - Name of the event
      * @param {any} detail - Event detail data

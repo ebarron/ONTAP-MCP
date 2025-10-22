@@ -223,14 +223,23 @@ func (c *Client) DeleteSnapshotPolicy(ctx context.Context, uuid string) error {
 }
 
 // ListQoSPolicies retrieves QoS policies
+// When svmName is provided, returns BOTH:
+// 1. Policies scoped to that SVM (svm.name=svmName)
+// 2. Cluster-scoped policies (svm.name=null) which are usable by any SVM
 func (c *Client) ListQoSPolicies(ctx context.Context, svmName string) ([]QoSPolicy, error) {
 	var response struct {
 		Records []QoSPolicy `json:"records"`
 	}
 
 	path := "/storage/qos/policies?fields=*"
+	
+	// When filtering by SVM, we need BOTH SVM-scoped policies AND cluster-scoped policies
+	// Cluster-scoped policies (like "extreme-fixed", "extreme", "performance", "value")
+	// have no SVM association and can be used by any SVM
 	if svmName != "" {
-		path += fmt.Sprintf("&svm.name=%s", svmName)
+		// Use OR query to get both SVM-specific and cluster-scoped policies
+		// Cluster-scoped policies have svm.name=null (no SVM owner)
+		path += fmt.Sprintf("&svm.name=%s|svm.name=null", svmName)
 	}
 
 	if err := c.get(ctx, path, &response); err != nil {
