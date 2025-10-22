@@ -163,37 +163,48 @@ class GrafanaDashboardModal {
 
         // Show iframe when loaded, hide loading indicator
         let iframeLoadedSuccessfully = false;
+        let errorShown = false;
         iframe.onload = () => {
-            // Don't hide loading yet - wait for timeout to verify it's not X-Frame-Options blocked
+            // Don't hide loading yet - wait for timeout to verify it's not blocked
             setTimeout(() => {
                 try {
-                    // Try to access iframe content
+                    // Try to access the document - this will fail for cross-origin
                     const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                     if (iframeDoc && iframeDoc.body) {
-                        // Successfully loaded
+                        // Successfully loaded (same-origin)
                         loadingIndicator.style.display = 'none';
                         iframe.style.display = 'block';
                         iframeLoadedSuccessfully = true;
                         console.log('✅ Grafana dashboard loaded in modal');
-                    } else {
-                        this.showEmbeddingError(loadingIndicator, dashboardUrl);
+                        return;
                     }
-                } catch (e) {
-                    // X-Frame-Options blocking detected
-                    this.showEmbeddingError(loadingIndicator, dashboardUrl);
+                } catch (docError) {
+                    // Cross-origin - can't access document, but iframe might be loaded
+                    console.log('ℹ️ Cross-origin iframe - cannot verify content, showing iframe anyway');
                 }
+                
+                // For cross-origin iframes, we can't verify if content loaded
+                // Just show the iframe and let the user see if it works
+                loadingIndicator.style.display = 'none';
+                iframe.style.display = 'block';
+                iframeLoadedSuccessfully = true;
+                console.log('✅ Showing cross-origin iframe (verification not possible)');
             }, 500); // Short delay to let iframe content initialize
         };
 
         // Handle iframe load errors
         iframe.onerror = () => {
-            this.showEmbeddingError(loadingIndicator, dashboardUrl);
+            if (!errorShown) {
+                this.showEmbeddingError(loadingIndicator, dashboardUrl);
+                errorShown = true;
+            }
         };
         
         // Final fallback: detect if still loading after 10 seconds
         setTimeout(() => {
-            if (!iframeLoadedSuccessfully && loadingIndicator.style.display !== 'none') {
+            if (!iframeLoadedSuccessfully && !errorShown && loadingIndicator.style.display !== 'none') {
                 this.showEmbeddingError(loadingIndicator, dashboardUrl);
+                errorShown = true;
             }
         }, 10000);
 
@@ -259,6 +270,53 @@ class GrafanaDashboardModal {
         
         // Add click handler to button
         const openBtn = document.getElementById('openInNewTabBtn');
+        if (openBtn) {
+            openBtn.onclick = () => {
+                window.open(dashboardUrl, '_blank');
+                this.close();
+            };
+            openBtn.onmouseover = () => {
+                openBtn.style.background = '#0056a3';
+            };
+            openBtn.onmouseout = () => {
+                openBtn.style.background = '#0067C5';
+            };
+        }
+    }
+
+    /**
+     * Show authentication error with option to open in new tab
+     */
+    showAuthenticationError(loadingIndicator, dashboardUrl) {
+        loadingIndicator.innerHTML = `
+            <div style="color: #FF6B35; max-width: 500px;">
+                <strong>🔐 Authentication Required</strong><br>
+                <small style="color: #666; display: block; margin: 12px 0;">
+                    The dashboard requires Grafana authentication. Your browser session may not be accessible in the iframe due to cookie restrictions (SameSite policy).
+                </small>
+                <p style="color: #666; font-size: 13px; margin: 12px 0;">
+                    <strong>Solutions:</strong><br>
+                    • Enable anonymous read-only access in Grafana<br>
+                    • Or open the dashboard in a new tab to use your existing session
+                </p>
+                <button id="openInNewTabBtnAuth" style="
+                    background: #0067C5;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 600;
+                    margin-top: 8px;
+                ">
+                    🔗 Open Dashboard in New Tab
+                </button>
+            </div>
+        `;
+        
+        // Add click handler to button
+        const openBtn = document.getElementById('openInNewTabBtnAuth');
         if (openBtn) {
             openBtn.onclick = () => {
                 window.open(dashboardUrl, '_blank');
