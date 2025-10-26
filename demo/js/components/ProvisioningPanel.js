@@ -613,15 +613,6 @@ class ProvisioningPanel {
 
         const response = await this.apiClient.callMcp('cluster_create_volume', volumeParams);
 
-        // 🔍 DIAGNOSTIC LOGGING
-        console.log('🔍 VOLUME CREATION RESPONSE (ProvisioningPanel):');
-        console.log('  Type:', typeof response);
-        console.log('  Length:', response?.length);
-        console.log('  Full response:', response);
-        console.log('  Includes "successfully"?', response?.includes('successfully'));
-        console.log('  Includes "Error"?', response?.includes('Error'));
-        console.log('  Includes "❌"?', response?.includes('❌'));
-
         // Response is now text from Streamable HTTP client
         if (response && typeof response === 'string' && response.includes('successfully')) {
             this.notifications.showSuccess(`NFS volume ${volumeName} created successfully${qosPolicy ? ` with QoS policy ${qosPolicy}` : ''}`);
@@ -827,19 +818,31 @@ class ProvisioningPanel {
             let allPolicies = [];
 
             // Parse cluster-wide policies (including admin policies)
-            // Response is now text from Streamable HTTP client
+            // Response format: 🎛️ **PolicyName** (uuid)\n   • SVM: svm_name\n...
             if (clusterResponse && typeof clusterResponse === 'string') {
                 const lines = clusterResponse.split('\n');
+                let currentPolicy = null;
+                
                 for (const line of lines) {
-                    const policyMatch = line.match(/🎛️\s+\*\*([^*]+)\*\*\s+\(/);
+                    // Match policy name line: 🎛️ **PolicyName** (uuid)
+                    const policyMatch = line.match(/^🎛️\s+\*\*([^*]+)\*\*\s+\(/);
                     if (policyMatch) {
-                        const policyName = policyMatch[1].trim();
-                        if (policyName && policyName !== 'Unknown') {
-                            // Try to determine SVM from the line context, default to 'cluster'
-                            const svmMatch = line.match(/SVM:\s+([^\s\n]+)/);
-                            const policySvm = svmMatch ? svmMatch[1] : 'cluster';
-                            allPolicies.push({ name: policyName, svm: policySvm });
+                        currentPolicy = {
+                            name: policyMatch[1].trim(),
+                            svm: null
+                        };
+                    }
+                    // Match SVM line (appears after policy name)
+                    else if (currentPolicy && line.match(/^\s+•\s+SVM:/)) {
+                        const svmMatch = line.match(/SVM:\s+([^\s\n]+)/);
+                        if (svmMatch) {
+                            currentPolicy.svm = svmMatch[1].trim();
                         }
+                        // Add policy once we have both name and SVM
+                        if (currentPolicy.name && !allPolicies.find(p => p.name === currentPolicy.name)) {
+                            allPolicies.push({ ...currentPolicy });
+                        }
+                        currentPolicy = null;
                     }
                 }
             }
@@ -859,7 +862,7 @@ class ProvisioningPanel {
             
             if (uniquePolicies.length > 0) {
                 options += uniquePolicies.map(policy => 
-                    `<option value="${policy.name}">${policy.name}${policy.svm && policy.svm !== 'cluster' ? ` (${policy.svm})` : ''}</option>`
+                    `<option value="${policy.name}">${policy.name}</option>`
                 ).join('');
             }
             
@@ -1037,8 +1040,6 @@ class ProvisioningPanel {
                 return null;
             }
 
-            console.log('Snapshot Policy Response:', response);
-
             // Parse the response to find the smallest schedule interval
             // Expected format includes schedule information like "hourly", "daily", "weekly"
             // We'll look for patterns like "Count: X" with "Schedule: Y"
@@ -1096,8 +1097,6 @@ class ProvisioningPanel {
                 console.warn('QoS policy response is null or not a string:', response);
                 return null;
             }
-
-            console.log('QoS Policy Response:', response);
 
             // Parse the response to extract max throughput
             // Try multiple patterns to match different response formats

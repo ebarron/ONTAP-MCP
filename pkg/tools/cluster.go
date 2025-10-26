@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/ebarron/ONTAP-MCP/pkg/config"
 	"github.com/ebarron/ONTAP-MCP/pkg/ontap"
@@ -258,16 +259,20 @@ func RegisterClusterTools(registry *Registry, clusterManager *ontap.ClusterManag
 
 			client, err := activeClusterManager.GetClient(clusterName)
 			if err != nil {
+				errMsg := fmt.Sprintf("Failed to get cluster client: %v", err)
+				fmt.Fprintf(os.Stderr, "ERROR [cluster_list_svms]: %s (cluster_name=%s)\n", errMsg, clusterName)
 				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to get cluster client: %v", err))},
+					Content: []Content{ErrorContent(errMsg)},
 					IsError: true,
 				}, nil
 			}
 
 			svms, err := client.ListSVMs(ctx)
 			if err != nil {
+				errMsg := fmt.Sprintf("Failed to list SVMs: %v", err)
+				fmt.Fprintf(os.Stderr, "ERROR [cluster_list_svms]: %s (cluster_name=%s)\n", errMsg, clusterName)
 				return &CallToolResult{
-					Content: []Content{ErrorContent(fmt.Sprintf("Failed to list SVMs: %v", err))},
+					Content: []Content{ErrorContent(errMsg)},
 					IsError: true,
 				}, nil
 			}

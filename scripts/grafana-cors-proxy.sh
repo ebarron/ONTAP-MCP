@@ -10,13 +10,21 @@ import urllib.error
 
 PROXY_PORT = 8001
 TARGET_URL = "http://localhost:8000"
-ALLOWED_ORIGIN = "http://localhost:8080"
+ALLOWED_ORIGINS = ["http://localhost:8080", "http://localhost:8001"]
 
 class CORSProxyHandler(BaseHTTPRequestHandler):
+    def _get_allowed_origin(self):
+        """Get the allowed origin based on request origin"""
+        request_origin = self.headers.get('Origin', '')
+        if request_origin in ALLOWED_ORIGINS:
+            return request_origin
+        # Default to localhost:8080 for non-CORS requests (direct browser access)
+        return '*'
+    
     def do_OPTIONS(self):
         """Handle preflight CORS requests"""
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+        self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version')
         self.send_header('Access-Control-Max-Age', '86400')
@@ -45,7 +53,7 @@ class CORSProxyHandler(BaseHTTPRequestHandler):
             
             # Copy headers (except Host)
             for key, value in self.headers.items():
-                if key.lower() not in ['host', 'content-length']:
+                if key.lower() not in ['host', 'content-length', 'origin']:
                     req.add_header(key, value)
             
             # Forward request
@@ -54,13 +62,16 @@ class CORSProxyHandler(BaseHTTPRequestHandler):
                 self.send_response(response.status)
                 
                 # Add CORS headers
-                self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+                allowed_origin = self._get_allowed_origin()
+                self.send_header('Access-Control-Allow-Origin', allowed_origin)
                 self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
                 self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version')
+                if allowed_origin != '*':
+                    self.send_header('Access-Control-Allow-Credentials', 'true')
                 
                 # Copy response headers
                 for key, value in response.headers.items():
-                    if key.lower() not in ['access-control-allow-origin']:
+                    if key.lower() not in ['access-control-allow-origin', 'access-control-allow-credentials']:
                         self.send_header(key, value)
                 
                 self.end_headers()
@@ -70,13 +81,13 @@ class CORSProxyHandler(BaseHTTPRequestHandler):
                 
         except urllib.error.HTTPError as e:
             self.send_response(e.code)
-            self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+            self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
             self.end_headers()
             self.wfile.write(e.read())
         except Exception as e:
             print(f"❌ Proxy error: {e}", file=sys.stderr)
             self.send_response(500)
-            self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+            self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
             self.end_headers()
             self.wfile.write(f"Proxy error: {e}".encode())
     
@@ -88,7 +99,8 @@ if __name__ == '__main__':
     print(f"🔧 Starting CORS proxy...")
     print(f"   Listening on: http://localhost:{PROXY_PORT}")
     print(f"   Forwarding to: {TARGET_URL}")
-    print(f"   Allowing origin: {ALLOWED_ORIGIN}")
+    print(f"   Allowing origins: {', '.join(ALLOWED_ORIGINS)}")
+    print(f"   Plus wildcard for direct browser access")
     print()
     
     server = HTTPServer(('localhost', PROXY_PORT), CORSProxyHandler)

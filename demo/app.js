@@ -732,12 +732,9 @@ class OntapMcpDemo {
             this.showLoading(true);
             const response = await this.apiClient.callMcp('list_registered_clusters');
             
-            console.log('MCP Response:', response); // DEBUG
-            
             // Parse text response from Streamable HTTP client
             if (response && typeof response === 'string') {
                 this.clusters = this.parseClusterListFromText(response);
-                console.log('Parsed clusters:', this.clusters); // DEBUG
             } else {
                 this.notifications.showError('Failed to load clusters: Invalid response format');
                 this.clusters = [];
@@ -1010,10 +1007,10 @@ class OntapMcpDemo {
                 <div class="table-cell" style="flex: 1 0 150px;">
                     ${DemoUtils.escapeHtml(cluster.description || 'N/A')}
                 </div>
-                <div class="table-cell" style="flex: 0 0 120px;">
+                <div class="table-cell status-cell" style="flex: 0 0 120px;" data-cluster-name="${DemoUtils.escapeHtml(cluster.name)}">
                     <div class="status-indicator">
-                        <div class="status-circle status-online"></div>
-                        <span>Connected</span>
+                        <div class="status-circle status-checking"></div>
+                        <span>Checking...</span>
                     </div>
                 </div>
                 <div class="table-cell" style="flex: 0 0 100px;">
@@ -1024,9 +1021,10 @@ class OntapMcpDemo {
             </div>
         `).join('');
         
-        // Lazy load metrics for each cluster
+        // Lazy load metrics and status for each cluster
         this.clusters.forEach((cluster, index) => {
             this.loadClusterMetrics(cluster.name, index);
+            this.checkClusterStatus(cluster.name);
         });
     }
 
@@ -1041,6 +1039,51 @@ class OntapMcpDemo {
         
         // Load capacity
         this.loadClusterCapacity(clusterName, clusterIndex);
+    }
+
+    /**
+     * Check cluster connectivity status
+     */
+    async checkClusterStatus(clusterName) {
+        const statusCell = document.querySelector(`.status-cell[data-cluster-name="${clusterName}"]`);
+        if (!statusCell) return;
+
+        try {
+            // Try a lightweight API call to test connectivity
+            const response = await this.clientManager.callTool('cluster_list_svms', {
+                cluster_name: clusterName
+            });
+            
+            // Check if response indicates success (not an error)
+            const isOnline = response && typeof response === 'string' && 
+                           !response.toLowerCase().includes('failed') &&
+                           !response.toLowerCase().includes('unreachable') &&
+                           !response.toLowerCase().includes('error');
+            
+            if (isOnline) {
+                statusCell.innerHTML = `
+                    <div class="status-indicator">
+                        <div class="status-circle status-online"></div>
+                        <span>Connected</span>
+                    </div>
+                `;
+            } else {
+                statusCell.innerHTML = `
+                    <div class="status-indicator">
+                        <div class="status-circle status-offline"></div>
+                        <span>Offline</span>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            // Network error or API failure
+            statusCell.innerHTML = `
+                <div class="status-indicator">
+                    <div class="status-circle status-offline"></div>
+                    <span>Offline</span>
+                </div>
+            `;
+        }
     }
 
     /**
@@ -1179,19 +1222,61 @@ class OntapMcpDemo {
     }
 
     async testClusterConnection(clusterName) {
+        const statusCell = document.querySelector(`.status-cell[data-cluster-name="${clusterName}"]`);
+        
         try {
             this.notifications.showInfo(`Testing connection to ${clusterName}...`);
+            
+            // Update status to checking
+            if (statusCell) {
+                statusCell.innerHTML = `
+                    <div class="status-indicator">
+                        <div class="status-circle status-checking"></div>
+                        <span>Testing...</span>
+                    </div>
+                `;
+            }
             
             const response = await this.apiClient.testClusterConnection(clusterName);
 
             // Response is now text from Streamable HTTP client
             if (response && typeof response === 'string' && response.includes('successful')) {
                 this.notifications.showSuccess(`Connection to ${clusterName} successful`);
+                
+                // Update status to online
+                if (statusCell) {
+                    statusCell.innerHTML = `
+                        <div class="status-indicator">
+                            <div class="status-circle status-online"></div>
+                            <span>Connected</span>
+                        </div>
+                    `;
+                }
             } else {
                 this.notifications.showError(`Connection to ${clusterName} failed: ${response || 'Unknown error'}`);
+                
+                // Update status to offline
+                if (statusCell) {
+                    statusCell.innerHTML = `
+                        <div class="status-indicator">
+                            <div class="status-circle status-offline"></div>
+                            <span>Offline</span>
+                        </div>
+                    `;
+                }
             }
         } catch (error) {
             this.notifications.showError(`Connection test failed: ${error.message}`);
+            
+            // Update status to offline
+            if (statusCell) {
+                statusCell.innerHTML = `
+                    <div class="status-indicator">
+                        <div class="status-circle status-offline"></div>
+                        <span>Offline</span>
+                    </div>
+                `;
+            }
         }
     }
 

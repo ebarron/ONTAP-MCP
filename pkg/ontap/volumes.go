@@ -33,16 +33,52 @@ func (c *Client) GetSVM(ctx context.Context, nameOrUUID string) (*SVM, error) {
 
 // ListAggregates retrieves all aggregates on the cluster
 func (c *Client) ListAggregates(ctx context.Context, svmName string) ([]Aggregate, error) {
+	if svmName != "" {
+		// Get SVM with its aggregate list (query by name, not UUID)
+		var response struct {
+			Records []struct {
+				UUID       string `json:"uuid"`
+				Name       string `json:"name"`
+				Aggregates []struct {
+					UUID string `json:"uuid"`
+					Name string `json:"name"`
+				} `json:"aggregates"`
+			} `json:"records"`
+		}
+
+		// Query SVM by name with aggregates field (matches TypeScript implementation)
+		path := fmt.Sprintf("/svm/svms?name=%s&fields=uuid,name,aggregates", svmName)
+		if err := c.get(ctx, path, &response); err != nil {
+			return nil, fmt.Errorf("failed to get SVM aggregates: %w", err)
+		}
+
+		if len(response.Records) == 0 {
+			return nil, fmt.Errorf("SVM '%s' not found", svmName)
+		}
+
+		svm := response.Records[0]
+
+		// Fetch full details for each aggregate
+		aggregates := make([]Aggregate, 0, len(svm.Aggregates))
+		for _, aggrRef := range svm.Aggregates {
+			var aggr Aggregate
+			aggrPath := fmt.Sprintf("/storage/aggregates/%s?fields=*", aggrRef.UUID)
+			if err := c.get(ctx, aggrPath, &aggr); err != nil {
+				// Log but don't fail - continue with other aggregates
+				continue
+			}
+			aggregates = append(aggregates, aggr)
+		}
+
+		return aggregates, nil
+	}
+
+	// No SVM filter - get all aggregates
 	var response struct {
 		Records []Aggregate `json:"records"`
 	}
 
 	path := "/storage/aggregates?fields=*"
-	if svmName != "" {
-		// Filter aggregates assigned to specific SVM
-		path += fmt.Sprintf("&svm.name=%s", svmName)
-	}
-
 	if err := c.get(ctx, path, &response); err != nil {
 		return nil, fmt.Errorf("failed to list aggregates: %w", err)
 	}

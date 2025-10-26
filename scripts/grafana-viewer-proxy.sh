@@ -16,7 +16,7 @@ import urllib.error
 
 PROXY_PORT = 3001
 GRAFANA_URL = "http://10.193.49.74:3000"
-ALLOWED_ORIGIN = "http://localhost:8080"
+ALLOWED_ORIGINS = ["http://localhost:8080", "http://localhost:3001"]
 
 # Grafana authentication (set to None to disable anonymous access requirement)
 # If your Grafana requires auth, set username/password here
@@ -30,13 +30,23 @@ BLOCKED_HEADERS = [
 ]
 
 class GrafanaViewerProxyHandler(BaseHTTPRequestHandler):
+    def _get_allowed_origin(self):
+        """Get the allowed origin based on request origin"""
+        request_origin = self.headers.get('Origin', '')
+        if request_origin in ALLOWED_ORIGINS:
+            return request_origin
+        # For direct browser access (no Origin header), allow wildcard
+        return '*'
+    
     def do_OPTIONS(self):
         """Handle preflight CORS requests"""
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+        allowed_origin = self._get_allowed_origin()
+        self.send_header('Access-Control-Allow-Origin', allowed_origin)
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Grafana-Org-Id')
-        self.send_header('Access-Control-Allow-Credentials', 'true')
+        if allowed_origin != '*':
+            self.send_header('Access-Control-Allow-Credentials', 'true')
         self.send_header('Access-Control-Max-Age', '86400')
         self.end_headers()
     
@@ -75,10 +85,20 @@ class GrafanaViewerProxyHandler(BaseHTTPRequestHandler):
                 credentials = base64.b64encode(f'{GRAFANA_AUTH[0]}:{GRAFANA_AUTH[1]}'.encode()).decode()
                 req.add_header('Authorization', f'Basic {credentials}')
             
-            # Copy headers (except Host and Content-Length)
+            # Copy headers (except Host, Content-Length, Origin, and Referer)
+            # We'll rewrite Origin and Referer to make Grafana accept the login
             for key, value in self.headers.items():
-                if key.lower() not in ['host', 'content-length']:
+                if key.lower() not in ['host', 'content-length', 'origin', 'referer']:
                     req.add_header(key, value)
+            
+            # Rewrite Origin and Referer to match Grafana's URL
+            # This makes Grafana's CSRF protection accept the request
+            req.add_header('Origin', GRAFANA_URL)
+            if self.headers.get('Referer'):
+                # Replace proxy URL with Grafana URL in referer
+                referer = self.headers.get('Referer')
+                referer = referer.replace('http://localhost:3001', GRAFANA_URL)
+                req.add_header('Referer', referer)
             
             # Forward request
             with urllib.request.urlopen(req) as response:
@@ -86,10 +106,12 @@ class GrafanaViewerProxyHandler(BaseHTTPRequestHandler):
                 self.send_response(response.status)
                 
                 # Add CORS headers
-                self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+                allowed_origin = self._get_allowed_origin()
+                self.send_header('Access-Control-Allow-Origin', allowed_origin)
                 self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
                 self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Grafana-Org-Id')
-                self.send_header('Access-Control-Allow-Credentials', 'true')
+                if allowed_origin != '*':
+                    self.send_header('Access-Control-Allow-Credentials', 'true')
                 
                 # Copy response headers, EXCLUDING blocked headers
                 for key, value in response.headers.items():
@@ -114,14 +136,15 @@ class GrafanaViewerProxyHandler(BaseHTTPRequestHandler):
                 
         except urllib.error.HTTPError as e:
             self.send_response(e.code)
-            self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
-            self.send_header('Access-Control-Allow-Credentials', 'true')
+            self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
+            if self._get_allowed_origin() != '*':
+                self.send_header('Access-Control-Allow-Credentials', 'true')
             self.end_headers()
             self.wfile.write(e.read())
         except Exception as e:
             print(f"❌ Proxy error: {e}", file=sys.stderr)
             self.send_response(500)
-            self.send_header('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+            self.send_header('Access-Control-Allow-Origin', self._get_allowed_origin())
             self.end_headers()
             self.wfile.write(f"Proxy error: {e}".encode())
     
@@ -133,7 +156,8 @@ if __name__ == '__main__':
     print(f"🖼️  Starting Grafana Viewer Proxy (iframe embedding enabled)...")
     print(f"   Listening on: http://localhost:{PROXY_PORT}")
     print(f"   Forwarding to: {GRAFANA_URL}")
-    print(f"   Allowing origin: {ALLOWED_ORIGIN}")
+    print(f"   Allowing origins: {', '.join(ALLOWED_ORIGINS)}")
+    print(f"   Plus wildcard for direct browser access")
     print(f"   Stripped headers: {', '.join(BLOCKED_HEADERS)}")
     print()
     

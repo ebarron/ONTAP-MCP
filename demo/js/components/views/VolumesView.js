@@ -477,14 +477,6 @@ class VolumesView {
             const volumeAvailable = parsedAvailable?.data?.result || [];
             const volumeUsed = parsedUsed?.data?.result || [];
             
-            console.log(`📊 Extracted arrays: labels=${volumeLabels.length}, sizes=${volumeSizes.length}, available=${volumeAvailable.length}, used=${volumeUsed.length}`);
-            
-            // Debug: Check what clusters are in the data
-            if (volumeLabels.length > 0) {
-                const harvestClusters = [...new Set(volumeLabels.map(v => v.metric?.cluster).filter(Boolean))];
-                console.log(`📊 Harvest cluster names: ${harvestClusters.join(', ')}`);
-            }
-            
             // Create a map for quick lookup by volume key (cluster:svm:volume)
             const sizeMap = new Map();
             const availableMap = new Map();
@@ -516,19 +508,15 @@ class VolumesView {
                 };
             });
             
-            console.log(`✅ Combined data for ${volumesData.length} volumes`);
-            
             // Filter volumes to only show registered clusters
             const registeredClusters = window.app?.clusters || [];
             const registeredClusterNames = registeredClusters.map(c => c.name);
             
             if (registeredClusterNames.length > 0) {
-                const originalCount = volumesData.length;
                 volumesData = volumesData.filter(vol => {
                     const clusterName = vol.metric?.cluster;
                     return clusterName && registeredClusterNames.includes(clusterName);
                 });
-                console.log(`Filtered volumes: ${originalCount} → ${volumesData.length} (only registered clusters: ${registeredClusterNames.join(', ')})`);
             }
             
             // Store volumes data
