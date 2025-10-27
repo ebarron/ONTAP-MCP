@@ -34,7 +34,7 @@ class OpenAIService {
     async initialize() {
         try {
             const configUrl = `./chatgpt-config.json?v=${Date.now()}`;
-            console.log('🔍 [OpenAIService] Loading config from:', configUrl);
+            debugLogger.log('🔍 [OpenAIService] Loading config from:', configUrl);
             
             const response = await fetch(configUrl);
             if (!response.ok) {
@@ -64,10 +64,10 @@ class OpenAIService {
             };
             
             this.mockMode = false;
-            console.log('✅ [OpenAIService] Initialized successfully');
-            console.log(`   Base URL: ${this.config.base_url}`);
-            console.log(`   Model: ${this.config.model}`);
-            console.log(`   User: ${this.config.user}`);
+            debugLogger.log('✅ [OpenAIService] Initialized successfully');
+            debugLogger.log(`   Base URL: ${this.config.base_url}`);
+            debugLogger.log(`   Model: ${this.config.model}`);
+            debugLogger.log(`   User: ${this.config.user}`);
             
         } catch (error) {
             console.warn('⚠️ [OpenAIService] Config load failed, enabling mock mode:', error.message);
@@ -128,7 +128,7 @@ class OpenAIService {
         }
 
         // Log request
-        console.log(`🔵 [OpenAIService] Request ${requestId}:`, {
+        debugLogger.log(`🔵 [OpenAIService] Request ${requestId}:`, {
             component,
             model: payload.model,
             messageCount: payload.messages.length,
@@ -180,7 +180,7 @@ class OpenAIService {
             this.requestMetrics.successfulRequests++;
             this.requestMetrics.totalDuration += duration;
 
-            console.log(`🟢 [OpenAIService] Response ${requestId}: ${duration.toFixed(0)}ms`, {
+            debugLogger.log(`🟢 [OpenAIService] Response ${requestId}: ${duration.toFixed(0)}ms`, {
                 component,
                 finishReason: data.choices?.[0]?.finish_reason,
                 hasToolCalls: !!data.choices?.[0]?.message?.tool_calls,
@@ -211,7 +211,7 @@ class OpenAIService {
             const timeSinceLastRateLimit = now - this.lastRateLimitTime;
             if (timeSinceLastRateLimit > this.rateLimitDisableDelay) {
                 this.rateLimitEnabled = false;
-                console.log('✅ [OpenAIService] No rate limits for 2 minutes - disabling rate limiting for max performance');
+                debugLogger.log('✅ [OpenAIService] No rate limits for 2 minutes - disabling rate limiting for max performance');
             }
         }
         
@@ -221,7 +221,7 @@ class OpenAIService {
             
             if (timeSinceLastCall < this.minCallInterval) {
                 const waitTime = this.minCallInterval - timeSinceLastCall;
-                console.log(`⏱️ [OpenAIService] Adaptive rate limit: waiting ${waitTime}ms`);
+                debugLogger.log(`⏱️ [OpenAIService] Adaptive rate limit: waiting ${waitTime}ms`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
             }
         }
@@ -274,7 +274,7 @@ class OpenAIService {
      */
     logMetrics() {
         const metrics = this.getMetrics();
-        console.log('📊 [OpenAIService] Metrics:', {
+        debugLogger.log('📊 [OpenAIService] Metrics:', {
             total: metrics.totalRequests,
             successful: metrics.successfulRequests,
             failed: metrics.failedRequests,
@@ -290,5 +290,5 @@ class OpenAIService {
 // Create singleton instance
 if (!window.openAIService) {
     window.openAIService = new OpenAIService();
-    console.log('🔧 [OpenAIService] Singleton instance created');
+    debugLogger.log('🔧 [OpenAIService] Singleton instance created');
 }

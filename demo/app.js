@@ -71,7 +71,7 @@ class OntapMcpDemo {
         // Load MCP configuration first
         await this.mcpConfig.load();
         
-        console.log('🚀 Initializing multi-server MCP support...');
+        debugLogger.log('🚀 Initializing multi-server MCP support...');
         
         // Initialize client manager for all enabled servers
         this.clientManager = new McpClientManager(this.mcpConfig);
@@ -81,20 +81,20 @@ class OntapMcpDemo {
         const connectedServers = this.clientManager.getConnectedServers();
         if (connectedServers.length > 0) {
             this.apiClient = this.clientManager.getClient(connectedServers[0]);
-            console.log(`� Default client set to: ${connectedServers[0]}`);
+            debugLogger.log(`🎯 Default client set to: ${connectedServers[0]}`);
         }
         
         // Expose Harvest client separately for views that need it
         this.harvestApiClient = this.clientManager.getClient('harvest-remote');
         if (this.harvestApiClient) {
-            console.log('✅ Harvest monitoring tools available via: harvest-remote');
+            debugLogger.log('✅ Harvest monitoring tools available via: harvest-remote');
         }
         
         // Log statistics
         const stats = this.clientManager.getStats();
-        console.log(`📊 MCP Stats: ${stats.connectedServers} server(s), ${stats.totalTools} tool(s)`);
+        debugLogger.log(`📊 MCP Stats: ${stats.connectedServers} server(s), ${stats.totalTools} tool(s)`);
         stats.toolsByServer.forEach(s => {
-            console.log(`   • ${s.server}: ${s.toolCount} tools`);
+            debugLogger.log(`   • ${s.server}: ${s.toolCount} tools`);
         });
         
         // Initialize components
@@ -126,7 +126,7 @@ class OntapMcpDemo {
      */
     async initializeCorrectiveActionComponents() {
         try {
-            console.log('🔧 Initializing Fix-It components...');
+            debugLogger.log('🔧 Initializing Fix-It components...');
             
             // Initialize ParameterResolver (from Phase 1)
             // Need both ONTAP client (for volume ops) and Harvest client (for metrics)
@@ -134,7 +134,7 @@ class OntapMcpDemo {
                 const ontapClient = this.clientManager.getClient('netapp-ontap');
                 const harvestClient = this.clientManager.getClient('harvest-remote');
                 window.parameterResolver = new ParameterResolver(ontapClient, harvestClient);
-                console.log('  ✅ ParameterResolver initialized with ONTAP + Harvest clients');
+                debugLogger.log('  ✅ ParameterResolver initialized with ONTAP + Harvest clients');
             } else {
                 console.warn('  ⚠️  ParameterResolver not found');
             }
@@ -145,7 +145,7 @@ class OntapMcpDemo {
                 
                 // Initialize with MCP client manager (config from OpenAI service)
                 await window.correctiveActionParser.initWithConfig(this.clientManager);
-                console.log('  ✅ CorrectiveActionParser initialized (centralized OpenAI service + MCP tools)');
+                debugLogger.log('  ✅ CorrectiveActionParser initialized (centralized OpenAI service + MCP tools)');
             } else {
                 console.warn('  ⚠️  CorrectiveActionParser not found');
             }
@@ -153,7 +153,7 @@ class OntapMcpDemo {
             // Initialize UndoManager (PHASE 5.1)
             if (typeof UndoManager !== 'undefined' && window.parameterResolver) {
                 window.undoManager = new UndoManager(this.apiClient, window.parameterResolver);
-                console.log('  ✅ UndoManager initialized');
+                debugLogger.log('  ✅ UndoManager initialized');
             } else {
                 console.warn('  ⚠️  UndoManager not initialized (missing dependencies)');
             }
@@ -161,7 +161,7 @@ class OntapMcpDemo {
             // Initialize FixItModal
             if (typeof FixItModal !== 'undefined' && window.parameterResolver && window.undoManager) {
                 window.fixItModal = new FixItModal(this.apiClient, window.parameterResolver, window.undoManager);
-                console.log('  ✅ FixItModal initialized (with UndoManager)');
+                debugLogger.log('  ✅ FixItModal initialized (with UndoManager)');
             } else {
                 console.warn('  ⚠️  FixItModal not initialized (missing dependencies)');
             }
@@ -171,12 +171,12 @@ class OntapMcpDemo {
                 alertsView.correctiveActionParser = window.correctiveActionParser;
                 alertsView.fixItModal = window.fixItModal;
                 alertsView.parameterResolver = window.parameterResolver;
-                console.log('  ✅ Fix-It components connected to AlertsView');
+                debugLogger.log('  ✅ Fix-It components connected to AlertsView');
             } else {
                 console.warn('  ⚠️  AlertsView not found - Fix-It components not connected');
             }
             
-            console.log('✅ Fix-It components ready');
+            debugLogger.log('✅ Fix-It components ready');
             
         } catch (error) {
             console.error('❌ Failed to initialize Fix-It components:', error);
@@ -189,7 +189,7 @@ class OntapMcpDemo {
      */
     async loadClustersFromDemoConfig() {
         try {
-            console.log('📁 Loading clusters from demo/clusters.json...');
+            debugLogger.log('📁 Loading clusters from demo/clusters.json...');
             
             // Fetch clusters.json from demo directory with cache-busting parameter
             const response = await fetch('/clusters.json?v=' + Date.now());
@@ -215,7 +215,7 @@ class OntapMcpDemo {
                 clusters = clusterData;
             } else if (typeof clusterData === 'object' && clusterData !== null) {
                 // Object format: {"cluster-name": {cluster_ip: "...", ...}, ...}
-                console.log('📋 Converting object format to array format...');
+                debugLogger.log('📋 Converting object format to array format...');
                 clusters = Object.entries(clusterData).map(([name, config]) => ({
                     name: name,
                     ...config
@@ -229,7 +229,7 @@ class OntapMcpDemo {
                 return;
             }
             
-            console.log(`🔄 Adding ${clusters.length} cluster(s) to MCP session...`);
+            debugLogger.log(`🔄 Adding ${clusters.length} cluster(s) to MCP session...`);
             
             // Add each cluster to the MCP session via add_cluster tool
             let successCount = 0;
@@ -255,7 +255,7 @@ class OntapMcpDemo {
                     
                     // Result is now text from Streamable HTTP client
                     if (result && result.includes('added successfully')) {
-                        console.log(`  ✅ Added: ${cluster.name} (${cluster.cluster_ip})`);
+                        debugLogger.log(`  ✅ Added: ${cluster.name} (${cluster.cluster_ip})`);
                         this.mcpLoadedClusters.add(cluster.name); // Track as MCP-loaded
                         successCount++;
                     } else {
@@ -273,7 +273,7 @@ class OntapMcpDemo {
                 this.notifications.showSuccess(
                     `Loaded ${successCount} cluster(s) from demo configuration`
                 );
-                console.log(`✅ Successfully loaded ${successCount} cluster(s) from demo config`);
+                debugLogger.log(`✅ Successfully loaded ${successCount} cluster(s) from demo config`);
             }
             
             if (failCount > 0) {
@@ -291,24 +291,24 @@ class OntapMcpDemo {
      */
     async discoverHarvestClusters() {
         try {
-            console.log('🔍 Discovering clusters from Harvest metrics...');
-            console.log('  📋 Current clusters in ONTAP MCP:', this.clusters.map(c => c.name).join(', '));
+            debugLogger.log('🔍 Discovering clusters from Harvest metrics...');
+            debugLogger.log('  📋 Current clusters in ONTAP MCP:', this.clusters.map(c => c.name).join(', '));
             
             // Get Harvest client
             const harvestClient = this.clientManager.clients.get('harvest-remote');
             if (!harvestClient) {
-                console.log('  ℹ️  Harvest client not available, skipping cluster discovery');
+                debugLogger.log('  ℹ️  Harvest client not available, skipping cluster discovery');
                 return;
             }
             
-            console.log('  ✅ Harvest client available, querying metrics...');
+            debugLogger.log('  ✅ Harvest client available, querying metrics...');
             
             // Query Harvest for volume metrics to extract cluster labels
             const response = await harvestClient.callMcp('metrics_query', { 
                 query: 'volume_labels' 
             });
             
-            console.log('  📦 Received Harvest response, parsing...');
+            debugLogger.log('  📦 Received Harvest response, parsing...');
             
             // Parse response
             const parseResponse = (response) => {
@@ -326,7 +326,7 @@ class OntapMcpDemo {
             const parsed = parseResponse(response);
             const volumeLabels = parsed?.data?.result || [];
             
-            console.log(`  📊 Found ${volumeLabels.length} volume metric entries`);
+            debugLogger.log(`  📊 Found ${volumeLabels.length} volume metric entries`);
             
             // Extract unique cluster names from metrics
             const harvestClusters = new Set();
@@ -337,15 +337,15 @@ class OntapMcpDemo {
             });
             
             if (harvestClusters.size === 0) {
-                console.log('  ℹ️  No clusters found in Harvest metrics');
+                debugLogger.log('  ℹ️  No clusters found in Harvest metrics');
                 return;
             }
             
-            console.log(`  ✅ Found ${harvestClusters.size} cluster(s) in Harvest: ${Array.from(harvestClusters).join(', ')}`);
+            debugLogger.log(`  ✅ Found ${harvestClusters.size} cluster(s) in Harvest: ${Array.from(harvestClusters).join(', ')}`);
             
             // Merge with existing clusters (avoid duplicates)
             const existingClusterNames = new Set(this.clusters.map(c => c.name));
-            console.log('  🔄 Checking for new clusters not in ONTAP MCP...');
+            debugLogger.log('  🔄 Checking for new clusters not in ONTAP MCP...');
             let addedCount = 0;
             
             for (const clusterName of harvestClusters) {
@@ -358,17 +358,17 @@ class OntapMcpDemo {
                         source: 'harvest' // Mark as Harvest-discovered
                     });
                     addedCount++;
-                    console.log(`    ➕ Added Harvest-only cluster: ${clusterName}`);
+                    debugLogger.log(`    ➕ Added Harvest-only cluster: ${clusterName}`);
                 } else {
-                    console.log(`    ✓ Cluster already in ONTAP MCP: ${clusterName}`);
+                    debugLogger.log(`    ✓ Cluster already in ONTAP MCP: ${clusterName}`);
                 }
             }
             
             if (addedCount > 0) {
-                console.log(`  ✅ Added ${addedCount} Harvest-only cluster(s) to fleet table`);
+                debugLogger.log(`  ✅ Added ${addedCount} Harvest-only cluster(s) to fleet table`);
                 this.notifications.showInfo(`Discovered ${addedCount} additional cluster(s) from Harvest monitoring`);
             } else {
-                console.log('  ℹ️  All Harvest clusters already in ONTAP MCP');
+                debugLogger.log('  ℹ️  All Harvest clusters already in ONTAP MCP');
             }
             
         } catch (error) {
@@ -393,9 +393,9 @@ class OntapMcpDemo {
             
             if (this.harvestAvailable) {
                 const servers = this.clientManager.getToolServers('metrics_query');
-                console.log(`✅ Harvest monitoring tools available via: ${servers.join(', ')}`);
+                debugLogger.log(`✅ Harvest monitoring tools available via: ${servers.join(', ')}`);
             } else {
-                console.log('⚠️ Harvest monitoring tools not available');
+                debugLogger.log('⚠️ Harvest monitoring tools not available');
             }
         } catch (error) {
             console.error('Error checking Harvest availability:', error);
@@ -413,20 +413,20 @@ class OntapMcpDemo {
      */
     async reconnectMcpServer(serverName) {
         try {
-            console.log(`🔄 Reconnecting to ${serverName}...`);
+            debugLogger.log(`🔄 Reconnecting to ${serverName}...`);
             
-            // Reload MCP configuration from file
-            await this.mcpConfig.load();
+            // NOTE: Do NOT reload config from file here - we just updated it in-memory
+            // via updateServerConfig() and want to use those changes
             
             // Disconnect existing client if it exists
             if (this.clientManager.clients.has(serverName)) {
-                console.log(`  ⏸️  Disconnecting existing ${serverName} client...`);
+                debugLogger.log(`  ⏸️  Disconnecting existing ${serverName} client...`);
                 // Note: McpClientManager doesn't have disconnect method yet
                 // Just remove from clients map for now
                 this.clientManager.clients.delete(serverName);
             }
             
-            // Get updated server configuration
+            // Get updated server configuration (already updated in-memory)
             const serverConfig = this.mcpConfig.getServer(serverName);
             if (!serverConfig) {
                 throw new Error(`Server ${serverName} not found in configuration`);
@@ -434,14 +434,14 @@ class OntapMcpDemo {
             
             // Only reconnect if server is enabled
             if (serverConfig.enabled) {
-                console.log(`  🔌 Connecting to ${serverName}...`);
-                const client = new McpStreamableClient(serverConfig.url);
-                await client.connect();
+                debugLogger.log(`  🔌 Connecting to ${serverName}...`);
+                const client = new McpApiClient(serverConfig.url);
+                await client.initialize();
                 this.clientManager.clients.set(serverName, client);
                 
                 // Update tools registry
-                const tools = await client.getAvailableTools();
-                console.log(`  ✅ Connected: ${tools.length} tools available`);
+                const tools = await client.listTools();
+                debugLogger.log(`  ✅ Connected: ${tools.length} tools available`);
                 
                 // Update backward compatibility references
                 if (serverName === 'netapp-ontap') {
@@ -455,7 +455,7 @@ class OntapMcpDemo {
                 
                 this.notifications.showSuccess(`Successfully reconnected to ${serverName}`);
             } else {
-                console.log(`  ⏸️  ${serverName} is disabled, skipping connection`);
+                debugLogger.log(`  ⏸️  ${serverName} is disabled, skipping connection`);
                 this.notifications.showInfo(`${serverName} is disabled`);
             }
             
@@ -574,7 +574,7 @@ class OntapMcpDemo {
 
     // View switching methods
     showClustersView() {
-        console.log('Switching to clusters view');
+        debugLogger.log('Switching to clusters view');
         
         // Hide other views
         const storageClassesView = document.getElementById('storageClassesView');
@@ -617,7 +617,7 @@ class OntapMcpDemo {
     }
 
     showStorageClassesView() {
-        console.log('Switching to storage classes view');
+        debugLogger.log('Switching to storage classes view');
         
         // Hide ClustersView using component
         if (typeof clustersView !== 'undefined') {
@@ -666,7 +666,7 @@ class OntapMcpDemo {
     }
 
     showAlertsView() {
-        console.log('Switching to alerts view');
+        debugLogger.log('Switching to alerts view');
         
         // Hide other views
         const clustersView = document.getElementById('clustersView');
@@ -695,13 +695,13 @@ class OntapMcpDemo {
             alertsView.show();
             // Load alerts data from Harvest MCP
             alertsView.loadAlerts();
-            console.log('Alerts view is now visible (via component)');
+            debugLogger.log('Alerts view is now visible (via component)');
         } else {
             // Fallback to direct DOM manipulation
             const alertsViewElement = document.getElementById('alertsView');
             if (alertsViewElement) {
                 alertsViewElement.style.display = 'block';
-                console.log('Alerts view is now visible (fallback)');
+                debugLogger.log('Alerts view is now visible (fallback)');
             }
         }
         
@@ -1141,7 +1141,7 @@ class OntapMcpDemo {
     }
 
     renderStorageClasses() {
-        console.log('renderStorageClasses called, storage classes:', this.storageClasses.length);
+        debugLogger.log('renderStorageClasses called, storage classes:', this.storageClasses.length);
         const container = document.getElementById('storageClassesContainer');
         
         if (!container) {
@@ -1149,7 +1149,7 @@ class OntapMcpDemo {
             return;
         }
 
-        console.log('Container found, rendering', this.storageClasses.length, 'storage classes');
+        debugLogger.log('Container found, rendering', this.storageClasses.length, 'storage classes');
         const html = this.storageClasses.map(storageClass => `
             <div class="storage-class-card">
                 <div class="storage-class-card-header">
@@ -1937,17 +1937,17 @@ document.addEventListener('DOMContentLoaded', () => {
         app.chatbot = chatbot;
         
         // Wait for chatbot initialization to complete
-        console.log('⏳ Waiting for ChatbotAssistant initialization...');
+        debugLogger.log('⏳ Waiting for ChatbotAssistant initialization...');
         const waitForInit = setInterval(async () => {
             if (chatbot.isInitialized) {
                 clearInterval(waitForInit);
-                console.log('✅ ChatbotAssistant initialized');
+                debugLogger.log('✅ ChatbotAssistant initialized');
                 
                 // CorrectiveActionParser already uses centralized OpenAI service
                 // Just verify it's properly initialized
-                console.log('✅ CorrectiveActionParser using centralized OpenAI service');
+                debugLogger.log('✅ CorrectiveActionParser using centralized OpenAI service');
                 if (!chatbot.mockMode) {
-                    console.log('   OpenAI service active and shared across all components');
+                    debugLogger.log('   OpenAI service active and shared across all components');
                 } else {
                     console.log('   ⚠️ ChatbotAssistant in mock mode - no API key configured');
                 }

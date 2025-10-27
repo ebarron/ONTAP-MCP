@@ -59,7 +59,7 @@ class ChatbotAssistant {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             this.systemPromptTemplate = await response.text();
-            console.log('System prompt template loaded successfully');
+            debugLogger.log('System prompt template loaded successfully');
         } catch (error) {
             console.warn('System prompt template load failed, using fallback:', error.message);
             // Fallback to basic template if file load fails
@@ -139,9 +139,9 @@ Available tools: {{TOOLS_COUNT}}`;
                 
                 // Log discovery results
                 const stats = this.demo.clientManager.getStats();
-                console.log(`📊 Tool Discovery:`);
-                console.log(`   • Total tools available: ${allTools.length} from ${stats.connectedServers} server(s)`);
-                console.log(`   • All tools loaded into ChatGPT context`);
+                debugLogger.log(`📊 Tool Discovery:`);
+                debugLogger.log(`   • Total tools available: ${allTools.length} from ${stats.connectedServers} server(s)`);
+                debugLogger.log(`   • All tools loaded into ChatGPT context`);
                 
                 // Show which servers provide which tools
                 const toolsByServer = {};
@@ -153,10 +153,10 @@ Available tools: {{TOOLS_COUNT}}`;
                 });
                 
                 Object.entries(toolsByServer).forEach(([server, count]) => {
-                    console.log(`   • ${server}: ${count} tool(s)`);
+                    debugLogger.log(`   • ${server}: ${count} tool(s)`);
                 });
                 
-                console.log(`✅ Multi-server tool discovery complete`);
+                debugLogger.log(`✅ Multi-server tool discovery complete`);
             } else {
                 throw new Error('Invalid response format from MCP listAllTools()');
             }
@@ -202,7 +202,7 @@ Available tools: {{TOOLS_COUNT}}`;
         this.toolCallHistory = [];
         this.toolCallSignatures = new Map(); // Reset duplicate detection
         
-        console.log('🔄 Reset tool call statistics but preserved conversation history for follow-up context');
+        debugLogger.log('🔄 Reset tool call statistics but preserved conversation history for follow-up context');
 
         // Add user message to both UI and conversation thread
         this.addMessage('user', userMessage);
@@ -275,7 +275,7 @@ Available tools: {{TOOLS_COUNT}}`;
             const match = response.match(pattern);
             if (match) {
                 const category = match[1];
-                console.log(`🔧 ChatGPT requesting additional ${category} tools via natural language`);
+                debugLogger.log(`🔧 ChatGPT requesting additional ${category} tools via natural language`);
                 if (this.expandToolSetByCategory(category)) {
                     text += `\n\n*[System: Added additional ${category} tools to your capabilities]*`;
                 }
@@ -285,23 +285,23 @@ Available tools: {{TOOLS_COUNT}}`;
 
         // Auto-detect provisioning recommendations and populate form
         if (this.isProvisioningIntent(response)) {
-            console.log('🔍 PROVISIONING INTENT DETECTED');
+            debugLogger.log('🔍 PROVISIONING INTENT DETECTED');
             const recommendations = this.extractProvisioningRecommendations(response);
-            console.log('🔍 EXTRACTED RECOMMENDATIONS:', recommendations);
+            debugLogger.log('🔍 EXTRACTED RECOMMENDATIONS:', recommendations);
             if (recommendations) {
                 // Automatically populate the form with the recommendations
-                console.log('🔍 SCHEDULING AUTO-POPULATE in 1000ms');
+                debugLogger.log('🔍 SCHEDULING AUTO-POPULATE in 1000ms');
                 setTimeout(() => {
-                    console.log('🔍 EXECUTING SCHEDULED AUTO-POPULATE');
+                    debugLogger.log('🔍 EXECUTING SCHEDULED AUTO-POPULATE');
                     this.autoPopulateForm(recommendations).catch(error => {
                         console.error('🚨 ERROR in autoPopulateForm:', error);
                     });
                 }, 1000);
             } else {
-                console.log('🔍 NO RECOMMENDATIONS EXTRACTED');
+                debugLogger.log('🔍 NO RECOMMENDATIONS EXTRACTED');
             }
         } else {
-            console.log('🔍 NO PROVISIONING INTENT DETECTED');
+            debugLogger.log('🔍 NO PROVISIONING INTENT DETECTED');
         }
 
         return { text, actions };
@@ -354,7 +354,7 @@ Available tools: {{TOOLS_COUNT}}`;
             recommendations.unit = sizeMatch[2];
         }
 
-        console.log('Extracted recommendations:', recommendations);
+        debugLogger.log('Extracted recommendations:', recommendations);
         return Object.keys(recommendations).length > 0 ? recommendations : null;
     }
 
@@ -379,7 +379,7 @@ Available tools: {{TOOLS_COUNT}}`;
             parallel_tool_calls: false
         });
 
-        console.log('ChatGPT API response:', data);
+        debugLogger.log('ChatGPT API response:', data);
         
         const choice = data.choices?.[0];
         if (!choice) {
@@ -388,7 +388,7 @@ Available tools: {{TOOLS_COUNT}}`;
 
         // Handle tool calls (newer format)
         if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
-            console.log('Tool calls detected:', choice.message.tool_calls);
+            debugLogger.log('Tool calls detected:', choice.message.tool_calls);
             return await this.handleToolCalls(message, choice.message.tool_calls, 0);
         }
 
@@ -397,7 +397,7 @@ Available tools: {{TOOLS_COUNT}}`;
             console.error('No content in ChatGPT response:', data);
             
             const finishReason = choice.finish_reason;
-            console.log('Finish reason:', finishReason);
+            debugLogger.log('Finish reason:', finishReason);
             
             if (finishReason === 'content_filter') {
                 throw new Error('Response was filtered by content policy. Please try rephrasing your request.');
@@ -406,7 +406,7 @@ Available tools: {{TOOLS_COUNT}}`;
             throw new Error(`ChatGPT returned empty response (finish_reason: ${finishReason || 'unknown'})`);
         }
 
-        console.log('ChatGPT response content:', aiResponse);
+        debugLogger.log('ChatGPT response content:', aiResponse);
         this.addToConversationThread({ role: 'assistant', content: aiResponse });
         return this.parseResponseActions(aiResponse);
     }
@@ -513,12 +513,12 @@ Available tools: {{TOOLS_COUNT}}`;
         
         // Track frequency and detect excessive calls
         const currentCallPattern = toolCalls.map(tc => tc.function.name).join(', ');
-        console.log(`🔧 TOOL CALL PATTERN [Depth ${recursionDepth + 1}]: ${currentCallPattern}`);
+        debugLogger.log(`🔧 TOOL CALL PATTERN [Depth ${recursionDepth + 1}]: ${currentCallPattern}`);
         
         // Calculate total tool calls made so far
         const totalCallsSoFar = Object.values(this.toolCallFrequency || {}).reduce((sum, count) => sum + count, 0);
         const plannedCalls = totalCallsSoFar + toolCalls.length;
-        console.log(`🧮 TOOL CALL BUDGET: ${plannedCalls}/20 calls planned (current: ${totalCallsSoFar})`);
+        debugLogger.log(`🧮 TOOL CALL BUDGET: ${plannedCalls}/20 calls planned (current: ${totalCallsSoFar})`);
         
         if (plannedCalls > 20) {
             console.warn(`⚠️ BUDGET EXCEEDED: ${plannedCalls}/20 calls - ChatGPT is being inefficient!`);
@@ -528,7 +528,7 @@ Available tools: {{TOOLS_COUNT}}`;
             const key = tc.function.name;
             this.toolCallFrequency[key] = (this.toolCallFrequency[key] || 0) + 1;
             if (this.toolCallFrequency[key] > 8) {
-                console.log(`🚨 FREQUENCY ALERT: ${key} called ${this.toolCallFrequency[key]} times - possible loop detected`);
+                debugLogger.log(`🚨 FREQUENCY ALERT: ${key} called ${this.toolCallFrequency[key]} times - possible loop detected`);
             }
         });
         
@@ -538,7 +538,7 @@ Available tools: {{TOOLS_COUNT}}`;
             const recentPatterns = this.toolCallHistory.slice(-3);
             const hasRepeatingPattern = recentPatterns.every(pattern => pattern === recentPatterns[0]);
             if (hasRepeatingPattern) {
-                console.log(`🚨 REPEATING PATTERN DETECTED: "${recentPatterns[0]}" - potential infinite loop`);
+                debugLogger.log(`🚨 REPEATING PATTERN DETECTED: "${recentPatterns[0]}" - potential infinite loop`);
             }
         }
         
@@ -550,7 +550,7 @@ Available tools: {{TOOLS_COUNT}}`;
             };
         }
 
-        console.log(`Handling tool calls (depth: ${recursionDepth + 1}/${MAX_RECURSION_DEPTH}):`, toolCalls.map(t => t.function.name));
+        debugLogger.log(`Handling tool calls (depth: ${recursionDepth + 1}/${MAX_RECURSION_DEPTH}):`, toolCalls.map(t => t.function.name));
 
         // Execute all MCP tool calls in parallel to reduce total execution time
         // but still maintain delays between ChatGPT API calls
@@ -577,9 +577,9 @@ Available tools: {{TOOLS_COUNT}}`;
         });
 
         // Wait for all tool calls to complete
-        console.log('Executing all MCP tools in parallel...');
+        debugLogger.log('Executing all MCP tools in parallel...');
         const toolResults = await Promise.all(toolPromises);
-        console.log('All MCP tools completed, sending results to ChatGPT...');
+        debugLogger.log('All MCP tools completed, sending results to ChatGPT...');
 
         // Store the assistant message with tool_calls followed by tool results in conversation thread
         this.addToConversationThread({
@@ -594,9 +594,9 @@ Available tools: {{TOOLS_COUNT}}`;
 
         // Send results back to ChatGPT with retry logic for rate limiting
         const chatGptStart = Date.now();
-        console.log('⏱️ Starting ChatGPT API call...');
+        debugLogger.log('⏱️ Starting ChatGPT API call...');
         const result = await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth + 1, 0);
-        console.log(`⏱️ ChatGPT API completed in ${Date.now() - chatGptStart}ms`);
+        debugLogger.log(`⏱️ ChatGPT API completed in ${Date.now() - chatGptStart}ms`);
         return result;
     }
 
@@ -612,7 +612,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 const retryDelay = retryCount < 3 ? 
                     3000 + (retryCount * 2000) :  // First 3 retries: 3s, 5s, 7s
                     15000;                         // 4th retry: 15s
-                console.log(`⏳ Rate limit hit, waiting ${retryDelay}ms before retry ${retryCount + 1}/${maxRetries}...`);
+                debugLogger.log(`⏳ Rate limit hit, waiting ${retryDelay}ms before retry ${retryCount + 1}/${maxRetries}...`);
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 return await this.getChatGPTResponseWithToolResultsWithRetry(originalMessage, toolCalls, toolResults, recursionDepth, retryCount + 1);
             }
@@ -643,8 +643,8 @@ Available tools: {{TOOLS_COUNT}}`;
             if (this.toolCallSignatures.has(toolSignature)) {
                 const count = this.toolCallSignatures.get(toolSignature) + 1;
                 this.toolCallSignatures.set(toolSignature, count);
-                console.log(`🔁 DUPLICATE TOOL CALL [${count}x]: ${name} with args`, parsedArgs);
-                console.log(`🔧 TOOL SIGNATURE: ${toolSignature}`);
+                debugLogger.log(`🔁 DUPLICATE TOOL CALL [${count}x]: ${name} with args`, parsedArgs);
+                debugLogger.log(`🔧 TOOL SIGNATURE: ${toolSignature}`);
             } else {
                 this.toolCallSignatures.set(toolSignature, 1);
             }
@@ -652,7 +652,7 @@ Available tools: {{TOOLS_COUNT}}`;
             // 🔍 DIAGNOSTIC: Log parameters for problematic tools
             const problematicTools = ['cluster_list_aggregates', 'cluster_list_svms', 'list_snapshot_policies', 'cluster_list_qos_policies'];
             if (problematicTools.includes(name)) {
-                console.log(`🔧 DIAGNOSTIC [${name}]:`, {
+                debugLogger.log(`🔧 DIAGNOSTIC [${name}]:`, {
                     toolCall: toolCall,
                     parsedArgs: parsedArgs,
                     hasClusterName: !!parsedArgs.cluster_name,
@@ -670,7 +670,7 @@ Available tools: {{TOOLS_COUNT}}`;
             if (!result || typeof result !== 'string') {
                 // 🔍 DIAGNOSTIC: Capture error details for problematic tools
                 if (problematicTools.includes(name)) {
-                    console.log(`🚨 DIAGNOSTIC ERROR [${name}]:`, {
+                    debugLogger.log(`🚨 DIAGNOSTIC ERROR [${name}]:`, {
                         error: 'Invalid response format',
                         sentParams: parsedArgs,
                         receivedResult: result
@@ -680,7 +680,7 @@ Available tools: {{TOOLS_COUNT}}`;
             }
 
             // Result is now structured data (JSON) for ChatGPT to analyze
-            console.log(`📊 Raw data returned for ChatGPT (${result.length} chars)`);
+            debugLogger.log(`📊 Raw data returned for ChatGPT (${result.length} chars)`);
             return result;
         } catch (error) {
             console.error(`Error executing MCP tool ${name}:`, error);
@@ -690,7 +690,7 @@ Available tools: {{TOOLS_COUNT}}`;
 
     expandToolSetByCategory(category) {
         if (!this.allToolDefinitions || this.allToolDefinitions.length === 0) {
-            console.log('Cannot expand tools - full tool registry not cached');
+            debugLogger.log('Cannot expand tools - full tool registry not cached');
             return false;
         }
         
@@ -710,7 +710,7 @@ Available tools: {{TOOLS_COUNT}}`;
         if (additionalTools.length > 0) {
             this.toolDefinitions.push(...additionalTools);
             this.availableTools.push(...additionalTools.map(t => t.name));
-            console.log(`🔧 Expanded toolset with ${additionalTools.length} ${category} tools: ${additionalTools.map(t => t.name).join(', ')}`);
+            debugLogger.log(`🔧 Expanded toolset with ${additionalTools.length} ${category} tools: ${additionalTools.map(t => t.name).join(', ')}`);
             return true;
         }
         
@@ -750,34 +750,34 @@ Available tools: {{TOOLS_COUNT}}`;
 
         // Handle potential additional tool calls (multi-step workflows) only if not at max depth
         if (choice.message?.tool_calls && choice.message.tool_calls.length > 0 && recursionDepth < 25) {
-            console.log(`Additional tool calls detected at depth ${recursionDepth}, continuing workflow...`);
+            debugLogger.log(`Additional tool calls detected at depth ${recursionDepth}, continuing workflow...`);
             return await this.handleToolCalls(originalMessage, choice.message.tool_calls, recursionDepth);
         }
 
         // Log final tool call statistics
         if (this.toolCallFrequency && Object.keys(this.toolCallFrequency).length > 0) {
-            console.log('📊 FINAL TOOL CALL STATISTICS:', this.toolCallFrequency);
+            debugLogger.log('📊 FINAL TOOL CALL STATISTICS:', this.toolCallFrequency);
             const totalCalls = Object.values(this.toolCallFrequency).reduce((sum, count) => sum + count, 0);
             const topCalls = Object.entries(this.toolCallFrequency)
                 .sort(([,a], [,b]) => b - a)
                 .slice(0, 3)
                 .map(([name, count]) => `${name}(${count})`)
                 .join(', ');
-            console.log(`📈 TOTAL: ${totalCalls} calls | TOP: ${topCalls}`);
+            debugLogger.log(`📈 TOTAL: ${totalCalls} calls | TOP: ${topCalls}`);
         }
 
         const aiResponse = choice.message?.content;
         if (!aiResponse || aiResponse.trim() === '') {
             // Pass 1 completed with tool calls but no response - now do Pass 2
-            console.log('🔄 Pass 1 completed with tool calls, starting Pass 2 (answer generation)...');
-            console.log('🔍 FINISH REASON:', choice.finish_reason);
-            console.log('🔍 USAGE INFO:', JSON.stringify(data.usage, null, 2));
+            debugLogger.log('🔄 Pass 1 completed with tool calls, starting Pass 2 (answer generation)...');
+            debugLogger.log('🔍 FINISH REASON:', choice.finish_reason);
+            debugLogger.log('🔍 USAGE INFO:', JSON.stringify(data.usage, null, 2));
             
             // Pass 2: Force answer generation with tools disabled
             return await this.generateFinalAnswer(originalMessage);
         }
 
-        console.log('Final ChatGPT response:', aiResponse);
+        debugLogger.log('Final ChatGPT response:', aiResponse);
         this.addToConversationThread({ role: 'assistant', content: aiResponse });
         return this.parseResponseActions(aiResponse);
     }
@@ -786,7 +786,7 @@ Available tools: {{TOOLS_COUNT}}`;
 
     async generateFinalAnswer(originalMessage) {
         // Pass 2: Generate final answer with tools disabled and full token budget
-        console.log('🎯 Pass 2: Generating final answer with tools disabled...');
+        debugLogger.log('🎯 Pass 2: Generating final answer with tools disabled...');
         
         const systemPrompt = this.buildSystemPrompt();
         const conversationHistory = this.buildConversationHistory(); // Simple accumulation, no cleaning
@@ -805,17 +805,17 @@ Available tools: {{TOOLS_COUNT}}`;
             max_completion_tokens: this.config.max_completion_tokens
         });
 
-        console.log('✅ Pass 2 completed:', data);
+        debugLogger.log('✅ Pass 2 completed:', data);
         
         // Enhanced debugging for Pass 2
         const choice = data.choices?.[0];
-        console.log('🔍 Pass 2 FINISH REASON:', choice?.finish_reason);
-        console.log('🔍 Pass 2 USAGE INFO:', JSON.stringify(data.usage, null, 2));
+        debugLogger.log('🔍 Pass 2 FINISH REASON:', choice?.finish_reason);
+        debugLogger.log('🔍 Pass 2 USAGE INFO:', JSON.stringify(data.usage, null, 2));
         
         const aiResponse = choice.message?.content;
-        console.log('🔍 Pass 2 RAW RESPONSE:', aiResponse);
-        console.log('🔍 Pass 2 RESPONSE LENGTH:', aiResponse?.length || 0);
-        console.log('🔍 Pass 2 RESPONSE TRIMMED LENGTH:', aiResponse?.trim()?.length || 0);
+        debugLogger.log('🔍 Pass 2 RAW RESPONSE:', aiResponse);
+        debugLogger.log('🔍 Pass 2 RESPONSE LENGTH:', aiResponse?.length || 0);
+        debugLogger.log('🔍 Pass 2 RESPONSE TRIMMED LENGTH:', aiResponse?.trim()?.length || 0);
         
         if (!aiResponse || aiResponse.trim() === '') {
             console.error('❌ Pass 2 failed: Empty response despite 10K token budget');
@@ -825,7 +825,7 @@ Available tools: {{TOOLS_COUNT}}`;
             return this.parseResponseActions(fallbackResponse);
         }
 
-        console.log('Final ChatGPT response from Pass 2:', aiResponse);
+        debugLogger.log('Final ChatGPT response from Pass 2:', aiResponse);
         this.addToConversationThread({ role: 'assistant', content: aiResponse });
         return this.parseResponseActions(aiResponse);
     }
@@ -916,11 +916,11 @@ Available tools: {{TOOLS_COUNT}}`;
         if (structuredMatch) {
             const recommendationBlock = structuredMatch[1];
             const recommendations = {};
-            console.log('Found structured recommendation block:', recommendationBlock);
+            debugLogger.log('Found structured recommendation block:', recommendationBlock);
             
             // Extract structured fields - handle both formats: "- Field:" and "**Field**:"
             const clusterMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Cluster(?:\*\*)?:\s*([^\n]+)/im);
-            console.log('🔍 Cluster match attempt:', clusterMatch);
+            debugLogger.log('🔍 Cluster match attempt:', clusterMatch);
             if (clusterMatch) recommendations.cluster = clusterMatch[1].trim();
             
             const svmMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?SVM(?:\*\*)?:\s*([^\n]+)/im);
@@ -961,7 +961,7 @@ Available tools: {{TOOLS_COUNT}}`;
             const exportMatch = recommendationBlock.match(/(?:^-\s*)?(?:\*\*)?Export_Policy(?:\*\*)?:\s*([^\n]+)/im);
             if (exportMatch) recommendations.exportPolicy = exportMatch[1].trim();
             
-            console.log('Structured recommendations extracted:', recommendations);
+            debugLogger.log('Structured recommendations extracted:', recommendations);
             return Object.keys(recommendations).length > 0 ? recommendations : null;
         }
         
@@ -993,7 +993,7 @@ Available tools: {{TOOLS_COUNT}}`;
             recommendations.unit = sizeMatch[2];
         }
 
-        console.log('Legacy recommendations extracted:', recommendations);
+        debugLogger.log('Legacy recommendations extracted:', recommendations);
         return Object.keys(recommendations).length > 0 ? recommendations : null;
     }
 
@@ -1004,7 +1004,7 @@ Available tools: {{TOOLS_COUNT}}`;
             const checkElement = () => {
                 const element = document.getElementById(elementId);
                 if (element) {
-                    console.log(`Element ${elementId} found after ${Date.now() - startTime}ms`);
+                    debugLogger.log(`Element ${elementId} found after ${Date.now() - startTime}ms`);
                     resolve(element);
                 } else if (Date.now() - startTime > timeout) {
                     console.error(`Element ${elementId} not found within ${timeout}ms`);
@@ -1034,16 +1034,16 @@ Available tools: {{TOOLS_COUNT}}`;
                     );
                     
                     if (hasRealOptions) {
-                        console.log(`Dropdown ${elementId} populated with real options`);
+                        debugLogger.log(`Dropdown ${elementId} populated with real options`);
                         resolve(element);
                     } else if (Date.now() - startTime > timeout) {
-                        console.log(`Dropdown ${elementId} options not loaded within ${timeout}ms`);
+                        debugLogger.log(`Dropdown ${elementId} options not loaded within ${timeout}ms`);
                         resolve(null);
                     } else {
                         setTimeout(checkOptions, 200);
                     }
                 } else if (Date.now() - startTime > timeout) {
-                    console.log(`Dropdown ${elementId} not ready within ${timeout}ms`);
+                    debugLogger.log(`Dropdown ${elementId} not ready within ${timeout}ms`);
                     resolve(null);
                 } else {
                     setTimeout(checkOptions, 200);
@@ -1054,7 +1054,7 @@ Available tools: {{TOOLS_COUNT}}`;
     }
 
     async autoPopulateForm(recommendations) {
-        console.log('Auto-populating form with recommendations:', recommendations);
+        debugLogger.log('Auto-populating form with recommendations:', recommendations);
         
         // Smart provisioning panel selection based on recommendation content
         const hasStorageClass = recommendations.storageClass && 
@@ -1067,15 +1067,15 @@ Available tools: {{TOOLS_COUNT}}`;
                                recommendations.storageClass.length > 0;
         const shouldUseStorageClassProvisioning = hasStorageClass;
         
-        console.log('🧠 SMART PROVISIONING LOGIC:');
-        console.log('  - Has storage class:', hasStorageClass);
-        console.log('  - Storage class value:', recommendations.storageClass);
-        console.log('  - Will use storage class provisioning:', shouldUseStorageClassProvisioning);
+        debugLogger.log('🧠 SMART PROVISIONING LOGIC:');
+        debugLogger.log('  - Has storage class:', hasStorageClass);
+        debugLogger.log('  - Storage class value:', recommendations.storageClass);
+        debugLogger.log('  - Will use storage class provisioning:', shouldUseStorageClassProvisioning);
         
         // Use storage class provisioning if recommendation contains a storage class
         if (shouldUseStorageClassProvisioning) {
             // Switch to storage classes view if we're not already there
-            console.log('🔄 Switching to storage classes view for storage class provisioning...');
+            debugLogger.log('🔄 Switching to storage classes view for storage class provisioning...');
             this.demo.showStorageClassesView();
             
             // Open storage class provisioning panel
@@ -1083,24 +1083,24 @@ Available tools: {{TOOLS_COUNT}}`;
             
             try {
                 // Wait for storage class provisioning panel to open
-                console.log('Waiting for storage class provisioning panel...');
+                debugLogger.log('Waiting for storage class provisioning panel...');
                 await this.waitForElement('storageClassProvisioningPanel', 3000);
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 // Wait for storage classes to load in the dropdown
-                console.log('Waiting for storage classes to load...');
+                debugLogger.log('Waiting for storage classes to load...');
                 await this.waitForStorageClassesLoad();
 
                 // 1. Handle storage class selection if specified in recommendations
                 if (recommendations.storageClass) {
                     const storageClassSelect = document.getElementById('storageClassSelect');
                     if (storageClassSelect) {
-                        console.log('🔍 DEBUG: Looking for storage class:', recommendations.storageClass);
-                        console.log('🔍 DEBUG: Available options in dropdown:');
+                        debugLogger.log('🔍 DEBUG: Looking for storage class:', recommendations.storageClass);
+                        debugLogger.log('🔍 DEBUG: Available options in dropdown:');
                         
                         for (let i = 0; i < storageClassSelect.options.length; i++) {
                             const option = storageClassSelect.options[i];
-                            console.log(`  [${i}] value: "${option.value}" | text: "${option.text}"`);
+                            debugLogger.log(`  [${i}] value: "${option.value}" | text: "${option.text}"`);
                         }
                         
                         let found = false;
@@ -1111,21 +1111,21 @@ Available tools: {{TOOLS_COUNT}}`;
                             const optionValue = option.value.toLowerCase().trim();
                             const recommendationValue = recommendations.storageClass.toLowerCase().trim();
                             
-                            console.log(`🔍 DEBUG: Comparing "${optionValue}" vs "${recommendationValue}"`);
+                            debugLogger.log(`🔍 DEBUG: Comparing "${optionValue}" vs "${recommendationValue}"`);
                             
                             if (optionValue === recommendationValue ||
                                 optionValue.includes(recommendationValue) ||
                                 recommendationValue.includes(optionValue)) {
                                 storageClassSelect.value = option.value;
                                 storageClassSelect.dispatchEvent(new Event('change'));
-                                console.log('✅ Storage class selected:', option.value);
+                                debugLogger.log('✅ Storage class selected:', option.value);
                                 found = true;
                                 break;
                             }
                         }
                         
                         if (!found) {
-                            console.log('❌ Storage class not found in dropdown:', recommendations.storageClass);
+                            debugLogger.log('❌ Storage class not found in dropdown:', recommendations.storageClass);
                         } else {
                             // Store recommendation data on the storage class panel for later use
                             if (this.demo.storageClassProvisioningPanel) {
@@ -1145,7 +1145,7 @@ Available tools: {{TOOLS_COUNT}}`;
                     const timestamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '');
                     const generatedName = `${storageClass.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${size}${unit}_${timestamp}`;
                     volumeNameInput.value = generatedName;
-                    console.log('✅ Volume name generated:', generatedName);
+                    debugLogger.log('✅ Volume name generated:', generatedName);
                 }
 
                 // 3. Populate volume size
@@ -1154,7 +1154,7 @@ Available tools: {{TOOLS_COUNT}}`;
                     if (volumeSizeInput) {
                         const sizeValue = recommendations.size + recommendations.unit;
                         volumeSizeInput.value = sizeValue;
-                        console.log('✅ Volume size populated:', sizeValue);
+                        debugLogger.log('✅ Volume size populated:', sizeValue);
                     }
                 }
 
@@ -1165,7 +1165,7 @@ Available tools: {{TOOLS_COUNT}}`;
                     if (protocolInput) {
                         protocolInput.checked = true;
                         protocolInput.dispatchEvent(new Event('change'));
-                        console.log('✅ Protocol selected:', protocolValue);
+                        debugLogger.log('✅ Protocol selected:', protocolValue);
                     }
                 }
 
@@ -1189,7 +1189,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 if (recommendations.cluster) populatedFields.push('Target Details');
                 
                 if (populatedFields.length > 0) {
-                    console.log('✅ Storage class form auto-populated:', populatedFields.join(', '));
+                    debugLogger.log('✅ Storage class form auto-populated:', populatedFields.join(', '));
                 }
                 
             } catch (error) {
@@ -1206,24 +1206,24 @@ Available tools: {{TOOLS_COUNT}}`;
             if (clusterObj) {
                 const previousCluster = this.demo.selectedCluster?.name;
                 this.demo.selectedCluster = clusterObj;
-                console.log('✅ Cluster object found and set:', clusterObj);
+                debugLogger.log('✅ Cluster object found and set:', clusterObj);
                 
                 // Also update the radio button selection (may not exist if we're on storage classes page)
                 const radio = document.querySelector(`input[name="selectedCluster"][value="${recommendations.cluster}"]`);
                 if (radio) {
                     radio.checked = true;
-                    console.log('✅ Radio button selected for cluster:', recommendations.cluster);
+                    debugLogger.log('✅ Radio button selected for cluster:', recommendations.cluster);
                 } else {
-                    console.log('ℹ️ Cluster radio button not found (might be on different page)');
+                    debugLogger.log('ℹ️ Cluster radio button not found (might be on different page)');
                 }
                 
                 // If we switched clusters, wait for UI update
                 if (previousCluster !== recommendations.cluster) {
-                    console.log('🔄 Cluster switched - waiting for UI update');
+                    debugLogger.log('🔄 Cluster switched - waiting for UI update');
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
             } else {
-                console.log('❌ Cluster not found:', recommendations.cluster);
+                debugLogger.log('❌ Cluster not found:', recommendations.cluster);
             }
         }
         
@@ -1234,16 +1234,16 @@ Available tools: {{TOOLS_COUNT}}`;
         }
         
         // Switch to clusters view if we're not already there
-        console.log('🔄 Switching to clusters view for regular provisioning...');
+        debugLogger.log('🔄 Switching to clusters view for regular provisioning...');
         this.demo.showClustersView();
         
         // Open the regular cluster-based provisioning panel
-        console.log('🔧 Opening regular cluster-based provisioning panel...');
+        debugLogger.log('🔧 Opening regular cluster-based provisioning panel...');
         this.demo.openProvisionStorage();
         
         try {
             // Wait for provisioning panel to open
-            console.log('Waiting for provisioning panel...');
+            debugLogger.log('Waiting for provisioning panel...');
             await this.waitForElement('provisioningPanel', 3000);
             await new Promise(resolve => setTimeout(resolve, 250));
             
@@ -1252,20 +1252,20 @@ Available tools: {{TOOLS_COUNT}}`;
             
             // Reload provisioning data if cluster switched
             if (recommendations.cluster) {
-                console.log('Forcing reload of provisioning data');
+                debugLogger.log('Forcing reload of provisioning data');
                 await this.demo.provisioningPanel.loadData();
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
             // Wait for SVM dropdown to be populated
-            console.log('Waiting for SVM dropdown to be populated...');
+            debugLogger.log('Waiting for SVM dropdown to be populated...');
             await this.waitForDropdownOptions('svmSelect', 10000);
             
             let populated = false;
             
             // Populate SVM first
             if (recommendations.svm) {
-                console.log('Populating SVM:', recommendations.svm);
+                debugLogger.log('Populating SVM:', recommendations.svm);
                 const svmSelect = document.getElementById('svmSelect');
                 if (svmSelect && svmSelect.options.length > 0) {
                     for (let option of svmSelect.options) {
@@ -1273,7 +1273,7 @@ Available tools: {{TOOLS_COUNT}}`;
                             svmSelect.value = option.value;
                             svmSelect.dispatchEvent(new Event('change'));
                             populated = true;
-                            console.log('SVM populated:', option.value);
+                            debugLogger.log('SVM populated:', option.value);
                             break;
                         }
                     }
@@ -1302,7 +1302,7 @@ Available tools: {{TOOLS_COUNT}}`;
                             recommendations.aggregate.toLowerCase().includes(option.value.toLowerCase())) {
                             aggregateSelect.value = option.value;
                             populated = true;
-                            console.log('Aggregate populated:', option.value);
+                            debugLogger.log('Aggregate populated:', option.value);
                             break;
                         }
                     }
@@ -1311,7 +1311,7 @@ Available tools: {{TOOLS_COUNT}}`;
             
             // Wait for snapshot policy dropdown to be populated (if we have a snapshot policy to set)
             if (recommendations.snapshotPolicy) {
-                console.log('Waiting for snapshot policy dropdown to be populated...');
+                debugLogger.log('Waiting for snapshot policy dropdown to be populated...');
                 await this.waitForDropdownOptions('snapshotPolicy', 8000);
             }
             
@@ -1338,7 +1338,7 @@ Available tools: {{TOOLS_COUNT}}`;
             const generatedName = `${svm}_vol_${size}${unit}_${timestamp}`;
             nameInput.value = generatedName;
             populated = true;
-            console.log('Volume name populated:', generatedName);
+            debugLogger.log('Volume name populated:', generatedName);
         }
         
         // Populate size
@@ -1348,7 +1348,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 const sizeValue = recommendations.size + (recommendations.unit || 'MB');
                 sizeInput.value = sizeValue;
                 populated = true;
-                console.log('Size populated:', sizeValue);
+                debugLogger.log('Size populated:', sizeValue);
             }
         }
 
@@ -1358,7 +1358,7 @@ Available tools: {{TOOLS_COUNT}}`;
             if (protocolInput) {
                 protocolInput.checked = true;
                 protocolInput.dispatchEvent(new Event('change'));
-                console.log('Protocol selected:', recommendations.protocol);
+                debugLogger.log('Protocol selected:', recommendations.protocol);
                 populated = true;
             }
         }
@@ -1372,7 +1372,7 @@ Available tools: {{TOOLS_COUNT}}`;
                         svmSelect.value = option.value;
                         svmSelect.dispatchEvent(new Event('change')); // Trigger aggregate loading
                         populated = true;
-                        console.log('✅ SVM selected:', option.value);
+                        debugLogger.log('✅ SVM selected:', option.value);
                         
                         // Wait a moment for aggregates to load, then select aggregate
                         if (recommendations.aggregate) {
@@ -1384,7 +1384,7 @@ Available tools: {{TOOLS_COUNT}}`;
                     }
                 }
             } else {
-                console.log('❌ SVM select not found or not populated');
+                debugLogger.log('❌ SVM select not found or not populated');
             }
         }
 
@@ -1398,38 +1398,38 @@ Available tools: {{TOOLS_COUNT}}`;
         // Populate snapshot policy (wait for dropdown to be populated first)
         if (recommendations.snapshotPolicy) {
             setTimeout(async () => {
-                console.log('=== SNAPSHOT POLICY DEBUGGING ===');
-                console.log('Attempting to populate snapshot policy:', recommendations.snapshotPolicy);
-                console.log('Waiting for snapshot policy dropdown to load...');
+                debugLogger.log('=== SNAPSHOT POLICY DEBUGGING ===');
+                debugLogger.log('Attempting to populate snapshot policy:', recommendations.snapshotPolicy);
+                debugLogger.log('Waiting for snapshot policy dropdown to load...');
                 
                 // Wait for the dropdown to be populated with real options
                 await this.waitForDropdownOptions('snapshotPolicy', 5000);
                 
                 const snapshotSelect = document.getElementById('snapshotPolicy');
-                console.log('Element found:', !!snapshotSelect);
+                debugLogger.log('Element found:', !!snapshotSelect);
                 
                 if (snapshotSelect) {
-                    console.log('Element type:', snapshotSelect.tagName);
-                    console.log('Element options count:', snapshotSelect.options.length);
+                    debugLogger.log('Element type:', snapshotSelect.tagName);
+                    debugLogger.log('Element options count:', snapshotSelect.options.length);
                 
                 if (snapshotSelect.options.length > 0) {
-                    console.log('Available options in dropdown:');
+                    debugLogger.log('Available options in dropdown:');
                     for (let i = 0; i < snapshotSelect.options.length; i++) {
                         const option = snapshotSelect.options[i];
-                        console.log(`  [${i}] value: "${option.value}" | text: "${option.text}"`);
+                        debugLogger.log(`  [${i}] value: "${option.value}" | text: "${option.text}"`);
                     }
                     
-                    console.log('Attempting to match:', `"${recommendations.snapshotPolicy}"`);
+                    debugLogger.log('Attempting to match:', `"${recommendations.snapshotPolicy}"`);
                     
                     let found = false;
                     for (let option of snapshotSelect.options) {
                         const optionValueLower = option.value.toLowerCase();
                         const recommendationLower = recommendations.snapshotPolicy.toLowerCase();
                         
-                        console.log(`Comparing: "${optionValueLower}" === "${recommendationLower}"?`, optionValueLower === recommendationLower);
+                        debugLogger.log(`Comparing: "${optionValueLower}" === "${recommendationLower}"?`, optionValueLower === recommendationLower);
                         
                         if (optionValueLower === recommendationLower) {
-                            console.log('MATCH FOUND! Setting value to:', option.value);
+                            debugLogger.log('MATCH FOUND! Setting value to:', option.value);
                             snapshotSelect.value = option.value;
                             
                             // Trigger change event
@@ -1437,26 +1437,26 @@ Available tools: {{TOOLS_COUNT}}`;
                             
                             populated = true;
                             found = true;
-                            console.log('Snapshot policy successfully populated and change event dispatched');
+                            debugLogger.log('Snapshot policy successfully populated and change event dispatched');
                             break;
                         }
                     }
                     
                     if (!found) {
-                        console.log('❌ NO MATCH FOUND for snapshot policy');
-                        console.log('Available values:', Array.from(snapshotSelect.options).map(o => `"${o.value}"`));
-                        console.log('Looking for:', `"${recommendations.snapshotPolicy}"`);
+                        debugLogger.log('❌ NO MATCH FOUND for snapshot policy');
+                        debugLogger.log('Available values:', Array.from(snapshotSelect.options).map(o => `"${o.value}"`));
+                        debugLogger.log('Looking for:', `"${recommendations.snapshotPolicy}"`);
                     }
                 } else {
-                    console.log('❌ Snapshot policy dropdown has no options');
+                    debugLogger.log('❌ Snapshot policy dropdown has no options');
                 }
             } else {
-                console.log('❌ Snapshot policy element not found in DOM');
-                console.log('Available elements with "snapshot" in ID:');
+                debugLogger.log('❌ Snapshot policy element not found in DOM');
+                debugLogger.log('Available elements with "snapshot" in ID:');
                 const allElements = document.querySelectorAll('[id*="snapshot"], [id*="Snapshot"]');
-                allElements.forEach(el => console.log(`  Found element: ${el.id}`));
+                allElements.forEach(el => debugLogger.log(`  Found element: ${el.id}`));
             }
-            console.log('=== END SNAPSHOT POLICY DEBUGGING ===');
+            debugLogger.log('=== END SNAPSHOT POLICY DEBUGGING ===');
             }, 500); // Wait 500ms for snapshot policies to load
         }
 
@@ -1468,12 +1468,12 @@ Available tools: {{TOOLS_COUNT}}`;
                     if (option.value.toLowerCase() === recommendations.exportPolicy.toLowerCase()) {
                         exportSelect.value = option.value;
                         populated = true;
-                        console.log('Export policy populated:', option.value);
+                        debugLogger.log('Export policy populated:', option.value);
                         break;
                     }
                 }
             } else {
-                console.log('Export policy select not found or not populated:', recommendations.exportPolicy);
+                debugLogger.log('Export policy select not found or not populated:', recommendations.exportPolicy);
             }
         }
 
@@ -1539,7 +1539,7 @@ Available tools: {{TOOLS_COUNT}}`;
     }
 
     handleAction(action) {
-        console.log('ChatbotAssistant action:', action);
+        debugLogger.log('ChatbotAssistant action:', action);
         // Action handling can be implemented as needed
     }
 
@@ -1600,46 +1600,46 @@ Available tools: {{TOOLS_COUNT}}`;
 
     // Helper method to select aggregate in dropdown
     async selectAggregate(aggregateName) {
-        console.log('🔍 selectAggregate called with:', aggregateName);
+        debugLogger.log('🔍 selectAggregate called with:', aggregateName);
         const aggregateSelect = document.getElementById('aggregateSelect');
         
         if (!aggregateSelect) {
-            console.log('❌ Aggregate select element not found');
+            debugLogger.log('❌ Aggregate select element not found');
             return false;
         }
         
-        console.log('🔍 Aggregate dropdown found, options count:', aggregateSelect.options.length);
-        console.log('🔍 Available options:', Array.from(aggregateSelect.options).map(o => `"${o.value}"`));
+        debugLogger.log('🔍 Aggregate dropdown found, options count:', aggregateSelect.options.length);
+        debugLogger.log('🔍 Available options:', Array.from(aggregateSelect.options).map(o => `"${o.value}"`));
         
         if (aggregateSelect.options.length > 0) {
             for (let option of aggregateSelect.options) {
-                console.log(`🔍 Comparing "${aggregateName.toLowerCase()}" with option "${option.value.toLowerCase()}"`);
+                debugLogger.log(`🔍 Comparing "${aggregateName.toLowerCase()}" with option "${option.value.toLowerCase()}"`);
                 
                 // Skip empty options (like placeholder options)
                 if (!option.value || option.value.trim() === '') {
-                    console.log('⏭️ Skipping empty option');
+                    debugLogger.log('⏭️ Skipping empty option');
                     continue;
                 }
                 
                 // Match aggregate name (handle both with and without suffix)
                 if (option.value.toLowerCase().includes(aggregateName.toLowerCase()) ||
                     aggregateName.toLowerCase().includes(option.value.toLowerCase())) {
-                    console.log('🎯 Found matching aggregate, setting value to:', option.value);
+                    debugLogger.log('🎯 Found matching aggregate, setting value to:', option.value);
                     aggregateSelect.value = option.value;
                     
                     // Trigger change event to ensure any listeners are notified
                     const changeEvent = new Event('change', { bubbles: true });
                     aggregateSelect.dispatchEvent(changeEvent);
                     
-                    console.log('✅ Aggregate selected:', option.value);
-                    console.log('✅ Dropdown value after selection:', aggregateSelect.value);
+                    debugLogger.log('✅ Aggregate selected:', option.value);
+                    debugLogger.log('✅ Dropdown value after selection:', aggregateSelect.value);
                     return true;
                 }
             }
-            console.log('❌ Aggregate not found in dropdown:', aggregateName);
-            console.log('Available aggregates:', Array.from(aggregateSelect.options).map(o => o.value));
+            debugLogger.log('❌ Aggregate not found in dropdown:', aggregateName);
+            debugLogger.log('Available aggregates:', Array.from(aggregateSelect.options).map(o => o.value));
         } else {
-            console.log('❌ Aggregate select not populated (no options)');
+            debugLogger.log('❌ Aggregate select not populated (no options)');
         }
         return false;
     }
@@ -1661,7 +1661,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 if (matchingOption && matchingOption.value !== '') {
                     exportPolicySelect.value = matchingOption.value;
                     exportPolicySelect.dispatchEvent(new Event('change'));
-                    console.log('✅ Export policy selected:', matchingOption.textContent);
+                    debugLogger.log('✅ Export policy selected:', matchingOption.textContent);
                     return;
                 }
                 
@@ -1669,7 +1669,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
             
-            console.log('🔧 Export policy not found after waiting:', policyName);
+            debugLogger.log('🔧 Export policy not found after waiting:', policyName);
         }
     }
 
@@ -1689,27 +1689,27 @@ Available tools: {{TOOLS_COUNT}}`;
                     }
                 }
                 if (hasRealOptions) {
-                    console.log('✅ Storage classes loaded in dropdown');
+                    debugLogger.log('✅ Storage classes loaded in dropdown');
                     return true;
                 }
             }
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         
-        console.log('❌ Timeout waiting for storage classes to load');
+        debugLogger.log('❌ Timeout waiting for storage classes to load');
         return false;
     }
 
     async populateTargetDetailsInStorageClassForm(recommendations) {
         try {
-            console.log('🔍 Populating target details in storage class form:', recommendations);
+            debugLogger.log('🔍 Populating target details in storage class form:', recommendations);
 
             // 1. Update target cluster display
             if (recommendations.cluster) {
                 const clusterSpan = document.getElementById('selectedCluster');
                 if (clusterSpan) {
                     clusterSpan.textContent = recommendations.cluster;
-                    console.log('✅ Storage class cluster displayed:', recommendations.cluster);
+                    debugLogger.log('✅ Storage class cluster displayed:', recommendations.cluster);
                 }
             }
 
@@ -1718,7 +1718,7 @@ Available tools: {{TOOLS_COUNT}}`;
                 const svmSpan = document.getElementById('selectedSvm');
                 if (svmSpan) {
                     svmSpan.textContent = recommendations.svm;
-                    console.log('✅ Storage class SVM displayed:', recommendations.svm);
+                    debugLogger.log('✅ Storage class SVM displayed:', recommendations.svm);
                 }
             }
 
@@ -1727,13 +1727,13 @@ Available tools: {{TOOLS_COUNT}}`;
                 const aggregateSpan = document.getElementById('selectedAggregate');
                 if (aggregateSpan) {
                     aggregateSpan.textContent = recommendations.aggregate;
-                    console.log('✅ Storage class aggregate displayed:', recommendations.aggregate);
+                    debugLogger.log('✅ Storage class aggregate displayed:', recommendations.aggregate);
                 }
             }
 
             // 4. Load export policies now that target details are populated (for NFS)
             if (recommendations.cluster && recommendations.svm && recommendations.protocol === 'nfs') {
-                console.log('🔄 Loading export policies after target details populated');
+                debugLogger.log('🔄 Loading export policies after target details populated');
                 // Get the storage class provisioning panel instance and load export policies
                 const storagePanel = this.demo.storageClassProvisioningPanel;
                 if (storagePanel && typeof storagePanel.loadExportPolicies === 'function') {

@@ -27,9 +27,9 @@ class CorrectiveActionParser {
         await this.discoverAvailableTools();
         
         if (this.mockMode) {
-            console.log('⚠️ CorrectiveActionParser running in mock mode (no ChatGPT API key configured)');
+            debugLogger.log('⚠️ CorrectiveActionParser running in mock mode (no ChatGPT API key configured)');
         } else {
-            console.log('✅ CorrectiveActionParser initialized with ChatGPT integration');
+            debugLogger.log('✅ CorrectiveActionParser initialized with ChatGPT integration');
         }
     }
 
@@ -38,7 +38,7 @@ class CorrectiveActionParser {
      */
     async discoverAvailableTools() {
         try {
-            console.log('🔍 Discovering available MCP tools for CorrectiveActionParser...');
+            debugLogger.log('🔍 Discovering available MCP tools for CorrectiveActionParser...');
             
             if (!this.clientManager) {
                 console.warn('No MCP client manager available, using empty tool list');
@@ -54,8 +54,8 @@ class CorrectiveActionParser {
                 
                 // Log discovery results
                 const stats = this.clientManager.getStats();
-                console.log(`📊 CorrectiveActionParser Tool Discovery:`);
-                console.log(`   • Total tools available: ${allTools.length} from ${stats.connectedServers} server(s)`);
+                debugLogger.log(`📊 CorrectiveActionParser Tool Discovery:`);
+                debugLogger.log(`   • Total tools available: ${allTools.length} from ${stats.connectedServers} server(s)`);
                 
                 // Show tools by server
                 const toolsByServer = {};
@@ -68,10 +68,10 @@ class CorrectiveActionParser {
                 });
                 
                 Object.entries(toolsByServer).forEach(([server, count]) => {
-                    console.log(`   • ${server}: ${count} tool(s)`);
+                    debugLogger.log(`   • ${server}: ${count} tool(s)`);
                 });
                 
-                console.log(`✅ Dynamic tool discovery complete for CorrectiveActionParser`);
+                debugLogger.log(`✅ Dynamic tool discovery complete for CorrectiveActionParser`);
             } else {
                 console.warn('No tools discovered from MCP servers');
                 this.availableTools = [];
@@ -121,7 +121,7 @@ class CorrectiveActionParser {
                 return `- ${name}: ${description}${paramInfo}`;
             }).join('\n');
             
-            console.log(`📝 Generated tool documentation for ${ontapTools.length} ONTAP tools`);
+            debugLogger.log(`📝 Generated tool documentation for ${ontapTools.length} ONTAP tools`);
         } else {
             // Fallback to minimal set if discovery failed
             console.warn('⚠️ No tools discovered, using fallback minimal tool list');
@@ -211,19 +211,19 @@ Map any ONTAP CLI commands to the appropriate MCP tools and provide clear parame
             const systemPrompt = this.buildSystemPrompt();
             const userPrompt = this.buildUserPrompt(correctiveActionText, alertContext);
             
-            console.log('🤖 Calling ChatGPT to parse corrective actions...');
+            debugLogger.log('🤖 Calling ChatGPT to parse corrective actions...');
             const jsonResponse = await this.callOpenAI(systemPrompt, userPrompt);
             
             // Parse the JSON response
             const parsed = JSON.parse(jsonResponse);
-            console.log('✅ Successfully parsed corrective actions:', parsed);
+            debugLogger.log('✅ Successfully parsed corrective actions:', parsed);
             
             return parsed;
         } catch (error) {
             console.error('❌ Failed to parse corrective actions:', error);
             
             // Fallback to mock parser on error
-            console.log('Falling back to mock parser...');
+            debugLogger.log('Falling back to mock parser...');
             return this.mockParseCorrectiveActions(correctiveActionText, alertContext);
         }
     }
@@ -252,7 +252,7 @@ Map any ONTAP CLI commands to the appropriate MCP tools and provide clear parame
      * Mock parser for testing without LLM API
      */
     mockParseCorrectiveActions(correctiveActionText, alertContext) {
-        console.log('🎭 Using mock parser (no LLM API available)');
+        debugLogger.log('🎭 Using mock parser (no LLM API available)');
         
         // Check for volume offline alert
         if (correctiveActionText.includes('volume online') || 

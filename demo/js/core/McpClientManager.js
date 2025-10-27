@@ -25,7 +25,7 @@ class McpClientManager {
      * Discovers tools from each server automatically
      */
     async initialize() {
-        console.log('🔌 McpClientManager: Initializing multi-server connections...');
+        debugLogger.log('🔌 McpClientManager: Initializing multi-server connections...');
         
         const enabledServers = this.config.getEnabledServers();
         
@@ -33,16 +33,16 @@ class McpClientManager {
             throw new Error('No enabled MCP servers found in configuration');
         }
 
-        console.log(`📡 Found ${enabledServers.length} enabled server(s):`, enabledServers.map(s => s.name));
+        debugLogger.log(`📡 Found ${enabledServers.length} enabled server(s):`, enabledServers.map(s => s.name));
 
         // Connect to all enabled servers
         const connectionPromises = enabledServers.map(async (server) => {
             try {
-                console.log(`  🔗 Connecting to ${server.name} at ${server.url}...`);
+                debugLogger.log(`  🔗 Connecting to ${server.name} at ${server.url}...`);
                 const client = new McpApiClient(server.url);
                 await client.initialize();
                 this.clients.set(server.name, client);
-                console.log(`  ✅ ${server.name} connected successfully`);
+                debugLogger.log(`  ✅ ${server.name} connected successfully`);
                 return { server: server.name, success: true };
             } catch (error) {
                 console.error(`  ❌ ${server.name} connection failed:`, error.message);
@@ -58,13 +58,13 @@ class McpClientManager {
             throw new Error('Failed to connect to any MCP servers');
         }
 
-        console.log(`✅ Connected to ${successfulConnections.length}/${enabledServers.length} server(s)`);
+        debugLogger.log(`✅ Connected to ${successfulConnections.length}/${enabledServers.length} server(s)`);
 
         // Discover tools from all connected servers
         await this.discoverAllTools();
         
         this.initialized = true;
-        console.log('✅ McpClientManager initialized successfully');
+        debugLogger.log('✅ McpClientManager initialized successfully');
     }
 
     /**
@@ -72,14 +72,14 @@ class McpClientManager {
      * Builds routing table automatically - NO hard-coded knowledge
      */
     async discoverAllTools() {
-        console.log('🔍 Discovering tools from all connected servers...');
+        debugLogger.log('🔍 Discovering tools from all connected servers...');
         
         this.toolRoutes.clear();
         this.toolDefinitions.clear();
         
         for (const [serverName, client] of this.clients) {
             try {
-                console.log(`  📋 Discovering tools from ${serverName}...`);
+                debugLogger.log(`  📋 Discovering tools from ${serverName}...`);
                 const tools = await client.listTools();
                 
                 if (!tools || !Array.isArray(tools)) {
@@ -87,7 +87,7 @@ class McpClientManager {
                     continue;
                 }
 
-                console.log(`  ✅ ${serverName} provides ${tools.length} tool(s)`);
+                debugLogger.log(`  ✅ ${serverName} provides ${tools.length} tool(s)`);
                 
                 // Build routing table: tool-name → [server-names]
                 for (const tool of tools) {
@@ -118,9 +118,9 @@ class McpClientManager {
         const totalTools = this.toolRoutes.size;
         const duplicateTools = Array.from(this.toolRoutes.values()).filter(servers => servers.length > 1).length;
         
-        console.log(`✅ Discovered ${totalTools} unique tool(s) across all servers`);
+        debugLogger.log(`✅ Discovered ${totalTools} unique tool(s) across all servers`);
         if (duplicateTools > 0) {
-            console.log(`ℹ️  ${duplicateTools} tool(s) available from multiple servers (will use first available)`);
+            debugLogger.log(`ℹ️  ${duplicateTools} tool(s) available from multiple servers (will use first available)`);
         }
     }
 
@@ -140,7 +140,7 @@ class McpClientManager {
 
         // If specific server requested and available, use it
         if (preferredServer && this.clients.has(preferredServer)) {
-            console.log(`🎯 Routing ${toolName} to preferred server: ${preferredServer}`);
+            debugLogger.log(`🎯 Routing ${toolName} to preferred server: ${preferredServer}`);
             const client = this.clients.get(preferredServer);
             if (raw) {
                 const result = await client.callMcpRaw(toolName, params);
@@ -166,7 +166,7 @@ class McpClientManager {
                     continue;
                 }
                 
-                console.log(`🔧 Routing ${toolName} → ${serverName}`);
+                debugLogger.log(`🔧 Routing ${toolName} → ${serverName}`);
                 if (raw) {
                     const result = await client.callMcpRaw(toolName, params);
                     return this._extractDataFromHybridFormat(result);
@@ -180,7 +180,7 @@ class McpClientManager {
                 
                 // If multiple servers provide this tool, try the next one
                 if (servers.length > 1) {
-                    console.log(`   Trying next server for ${toolName}...`);
+                    debugLogger.log(`   Trying next server for ${toolName}...`);
                     continue;
                 }
             }
@@ -206,7 +206,7 @@ class McpClientManager {
                     try {
                         const parsed = JSON.parse(textValue);
                         if (parsed && typeof parsed === 'object' && 'data' in parsed) {
-                            console.log('🔍 Extracting structured data from hybrid format');
+                            debugLogger.log('🔍 Extracting structured data from hybrid format');
                             return JSON.stringify(parsed.data, null, 2);
                         }
                     } catch (e) {
@@ -217,7 +217,7 @@ class McpClientManager {
                 
                 // If it's already an object with data field
                 if (typeof textValue === 'object' && textValue !== null && 'data' in textValue) {
-                    console.log('🔍 Extracting structured data from hybrid format object');
+                    debugLogger.log('🔍 Extracting structured data from hybrid format object');
                     return JSON.stringify(textValue.data, null, 2);
                 }
                 
@@ -301,13 +301,13 @@ class McpClientManager {
      * Close all server connections
      */
     async closeAll() {
-        console.log('🔌 Closing all MCP connections...');
+        debugLogger.log('🔌 Closing all MCP connections...');
         for (const [serverName, client] of this.clients) {
             try {
                 if (client.close) {
                     await client.close();
                 }
-                console.log(`  ✅ ${serverName} connection closed`);
+                debugLogger.log(`  ✅ ${serverName} connection closed`);
             } catch (error) {
                 console.warn(`  ⚠️  Error closing ${serverName}:`, error.message);
             }

@@ -27,13 +27,13 @@ class McpApiClient {
     async initialize() {
         if (this.initialized) return;
 
-        console.log('🔌 Initializing MCP Streamable HTTP client (MCP 2025-06-18)...');
+        debugLogger.log('🔌 Initializing MCP Streamable HTTP client (MCP 2025-06-18)...');
         
         try {
             const result = await this.client.initialize();
             this.sessionId = result.sessionId;
             this.initialized = true;
-            console.log(`✅ MCP session initialized: ${this.sessionId}`);
+            debugLogger.log(`✅ MCP session initialized: ${this.sessionId}`);
         } catch (error) {
             console.error('❌ MCP initialization failed:', error);
             throw error;
@@ -52,12 +52,12 @@ class McpApiClient {
         }
 
         try {
-            console.log(`📞 Calling MCP tool: ${toolName}`, params);
+            debugLogger.log(`📞 Calling MCP tool: ${toolName}`, params);
             const result = await this.client.callTool(toolName, params);
             
             // Extract text from MCP content format
             const text = this.client.parseContent(result);
-            console.log(`✅ Tool response received (${text.length} chars)`);
+            debugLogger.log(`✅ Tool response received (${text.length} chars)`);
             
             return text;
         } catch (error) {

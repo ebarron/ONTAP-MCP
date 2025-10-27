@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize corrective action components (must happen after app.js loads)
     // Will be connected to alertsView when app initializes
-    console.log('App initialization: Components ready, waiting for app.js to load...');
+    debugLogger.log('App initialization: Components ready, waiting for app.js to load...');
     
     // Set up export policy dropdown listener using event delegation
     // This works for dynamically created elements

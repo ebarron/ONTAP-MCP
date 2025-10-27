@@ -31,7 +31,7 @@ class McpConfig {
                                 Object.keys(this.servers).find(name => this.servers[name].enabled) ||
                                 Object.keys(this.servers)[0];
 
-            console.log('✅ MCP configuration loaded:', {
+            debugLogger.log('✅ MCP configuration loaded:', {
                 servers: Object.keys(this.servers),
                 enabled: Object.keys(this.servers).filter(name => this.servers[name].enabled),
                 defaultServer: this.defaultServer
@@ -55,7 +55,7 @@ class McpConfig {
             }
         };
         this.defaultServer = 'netapp-ontap';
-        console.log('📝 Using default MCP configuration');
+        debugLogger.log('📝 Using default MCP configuration');
     }
 
     /**
@@ -110,9 +110,9 @@ class McpConfig {
      */
     getGrafanaViewerUrl() {
         const grafanaConfig = this.servers?.['grafana-remote'];
-        console.log('🔍 [McpConfig] grafanaConfig:', grafanaConfig);
+        debugLogger.log('🔍 [McpConfig] grafanaConfig:', grafanaConfig);
         const viewerUrl = grafanaConfig?.viewer_url || 'http://localhost:3000';
-        console.log('🔍 [McpConfig] Returning viewer URL:', viewerUrl);
+        debugLogger.log('🔍 [McpConfig] Returning viewer URL:', viewerUrl);
         return viewerUrl;
     }
 
@@ -134,7 +134,7 @@ class McpConfig {
 
         // Note: In a real implementation, this would also update mcp.json on the server
         // For now, changes are only in-memory and will be lost on page reload
-        console.log(`✅ Updated ${serverName} configuration:`, this.servers[serverName]);
+        debugLogger.log(`✅ Updated ${serverName} configuration:`, this.servers[serverName]);
     }
 }
 

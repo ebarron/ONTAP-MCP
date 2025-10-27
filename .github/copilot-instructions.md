@@ -298,6 +298,61 @@ function parseClusterList(textContent) {
 - **Responsive Design**: Mobile-friendly NetApp styling
 - **Progressive Enhancement**: Core functionality without JavaScript
 
+### Debug Logging System
+**Centralized Debug Control**: All verbose console output is controlled via `DebugLogger`
+
+**Location**: `demo/js/core/DebugLogger.js` (loaded first in `demo/index.html`)
+
+**Default Behavior**: Debug mode is **OFF by default** - console shows only errors/warnings
+
+**Enable Debug Logging**:
+```javascript
+// Method 1: URL parameter (temporary, current session only)
+http://localhost:8080?debug=true
+
+// Method 2: localStorage (persistent across reloads)
+localStorage.setItem('MCP_DEBUG', 'true');
+
+// Method 3: Runtime toggle via console
+debugLogger.enable()
+```
+
+**Disable Debug Logging**:
+```javascript
+localStorage.setItem('MCP_DEBUG', 'false');
+// or
+debugLogger.disable()
+```
+
+**Usage Pattern in Code**:
+```javascript
+// ✅ CORRECT: Use debugLogger for verbose/debug messages
+debugLogger.log('🔌 Initializing MCP client...');
+debugLogger.log('📞 Calling tool:', toolName, params);
+debugLogger.log('✅ Response received:', data);
+
+// ✅ CORRECT: Always show errors and warnings
+console.error('❌ Error:', error);
+console.warn('⚠️  Warning:', message);
+
+// ❌ WRONG: Don't use console.log for debug messages
+console.log('Debug info...'); // This always shows, clutters console
+```
+
+**Files Using DebugLogger**:
+- `demo/js/core/McpApiClient.js` - Tool call/response logging
+- `demo/js/core/McpClientManager.js` - Server connection and routing
+- `demo/js/core/McpConfig.js` - Configuration loading
+- `demo/js/core/OpenAIService.js` - AI service initialization
+- `demo/app.js` - Application initialization and cluster management
+- `demo/js/components/ChatbotAssistant.js` - Chatbot tool discovery
+- `demo/js/components/CorrectiveActionParser.js` - Parser debugging
+- `demo/js/components/app-initialization.js` - Component initialization
+
+**Documentation**: See `demo/DEBUG.md` for complete usage guide
+
+**Key Principle**: Keep production console clean by default, enable verbose logging only when debugging
+
 ### Demo Debugging Lessons Learned
 
 #### MCP Tool Registration Issues
