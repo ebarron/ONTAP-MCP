@@ -7,6 +7,11 @@ class OntapMcpDemo {
         this.currentCluster = null;
         this.selectedCluster = null;
         this.harvestAvailable = false; // Track if Harvest tools are available
+        this.mcpLoadedClusters = new Set(); // Track clusters loaded into ONTAP MCP
+        
+        // Cluster table sorting state
+        this.sortColumn = null;
+        this.sortDirection = 'asc';
         
         // Storage Classes configuration
         this.storageClasses = [
@@ -109,6 +114,9 @@ class OntapMcpDemo {
         
         // Check if Harvest tools are available
         await this.checkHarvestAvailability();
+        
+        // Discover and merge Harvest clusters
+        await this.discoverHarvestClusters();
         
         this.updateUI();
     }
@@ -248,6 +256,7 @@ class OntapMcpDemo {
                     // Result is now text from Streamable HTTP client
                     if (result && result.includes('added successfully')) {
                         console.log(`  ✅ Added: ${cluster.name} (${cluster.cluster_ip})`);
+                        this.mcpLoadedClusters.add(cluster.name); // Track as MCP-loaded
                         successCount++;
                     } else {
                         console.error(`  ❌ Failed to add ${cluster.name}:`, result);
@@ -274,6 +283,97 @@ class OntapMcpDemo {
         } catch (error) {
             console.error('Error loading clusters from demo config:', error);
             // Non-fatal - demo still works, just needs manual cluster addition
+        }
+    }
+
+    /**
+     * Discover clusters from Harvest metrics and merge with existing clusters
+     */
+    async discoverHarvestClusters() {
+        try {
+            console.log('🔍 Discovering clusters from Harvest metrics...');
+            console.log('  📋 Current clusters in ONTAP MCP:', this.clusters.map(c => c.name).join(', '));
+            
+            // Get Harvest client
+            const harvestClient = this.clientManager.clients.get('harvest-remote');
+            if (!harvestClient) {
+                console.log('  ℹ️  Harvest client not available, skipping cluster discovery');
+                return;
+            }
+            
+            console.log('  ✅ Harvest client available, querying metrics...');
+            
+            // Query Harvest for volume metrics to extract cluster labels
+            const response = await harvestClient.callMcp('metrics_query', { 
+                query: 'volume_labels' 
+            });
+            
+            console.log('  📦 Received Harvest response, parsing...');
+            
+            // Parse response
+            const parseResponse = (response) => {
+                if (typeof response === 'string') {
+                    try {
+                        return JSON.parse(response);
+                    } catch (e) {
+                        console.error('Failed to parse Harvest response:', e);
+                        return null;
+                    }
+                }
+                return response;
+            };
+            
+            const parsed = parseResponse(response);
+            const volumeLabels = parsed?.data?.result || [];
+            
+            console.log(`  📊 Found ${volumeLabels.length} volume metric entries`);
+            
+            // Extract unique cluster names from metrics
+            const harvestClusters = new Set();
+            volumeLabels.forEach(vol => {
+                if (vol.metric && vol.metric.cluster) {
+                    harvestClusters.add(vol.metric.cluster);
+                }
+            });
+            
+            if (harvestClusters.size === 0) {
+                console.log('  ℹ️  No clusters found in Harvest metrics');
+                return;
+            }
+            
+            console.log(`  ✅ Found ${harvestClusters.size} cluster(s) in Harvest: ${Array.from(harvestClusters).join(', ')}`);
+            
+            // Merge with existing clusters (avoid duplicates)
+            const existingClusterNames = new Set(this.clusters.map(c => c.name));
+            console.log('  🔄 Checking for new clusters not in ONTAP MCP...');
+            let addedCount = 0;
+            
+            for (const clusterName of harvestClusters) {
+                if (!existingClusterNames.has(clusterName)) {
+                    // Add Harvest-only cluster (no credentials, just metadata)
+                    this.clusters.push({
+                        name: clusterName,
+                        cluster_ip: 'N/A',
+                        description: 'Discovered from Harvest (monitoring only)',
+                        source: 'harvest' // Mark as Harvest-discovered
+                    });
+                    addedCount++;
+                    console.log(`    ➕ Added Harvest-only cluster: ${clusterName}`);
+                } else {
+                    console.log(`    ✓ Cluster already in ONTAP MCP: ${clusterName}`);
+                }
+            }
+            
+            if (addedCount > 0) {
+                console.log(`  ✅ Added ${addedCount} Harvest-only cluster(s) to fleet table`);
+                this.notifications.showInfo(`Discovered ${addedCount} additional cluster(s) from Harvest monitoring`);
+            } else {
+                console.log('  ℹ️  All Harvest clusters already in ONTAP MCP');
+            }
+            
+        } catch (error) {
+            console.error('Error discovering Harvest clusters:', error);
+            // Non-fatal - just means Harvest integration not available
         }
     }
 
@@ -777,6 +877,7 @@ class OntapMcpDemo {
             const success = await this.apiClient.addCluster(clusterData);
 
             if (success) {
+                this.mcpLoadedClusters.add(clusterData.name); // Track as MCP-loaded
                 await this.loadClusters();
                 this.notifications.showSuccess('Cluster added successfully');
                 return true;
@@ -817,9 +918,52 @@ class OntapMcpDemo {
         return clusterSection.join('\n');
     }
 
-    openAddClusterModal() {
-        document.getElementById('addClusterModal').style.display = 'flex';
-        document.getElementById('clusterName').focus();
+    openAddClusterModal(preFillData = null) {
+        const modal = document.getElementById('addClusterModal');
+        if (!modal) return;
+        
+        // Reset form first
+        const form = document.getElementById('addClusterForm');
+        if (form) form.reset();
+        
+        // Reset cluster name field to editable by default
+        const nameField = document.getElementById('clusterName');
+        if (nameField) {
+            nameField.removeAttribute('readonly');
+            nameField.style.backgroundColor = '';
+        }
+        
+        // Pre-fill form if data provided
+        if (preFillData) {
+            if (preFillData.name) {
+                if (nameField) {
+                    nameField.value = preFillData.name;
+                    // Make cluster name read-only when updating existing Harvest cluster
+                    nameField.setAttribute('readonly', 'readonly');
+                    nameField.style.backgroundColor = '#f5f5f5';
+                }
+            }
+            if (preFillData.cluster_ip && preFillData.cluster_ip !== 'N/A') {
+                const ipField = document.getElementById('clusterIp');
+                if (ipField) ipField.value = preFillData.cluster_ip;
+            }
+            if (preFillData.description) {
+                const descField = document.getElementById('description');
+                if (descField) descField.value = preFillData.description;
+            }
+        }
+        
+        modal.style.display = 'flex';
+        
+        // Focus on first editable field
+        if (preFillData && preFillData.name) {
+            // If name is pre-filled, focus on IP field
+            const ipField = document.getElementById('clusterIp');
+            if (ipField) ipField.focus();
+        } else {
+            // Otherwise focus on name field
+            if (nameField) nameField.focus();
+        }
     }
 
     async openClusterDetails(cluster) {
@@ -860,15 +1004,39 @@ class OntapMcpDemo {
         }
 
         // Check if cluster name already exists
-        if (this.clusters.some(c => c.name === clusterData.name)) {
-            this.notifications.showError('A cluster with this name already exists');
-            return;
-        }
-
-        const success = await this.addCluster(clusterData);
-        if (success) {
-            this.closeModals();
-            document.getElementById('addClusterForm').reset();
+        const existingCluster = this.clusters.find(c => c.name === clusterData.name);
+        if (existingCluster) {
+            // If it's a Harvest-only cluster (no credentials), update it
+            const isHarvestOnly = existingCluster.source === 'harvest' || 
+                                  !existingCluster.username || 
+                                  !existingCluster.password;
+            
+            if (isHarvestOnly) {
+                // Update existing Harvest-only cluster with credentials
+                existingCluster.cluster_ip = clusterData.cluster_ip;
+                existingCluster.username = clusterData.username;
+                existingCluster.password = clusterData.password;
+                existingCluster.description = clusterData.description;
+                delete existingCluster.source; // Remove Harvest-only marker
+                
+                // Add to MCP
+                const success = await this.addCluster(clusterData);
+                if (success) {
+                    this.closeModals();
+                    document.getElementById('addClusterForm').reset();
+                    this.notifications.showSuccess(`Updated ${clusterData.name} with credentials and added to ONTAP MCP`);
+                }
+            } else {
+                this.notifications.showError('A cluster with this name already exists in ONTAP MCP');
+                return;
+            }
+        } else {
+            // New cluster - add normally
+            const success = await this.addCluster(clusterData);
+            if (success) {
+                this.closeModals();
+                document.getElementById('addClusterForm').reset();
+            }
         }
     }
 
@@ -1013,10 +1181,17 @@ class OntapMcpDemo {
                         <span>Checking...</span>
                     </div>
                 </div>
-                <div class="table-cell" style="flex: 0 0 100px;">
-                    <button class="action-button" onclick="app.testClusterConnection('${cluster.name}')">
-                        Test
-                    </button>
+                <div class="table-cell" style="flex: 0 0 140px;">
+                    <div class="mcp-toggle-container">
+                        <span class="mcp-toggle-label">ONTAP MCP</span>
+                        <label class="mcp-toggle-switch">
+                            <input type="checkbox" 
+                                   ${this.mcpLoadedClusters.has(cluster.name) ? 'checked' : ''} 
+                                   onchange="app.handleMcpToggle('${DemoUtils.escapeHtml(cluster.name)}', this.checked)"
+                                   data-cluster-name="${DemoUtils.escapeHtml(cluster.name)}">
+                            <span class="mcp-toggle-slider"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -1047,6 +1222,19 @@ class OntapMcpDemo {
     async checkClusterStatus(clusterName) {
         const statusCell = document.querySelector(`.status-cell[data-cluster-name="${clusterName}"]`);
         if (!statusCell) return;
+
+        // Find cluster object to check if it's Harvest-only
+        const cluster = this.clusters.find(c => c.name === clusterName);
+        if (cluster && cluster.source === 'harvest') {
+            // Harvest-only cluster - show monitoring status instead
+            statusCell.innerHTML = `
+                <div class="status-indicator">
+                    <div class="status-circle status-online"></div>
+                    <span>Monitoring</span>
+                </div>
+            `;
+            return;
+        }
 
         try {
             // Try a lightweight API call to test connectivity
@@ -1117,8 +1305,23 @@ class OntapMcpDemo {
      * Load cluster free capacity from ONTAP
      */
     async loadClusterCapacity(clusterName, clusterIndex) {
+        const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
+        if (!cell) return;
+        
         try {
-            // Get aggregates for this cluster
+            // Find cluster object to check if it's Harvest-only
+            const cluster = this.clusters.find(c => c.name === clusterName);
+            if (cluster && cluster.source === 'harvest') {
+                // Harvest-only cluster - try to get capacity from Harvest metrics
+                if (this.harvestAvailable) {
+                    await this.loadClusterCapacityFromHarvest(clusterName);
+                } else {
+                    cell.innerHTML = 'N/A';
+                }
+                return;
+            }
+            
+            // Get aggregates for this cluster via ONTAP MCP
             const response = await this.clientManager.callTool('cluster_list_aggregates', {
                 cluster_name: clusterName
             });
@@ -1128,16 +1331,56 @@ class OntapMcpDemo {
             const formattedCapacity = totalAvailable !== null ? this.formatCapacity(totalAvailable) : '';
             
             // Update the cell
-            const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
-            if (cell) {
-                cell.innerHTML = formattedCapacity;
-            }
+            cell.innerHTML = formattedCapacity;
         } catch (error) {
             console.error(`Failed to load capacity for ${clusterName}:`, error);
-            const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
-            if (cell) {
-                cell.innerHTML = '';
+            cell.innerHTML = '';
+        }
+    }
+
+    /**
+     * Load cluster capacity from Harvest metrics (for Harvest-only clusters)
+     */
+    async loadClusterCapacityFromHarvest(clusterName) {
+        const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
+        if (!cell) return;
+        
+        try {
+            const harvestClient = this.clientManager.clients.get('harvest-remote');
+            if (!harvestClient) {
+                cell.innerHTML = 'N/A';
+                return;
             }
+            
+            // Query aggregate space metrics for this cluster
+            const response = await harvestClient.callMcp('metrics_query', {
+                query: `aggr_space_available{cluster="${clusterName}"}`
+            });
+            
+            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+            const results = parsed?.data?.result || [];
+            
+            if (results.length === 0) {
+                cell.innerHTML = 'N/A';
+                return;
+            }
+            
+            // Sum available space across all aggregates
+            let totalAvailableBytes = 0;
+            results.forEach(result => {
+                if (result.value && Array.isArray(result.value)) {
+                    const bytes = parseFloat(result.value[1]);
+                    if (!isNaN(bytes)) {
+                        totalAvailableBytes += bytes;
+                    }
+                }
+            });
+            
+            const formattedCapacity = totalAvailableBytes > 0 ? this.formatCapacity(totalAvailableBytes) : 'N/A';
+            cell.innerHTML = formattedCapacity;
+        } catch (error) {
+            console.error(`Failed to load Harvest capacity for ${clusterName}:`, error);
+            cell.innerHTML = 'N/A';
         }
     }
 
@@ -1277,6 +1520,159 @@ class OntapMcpDemo {
                     </div>
                 `;
             }
+        }
+    }
+
+    /**
+     * Sort clusters table by column
+     */
+    sortClusters(column) {
+        if (!this.clusters || this.clusters.length === 0) return;
+        
+        // Toggle direction if same column, otherwise default to ascending
+        if (this.sortColumn === column) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+        
+        // Helper function to extract numeric values from formatted strings
+        const parseNumeric = (value) => {
+            if (!value || value === 'N/A' || value === '') return 0;
+            // Remove units and commas, parse as float
+            const numStr = value.toString().replace(/[^0-9.-]/g, '');
+            return parseFloat(numStr) || 0;
+        };
+        
+        // Get cell values for sorting (capacity and IOPS from DOM)
+        const getCapacity = (clusterName) => {
+            const cell = document.querySelector(`.capacity-cell[data-cluster-name="${clusterName}"]`);
+            return cell ? cell.textContent.trim() : '';
+        };
+        
+        const getIOPS = (clusterName) => {
+            const cell = document.querySelector(`.iops-cell[data-cluster-name="${clusterName}"]`);
+            return cell ? cell.textContent.trim() : '';
+        };
+        
+        const getStatus = (clusterName) => {
+            const cell = document.querySelector(`.status-cell[data-cluster-name="${clusterName}"] span`);
+            const status = cell ? cell.textContent.trim() : 'Unknown';
+            // Map status to sortable order: Connected=1, Monitoring=2, Checking=3, Offline=4
+            const statusOrder = {
+                'Connected': 1,
+                'Monitoring': 2,
+                'Checking...': 3,
+                'Offline': 4
+            };
+            return statusOrder[status] || 5;
+        };
+        
+        // Map column names to sort functions
+        const columnMappings = {
+            'name': cluster => cluster.name || '',
+            'ip': cluster => cluster.cluster_ip || '',
+            'iops': cluster => parseNumeric(getIOPS(cluster.name)),
+            'capacity': cluster => parseNumeric(getCapacity(cluster.name)),
+            'status': cluster => getStatus(cluster.name)
+        };
+        
+        const getValueFn = columnMappings[column];
+        if (!getValueFn) {
+            console.warn(`Unknown sort column: ${column}`);
+            return;
+        }
+        
+        // Sort clusters array
+        const sorted = [...this.clusters].sort((a, b) => {
+            const aVal = getValueFn(a);
+            const bVal = getValueFn(b);
+            
+            // Handle numeric sorting for IOPS, capacity, and status
+            if (column === 'iops' || column === 'capacity' || column === 'status') {
+                return this.sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+            }
+            
+            // Handle string sorting for name and IP
+            if (this.sortDirection === 'asc') {
+                return aVal > bVal ? 1 : -1;
+            } else {
+                return aVal < bVal ? 1 : -1;
+            }
+        });
+        
+        // Update clusters array with sorted order
+        this.clusters = sorted;
+        
+        // Re-render table
+        this.renderClustersTable();
+    }
+
+    async handleMcpToggle(clusterName, isEnabled) {
+        const cluster = this.clusters.find(c => c.name === clusterName);
+        if (!cluster) {
+            this.notifications.showError(`Cluster ${clusterName} not found`);
+            return;
+        }
+
+        if (isEnabled) {
+            // Check if cluster has credentials (not a Harvest-only cluster)
+            const hasCredentials = cluster.username && cluster.password && 
+                                   cluster.cluster_ip && cluster.cluster_ip !== 'N/A';
+            
+            if (!hasCredentials) {
+                // This is a Harvest-only cluster - need credentials
+                this.notifications.showInfo(`Please provide credentials for ${clusterName}`);
+                
+                // Revert toggle immediately
+                const toggle = document.querySelector(`input[data-cluster-name="${clusterName}"]`);
+                if (toggle) toggle.checked = false;
+                
+                // Open Add Cluster modal with pre-filled data
+                this.openAddClusterModal({
+                    name: cluster.name,
+                    cluster_ip: cluster.cluster_ip,
+                    description: cluster.description
+                });
+                
+                return;
+            }
+            
+            // Add cluster to MCP (has credentials)
+            try {
+                this.notifications.showInfo(`Adding ${clusterName} to ONTAP MCP...`);
+                
+                const response = await this.apiClient.callMcp('add_cluster', {
+                    name: cluster.name,
+                    cluster_ip: cluster.cluster_ip,
+                    username: cluster.username,
+                    password: cluster.password,
+                    description: cluster.description || `Added via MCP toggle`
+                });
+
+                if (response && response.includes('added successfully')) {
+                    this.mcpLoadedClusters.add(clusterName);
+                    this.notifications.showSuccess(`${clusterName} added to ONTAP MCP`);
+                    // Refresh status check
+                    this.checkClusterStatus(clusterName);
+                } else {
+                    this.notifications.showError(`Failed to add ${clusterName} to MCP: ${response}`);
+                    // Revert toggle
+                    const toggle = document.querySelector(`input[data-cluster-name="${clusterName}"]`);
+                    if (toggle) toggle.checked = false;
+                }
+            } catch (error) {
+                this.notifications.showError(`Failed to add ${clusterName} to MCP: ${error.message}`);
+                // Revert toggle
+                const toggle = document.querySelector(`input[data-cluster-name="${clusterName}"]`);
+                if (toggle) toggle.checked = false;
+            }
+        } else {
+            // Note: Removing from MCP is not currently implemented in the MCP server
+            // For now, we'll just update the UI tracking
+            this.notifications.showWarning(`Note: ${clusterName} remains in MCP session. Cluster removal not yet implemented.`);
+            this.mcpLoadedClusters.delete(clusterName);
         }
     }
 

@@ -36,33 +36,100 @@ class ClustersView {
                                 <span></span>
                             </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 1 0 200px;">
-                                <span>Cluster Name</span>
-                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
-                                    <svg class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" viewBox="0 0 10 5" fill="currentColor">
-                                        <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z"/>
-                                    </svg>
-                                    <svg class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" viewBox="0 0 10 5" fill="currentColor" style="margin-top: 1px;">
-                                        <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z"/>
-                                    </svg>
+                                <div class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>Cluster Name</span>
                                 </div>
+                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
+                                    <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" onclick="app.sortClusters('name')">
+                                        <svg role="img" aria-labelledby="ic-table-sort-asc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-asc">Sort ascending</desc>
+                                            <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                        <svg role="img" aria-labelledby="ic-table-sort-desc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-desc">Sort descending</desc>
+                                            <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
                             </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 1 0 150px;">
-                                <span>Cluster IP</span>
+                                <div class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>Cluster IP</span>
+                                </div>
+                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
+                                    <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" onclick="app.sortClusters('ip')">
+                                        <svg role="img" aria-labelledby="ic-table-sort-asc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-asc">Sort ascending</desc>
+                                            <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                        <svg role="img" aria-labelledby="ic-table-sort-desc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-desc">Sort descending</desc>
+                                            <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
                             </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 1 0 120px;" id="iopsColumnHeader">
-                                <span>IOPS (1h avg)</span>
+                                <div class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>IOPS (1h avg)</span>
+                                </div>
+                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
+                                    <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" onclick="app.sortClusters('iops')">
+                                        <svg role="img" aria-labelledby="ic-table-sort-asc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-asc">Sort ascending</desc>
+                                            <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                        <svg role="img" aria-labelledby="ic-table-sort-desc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-desc">Sort descending</desc>
+                                            <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
                             </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 1 0 120px;">
-                                <span>Free Capacity</span>
+                                <div class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>Free Capacity</span>
+                                </div>
+                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
+                                    <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" onclick="app.sortClusters('capacity')">
+                                        <svg role="img" aria-labelledby="ic-table-sort-asc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-asc">Sort ascending</desc>
+                                            <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                        <svg role="img" aria-labelledby="ic-table-sort-desc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-desc">Sort descending</desc>
+                                            <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
                             </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 1 0 150px;">
                                 <span>Description</span>
                             </div>
                             <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 0 0 120px;">
-                                <span>Status</span>
+                                <div class="Table-module_header-label__Mi4wLjYtaW50ZXJuYWw">
+                                    <span>Status</span>
+                                </div>
+                                <div class="Table-module_widgets__Mi4wLjYtaW50ZXJuYWw">
+                                    <button class="Table-module_sort-icons__Mi4wLjYtaW50ZXJuYWw" onclick="app.sortClusters('status')">
+                                        <svg role="img" aria-labelledby="ic-table-sort-asc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-asc">Sort ascending</desc>
+                                            <path d="M4.59637 0.355413C4.79062 0.159127 5.10721 0.157483 5.30349 0.351742L9.13575 4.14463C9.45324 4.45885 9.23072 5 8.78402 5H1.19826C0.75406 5 0.530411 4.46402 0.842862 4.1483L4.59637 0.355413Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                        <svg role="img" aria-labelledby="ic-table-sort-desc" xmlns="http://www.w3.org/2000/svg" width="10" height="5" viewBox="0 0 10 5" fill="none">
+                                            <desc id="ic-table-sort-desc">Sort descending</desc>
+                                            <path d="M5.35355 4.64645C5.15829 4.84171 4.84171 4.84171 4.64645 4.64645L0.853552 0.853552C0.538569 0.53857 0.761653 -1.30397e-07 1.20711 -1.70094e-07L8.79289 -8.46103e-07C9.23835 -8.85799e-07 9.46143 0.53857 9.14645 0.853553L5.35355 4.64645Z" fill="var(--icon-primary)"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="Table-module_header-handle__Mi4wLjYtaW50ZXJuYWw"></div>
                             </div>
-                            <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 0 0 100px;">
-                                <span>Actions</span>
+                            <div class="Table-module_header-cell__Mi4wLjYtaW50ZXJuYWw" style="flex: 0 0 140px;">
+                                <span>ONTAP MCP</span>
                             </div>
                         </div>
                     </div>
