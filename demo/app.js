@@ -407,6 +407,68 @@ class OntapMcpDemo {
         }
     }
 
+    /**
+     * Reconnect to an MCP server after configuration changes
+     * @param {string} serverName - Name of the server to reconnect (e.g., 'netapp-ontap', 'harvest-remote')
+     */
+    async reconnectMcpServer(serverName) {
+        try {
+            console.log(`🔄 Reconnecting to ${serverName}...`);
+            
+            // Reload MCP configuration from file
+            await this.mcpConfig.load();
+            
+            // Disconnect existing client if it exists
+            if (this.clientManager.clients.has(serverName)) {
+                console.log(`  ⏸️  Disconnecting existing ${serverName} client...`);
+                // Note: McpClientManager doesn't have disconnect method yet
+                // Just remove from clients map for now
+                this.clientManager.clients.delete(serverName);
+            }
+            
+            // Get updated server configuration
+            const serverConfig = this.mcpConfig.getServerConfig(serverName);
+            if (!serverConfig) {
+                throw new Error(`Server ${serverName} not found in configuration`);
+            }
+            
+            // Only reconnect if server is enabled
+            if (serverConfig.enabled) {
+                console.log(`  🔌 Connecting to ${serverName}...`);
+                const client = new McpStreamableClient(serverConfig.url);
+                await client.connect();
+                this.clientManager.clients.set(serverName, client);
+                
+                // Update tools registry
+                const tools = await client.getAvailableTools();
+                console.log(`  ✅ Connected: ${tools.length} tools available`);
+                
+                // Update backward compatibility references
+                if (serverName === 'netapp-ontap') {
+                    this.apiClient = client;
+                }
+                if (serverName === 'harvest-remote') {
+                    this.harvestApiClient = client;
+                    await this.checkHarvestAvailability();
+                    await this.discoverHarvestClusters();
+                }
+                
+                this.notifications.show('success', `Successfully reconnected to ${serverName}`);
+            } else {
+                console.log(`  ⏸️  ${serverName} is disabled, skipping connection`);
+                this.notifications.show('info', `${serverName} is disabled`);
+            }
+            
+            // Refresh UI
+            await this.loadClusters();
+            this.updateUI();
+            
+        } catch (error) {
+            console.error(`Error reconnecting to ${serverName}:`, error);
+            this.notifications.show('error', `Failed to reconnect to ${serverName}: ${error.message}`);
+        }
+    }
+
     bindEvents() {
         // Add cluster button (only if it exists - it's in ClustersView)
         const addClusterBtn = document.getElementById('addClusterBtn');

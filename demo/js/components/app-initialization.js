@@ -22,6 +22,9 @@ let nfsSharesViewComponent;
 let chatbotSectionComponent;
 let addClusterModalComponent;
 let clusterDetailFlyoutComponent;
+let configureOntapMcpModalComponent;
+let configureHarvestMcpModalComponent;
+let configureGrafanaMcpModalComponent;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get parent containers
@@ -93,6 +96,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof clusterDetailFlyout !== 'undefined') {
         clusterDetailFlyoutComponent = clusterDetailFlyout;
         clusterDetailFlyoutComponent.init(document.body);
+    }
+    
+    if (typeof configureOntapMcpModal !== 'undefined') {
+        configureOntapMcpModalComponent = configureOntapMcpModal;
+        configureOntapMcpModalComponent.init(document.body);
+    }
+    
+    if (typeof configureHarvestMcpModal !== 'undefined') {
+        configureHarvestMcpModalComponent = configureHarvestMcpModal;
+        configureHarvestMcpModalComponent.init(document.body);
+    }
+    
+    if (typeof configureGrafanaMcpModal !== 'undefined') {
+        configureGrafanaMcpModalComponent = configureGrafanaMcpModal;
+        configureGrafanaMcpModalComponent.init(document.body);
     }
     
     // Initialize corrective action components (must happen after app.js loads)

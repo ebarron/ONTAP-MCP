@@ -13,13 +13,42 @@ class TopNavBar {
         <!-- Main Header -->
         <header class="main-header" id="${this.containerId}">
             <div class="header-title">
-                <button class="left-nav-trigger" aria-label="Menu" id="nav-toggle">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3 6C3 5.44772 3.44772 5 4 5H20C20.5523 5 21 5.44772 21 6C21 6.55228 20.5523 7 20 7H4C3.44772 7 3 6.55228 3 6Z" fill="#1C1C1C"></path>
-                        <path d="M3 12C3 11.4477 3.44772 11 4 11H20C20.5523 11 21 11.4477 21 12C21 12.5523 20.5523 13 20 13H4C3.44772 13 3 12.5523 3 12Z" fill="#1C1C1C"></path>
-                        <path d="M4 17C3.44772 17 3 17.4477 3 18C3 18.5523 3.44772 19 4 19H20C20.5523 19 21 18.5523 21 18C21 17.4477 20.5523 17 20 17H4Z" fill="#1C1C1C"></path>
-                    </svg>
-                </button>
+                <div class="hamburger-menu-container">
+                    <button class="left-nav-trigger" aria-label="Menu" id="nav-toggle">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6C3 5.44772 3.44772 5 4 5H20C20.5523 5 21 5.44772 21 6C21 6.55228 20.5523 7 20 7H4C3.44772 7 3 6.55228 3 6Z" fill="#1C1C1C"></path>
+                            <path d="M3 12C3 11.4477 3.44772 11 4 11H20C20.5523 11 21 11.4477 21 12C21 12.5523 20.5523 13 20 13H4C3.44772 13 3 12.5523 3 12Z" fill="#1C1C1C"></path>
+                            <path d="M4 17C3.44772 17 3 17.4477 3 18C3 18.5523 3.44772 19 4 19H20C20.5523 19 21 18.5523 21 18C21 17.4477 20.5523 17 20 17H4Z" fill="#1C1C1C"></path>
+                        </svg>
+                    </button>
+                    <!-- Dropdown menu for MCP configuration -->
+                    <div class="hamburger-dropdown" id="hamburger-dropdown" style="display: none;">
+                        <button class="dropdown-item" onclick="window.configureOntapMcpModal.open()">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3.5C8.27614 3.5 8.5 3.27614 8.5 3C8.5 2.72386 8.27614 2.5 8 2.5C7.72386 2.5 7.5 2.72386 7.5 3C7.5 3.27614 7.72386 3.5 8 3.5Z" fill="#1C1C1C"/>
+                                <path d="M8 8.5C8.27614 8.5 8.5 8.27614 8.5 8C8.5 7.72386 8.27614 7.5 8 7.5C7.72386 7.5 7.5 7.72386 7.5 8C7.5 8.27614 7.72386 8.5 8 8.5Z" fill="#1C1C1C"/>
+                                <path d="M8.5 13C8.5 13.2761 8.27614 13.5 8 13.5C7.72386 13.5 7.5 13.2761 7.5 13C7.5 12.7239 7.72386 12.5 8 12.5C8.27614 12.5 8.5 12.7239 8.5 13Z" fill="#1C1C1C"/>
+                            </svg>
+                            Configure ONTAP MCP
+                        </button>
+                        <button class="dropdown-item" onclick="window.configureHarvestMcpModal.open()">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3.5C8.27614 3.5 8.5 3.27614 8.5 3C8.5 2.72386 8.27614 2.5 8 2.5C7.72386 2.5 7.5 2.72386 7.5 3C7.5 3.27614 7.72386 3.5 8 3.5Z" fill="#1C1C1C"/>
+                                <path d="M8 8.5C8.27614 8.5 8.5 8.27614 8.5 8C8.5 7.72386 8.27614 7.5 8 7.5C7.72386 7.5 7.5 7.72386 7.5 8C7.5 8.27614 7.72386 8.5 8 8.5Z" fill="#1C1C1C"/>
+                                <path d="M8.5 13C8.5 13.2761 8.27614 13.5 8 13.5C7.72386 13.5 7.5 13.2761 7.5 13C7.5 12.7239 7.72386 12.5 8 12.5C8.27614 12.5 8.5 12.7239 8.5 13Z" fill="#1C1C1C"/>
+                            </svg>
+                            Configure Harvest MCP
+                        </button>
+                        <button class="dropdown-item" onclick="window.configureGrafanaMcpModal.open()">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3.5C8.27614 3.5 8.5 3.27614 8.5 3C8.5 2.72386 8.27614 2.5 8 2.5C7.72386 2.5 7.5 2.72386 7.5 3C7.5 3.27614 7.72386 3.5 8 3.5Z" fill="#1C1C1C"/>
+                                <path d="M8 8.5C8.27614 8.5 8.5 8.27614 8.5 8C8.5 7.72386 8.27614 7.5 8 7.5C7.72386 7.5 7.5 7.72386 7.5 8C7.5 8.27614 7.72386 8.5 8 8.5Z" fill="#1C1C1C"/>
+                                <path d="M8.5 13C8.5 13.2761 8.27614 13.5 8 13.5C7.72386 13.5 7.5 13.2761 7.5 13C7.5 12.7239 7.72386 12.5 8 12.5C8.27614 12.5 8.5 12.7239 8.5 13Z" fill="#1C1C1C"/>
+                            </svg>
+                            Configure Grafana MCP
+                        </button>
+                    </div>
+                </div>
                 <a class="main-link" href="#">
                     <svg role="img" aria-labelledby="Netapp-logo" xmlns="http://www.w3.org/2000/svg" width="79" height="14" viewBox="0 0 79 14">
                         <path fill="#1C1C1C" d="M76.266 7.186v-.031c0-1.42-1-2.362-2.182-2.362-1.181 0-2.165.942-2.165 2.362v.031c0 1.421.984 2.364 2.165 2.364 1.182 0 2.182-.927 2.182-2.364zM69.42 2.894h2.533v1.228c.616-.797 1.466-1.387 2.78-1.387 2.083 0 4.064 1.563 4.064 4.42v.031c0 2.857-1.948 4.421-4.063 4.421-1.35 0-2.183-.59-2.781-1.277V14H69.42V2.894zM19.156.198h2.367l5.462 6.957V.198h2.532v11.25h-2.182L21.69 4.345v7.103h-2.533V.198M37.043 6.5c-.15-1.086-.816-1.82-1.88-1.82-1.051 0-1.735.722-1.934 1.82h3.814zm-6.296.719v-.033c0-2.441 1.816-4.451 4.416-4.451 2.98 0 4.345 2.218 4.345 4.644 0 .19-.015.415-.034.638h-6.212c.251 1.1 1.05 1.676 2.183 1.676.85 0 1.465-.255 2.165-.878l1.447 1.228c-.831.99-2.03 1.596-3.645 1.596-2.682 0-4.665-1.803-4.665-4.42zM41.089 9.02V4.969h-1.066V2.894h1.066V.709h2.53v2.185h2.1v2.074h-2.1v3.655c0 .558.251.83.817.83.466 0 .882-.111 1.25-.305v1.948c-.534.304-1.152.495-2.002.495-1.547 0-2.595-.59-2.595-2.57M65.857 7.186v-.031c0-1.42-1-2.362-2.18-2.362-1.182 0-2.165.942-2.165 2.362v.031c0 1.421.983 2.364 2.165 2.364 1.18 0 2.18-.927 2.18-2.364zm-6.843-4.292h2.531v1.228c.616-.797 1.465-1.387 2.782-1.387 2.082 0 4.063 1.563 4.063 4.42v.031c0 2.857-1.948 4.421-4.063 4.421-1.35 0-2.183-.59-2.782-1.277V14h-2.53V2.894zM53.874 6.774l-1.549-3.626-1.55 3.626h3.099zM51.205.197h2.305l4.871 11.251H55.71l-1.073-2.507h-4.623l-1.066 2.507h-2.614L51.206.197zM0 .198v11.25h5.48v-6.75H8.61v6.75h5.48V.198H0"></path>
@@ -97,18 +126,51 @@ class TopNavBar {
         
         // Set up nav toggle functionality after DOM injection
         this.setupNavToggle();
+        this.setupMcpMenuToggle();
     }
 
     // Set up navigation toggle button
     setupNavToggle() {
-        const navToggle = document.getElementById('nav-toggle');
-        const leftNav = document.getElementById('left-nav');
-        
-        if (navToggle && leftNav) {
-            navToggle.addEventListener('click', () => {
-                leftNav.classList.toggle('open');
+        const toggleBtn = document.getElementById('nav-toggle');
+        const leftNav = document.querySelector('.left-nav');
+
+        if (toggleBtn && leftNav) {
+            toggleBtn.addEventListener('click', () => {
+                leftNav.classList.toggle('active');
+                toggleBtn.classList.toggle('active');
             });
         }
+    }
+
+    setupMcpMenuToggle() {
+        const hamburgerContainer = document.querySelector('.hamburger-menu-container');
+        const hamburgerIcon = document.getElementById('nav-toggle');
+        const dropdown = document.getElementById('hamburger-dropdown');
+
+        if (!hamburgerContainer || !dropdown || !hamburgerIcon) {
+            return;
+        }
+
+        // Toggle dropdown on hamburger click
+        hamburgerIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = dropdown.style.display === 'block';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerContainer.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Close dropdown when clicking menu items
+        dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+            item.addEventListener('click', () => {
+                dropdown.style.display = 'none';
+            });
+        });
     }
 }
 
