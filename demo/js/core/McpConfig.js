@@ -115,6 +115,27 @@ class McpConfig {
         console.log('🔍 [McpConfig] Returning viewer URL:', viewerUrl);
         return viewerUrl;
     }
+
+    /**
+     * Update server configuration
+     * @param {string} serverName - Name of the server to update
+     * @param {object} config - New configuration object
+     */
+    async updateServerConfig(serverName, config) {
+        if (!this.servers[serverName]) {
+            throw new Error(`Server '${serverName}' not found`);
+        }
+
+        // Update in-memory configuration
+        this.servers[serverName] = {
+            ...this.servers[serverName],
+            ...config
+        };
+
+        // Note: In a real implementation, this would also update mcp.json on the server
+        // For now, changes are only in-memory and will be lost on page reload
+        console.log(`✅ Updated ${serverName} configuration:`, this.servers[serverName]);
+    }
 }
 
 // Make globally available
