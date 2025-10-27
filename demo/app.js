@@ -427,7 +427,7 @@ class OntapMcpDemo {
             }
             
             // Get updated server configuration
-            const serverConfig = this.mcpConfig.getServerConfig(serverName);
+            const serverConfig = this.mcpConfig.getServer(serverName);
             if (!serverConfig) {
                 throw new Error(`Server ${serverName} not found in configuration`);
             }
@@ -453,10 +453,10 @@ class OntapMcpDemo {
                     await this.discoverHarvestClusters();
                 }
                 
-                this.notifications.show('success', `Successfully reconnected to ${serverName}`);
+                this.notifications.showSuccess(`Successfully reconnected to ${serverName}`);
             } else {
                 console.log(`  ⏸️  ${serverName} is disabled, skipping connection`);
-                this.notifications.show('info', `${serverName} is disabled`);
+                this.notifications.showInfo(`${serverName} is disabled`);
             }
             
             // Refresh UI
@@ -465,7 +465,7 @@ class OntapMcpDemo {
             
         } catch (error) {
             console.error(`Error reconnecting to ${serverName}:`, error);
-            this.notifications.show('error', `Failed to reconnect to ${serverName}: ${error.message}`);
+            this.notifications.showError(`Failed to reconnect to ${serverName}: ${error.message}`);
         }
     }
 
